@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>frontend-patterns 데모</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #232638;
+      --border: #2e3250;
+      --accent: #6c7fff;
+      --accent2: #a78bfa;
+      --green: #34d399;
+      --red: #f87171;
+      --yellow: #fbbf24;
+      --text: #e2e8f0;
+      --muted: #64748b;
+      --radius: 12px;
+      --radius-sm: 8px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 24px;
+    }
+
+    h1 { font-size: 1.6rem; font-weight: 700; margin-bottom: 4px; }
+    h2 { font-size: 1.05rem; font-weight: 600; color: var(--muted); margin-bottom: 20px; letter-spacing: 0.04em; text-transform: uppercase; font-size: 0.78rem; }
+    h3 { font-size: 1rem; font-weight: 600; margin-bottom: 12px; }
+
+    .page-header {
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 40px;
+    }
+    .badge {
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: #fff; font-size: 0.7rem; font-weight: 700;
+      padding: 3px 10px; border-radius: 20px; letter-spacing: 0.06em;
+    }
+
+    .grid { display: grid; gap: 24px; }
+    .grid-2 { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
+    .grid-3 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+
+    .section { margin-bottom: 48px; }
+
+    /* ── Card (Composition Pattern) ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+    }
+    .card-header {
+      padding: 16px 20px 12px;
+      border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .card-body { padding: 20px; }
+    .card-footer {
+      padding: 12px 20px;
+      border-top: 1px solid var(--border);
+      background: var(--surface2);
+    }
+
+    /* ── Metric Cards ── */
+    .metric-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+    .metric-card::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    }
+    .metric-card.blue::before  { background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+    .metric-card.green::before { background: linear-gradient(90deg, var(--green), #10b981); }
+    .metric-card.yellow::before { background: linear-gradient(90deg, var(--yellow), #f59e0b); }
+    .metric-value { font-size: 2rem; font-weight: 800; margin: 8px 0 4px; }
+    .metric-label { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+    .metric-change { font-size: 0.82rem; margin-top: 6px; }
+    .metric-change.up   { color: var(--green); }
+    .metric-change.down { color: var(--red); }
+
+    /* ── Tabs (Compound Component) ── */
+    .tab-list {
+      display: flex; gap: 2px;
+      background: var(--surface2);
+      border-radius: var(--radius-sm);
+      padding: 4px; margin-bottom: 20px;
+    }
+    .tab-btn {
+      flex: 1; padding: 8px 16px; border: none; cursor: pointer;
+      border-radius: 6px; font-size: 0.87rem; font-weight: 500;
+      background: transparent; color: var(--muted);
+      transition: all 0.18s;
+    }
+    .tab-btn.active {
+      background: var(--accent);
+      color: #fff;
+    }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Form (Controlled + Validation) ── */
+    .form-group { margin-bottom: 16px; }
+    label { display: block; font-size: 0.82rem; color: var(--muted); margin-bottom: 6px; font-weight: 500; }
+    input, textarea, select {
+      width: 100%; padding: 10px 14px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text); font-size: 0.9rem;
+      outline: none; transition: border-color 0.2s;
+    }
+    input:focus, textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(108,127,255,0.15);
+    }
+    input.error { border-color: var(--red); }
+    .error-msg { color: var(--red); font-size: 0.78rem; margin-top: 4px; }
+    .success-msg { color: var(--green); font-size: 0.78rem; margin-top: 4px; }
+
+    /* ── Button ── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 10px 20px; border-radius: var(--radius-sm);
+      font-size: 0.88rem; font-weight: 600; cursor: pointer;
+      border: none; transition: all 0.18s;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: #5a6df0; transform: translateY(-1px); }
+    .btn-outline {
+      background: transparent; color: var(--accent);
+      border: 1px solid var(--accent);
+    }
+    .btn-outline:hover { background: rgba(108,127,255,0.1); }
+    .btn-sm { padding: 6px 14px; font-size: 0.8rem; }
+
+    /* ── List with Skeleton (Loading State) ── */
+    .list-item {
+      display: flex; align-items: center; gap: 14px;
+      padding: 12px 16px;
+      border-radius: var(--radius-sm);
+      transition: background 0.15s;
+    }
+    .list-item:hover { background: var(--surface2); }
+    .avatar {
+      width: 36px; height: 36px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 0.85rem; flex-shrink: 0;
+    }
+    .list-item-name { font-size: 0.9rem; font-weight: 500; }
+    .list-item-sub  { font-size: 0.78rem; color: var(--muted); }
+    .list-item-meta { margin-left: auto; font-size: 0.8rem; color: var(--muted); }
+
+    .skeleton {
+      background: linear-gradient(90deg, var(--surface2) 25%, var(--border) 50%, var(--surface2) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: 4px;
+    }
+    @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+    /* ── Progress Bar ── */
+    .progress-wrap { background: var(--surface2); border-radius: 20px; height: 8px; overflow: hidden; }
+    .progress-bar  {
+      height: 100%; border-radius: 20px;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      transition: width 0.8s ease;
+    }
+    .progress-label { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.82rem; }
+
+    /* ── Toggle / Badge ── */
+    .status-dot {
+      display: inline-block; width: 8px; height: 8px;
+      border-radius: 50%; margin-right: 6px;
+    }
+    .dot-green  { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .dot-yellow { background: var(--yellow); }
+    .dot-red    { background: var(--red); }
+
+    .tag {
+      display: inline-block; padding: 2px 10px;
+      border-radius: 20px; font-size: 0.75rem; font-weight: 600;
+    }
+    .tag-blue   { background: rgba(108,127,255,0.15); color: var(--accent); }
+    .tag-green  { background: rgba(52,211,153,0.15);  color: var(--green); }
+    .tag-yellow { background: rgba(251,191,36,0.15);  color: var(--yellow); }
+    .tag-red    { background: rgba(248,113,113,0.15); color: var(--red); }
+
+    /* ── Mini Chart (CSS only) ── */
+    .sparkline {
+      display: flex; align-items: flex-end; gap: 3px;
+      height: 40px; padding: 4px 0;
+    }
+    .spark-bar {
+      flex: 1; border-radius: 3px 3px 0 0;
+      background: var(--accent);
+      opacity: 0.7;
+      transition: opacity 0.2s;
+      min-width: 6px;
+    }
+    .spark-bar:hover { opacity: 1; }
+
+    /* ── Notification Toast ── */
+    #toast-container {
+      position: fixed; bottom: 24px; right: 24px;
+      display: flex; flex-direction: column; gap: 10px;
+      z-index: 999;
+    }
+    .toast {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: var(--radius-sm);
+      padding: 12px 18px;
+      min-width: 240px;
+      font-size: 0.87rem;
+      animation: slideIn 0.25s ease;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    }
+    .toast.success { border-left-color: var(--green); }
+    .toast.error   { border-left-color: var(--red); }
+    @keyframes slideIn { from{transform:translateX(60px);opacity:0} to{transform:translateX(0);opacity:1} }
+    @keyframes fadeOut { to{opacity:0;transform:translateX(60px)} }
+
+    /* ── Misc ── */
+    .divider { height: 1px; background: var(--border); margin: 16px 0; }
+    .flex { display: flex; }
+    .items-center { align-items: center; }
+    .justify-between { justify-content: space-between; }
+    .gap-8 { gap: 8px; }
+    .gap-12 { gap: 12px; }
+    .mt-12 { margin-top: 12px; }
+    .mt-16 { margin-top: 16px; }
+    .text-muted { color: var(--muted); font-size: 0.85rem; }
+    .font-mono { font-family: 'Courier New', monospace; font-size: 0.82rem; }
+  </style>
+</head>
+<body>
+
+  <div class="page-header">
+    <div>
+      <h1>Dashboard UI</h1>
+      <p class="text-muted" style="margin-top:4px">frontend-patterns 적용 예시 — React 패턴을 순수 HTML로 시각화</p>
+    </div>
+    <span class="badge">ECC SKILL</span>
+  </div>
+
+  <!-- ── Metric Cards (Composition Pattern) ── -->
+  <div class="section">
+    <h2>📦 Metric Cards — Component Composition</h2>
+    <div class="grid grid-3">
+      <div class="metric-card blue">
+        <div class="metric-label">총 방문자</div>
+        <div class="metric-value">24,891</div>
+        <div class="metric-change up">↑ 12.4% 지난 주 대비</div>
+      </div>
+      <div class="metric-card green">
+        <div class="metric-label">전환율</div>
+        <div class="metric-value">3.67%</div>
+        <div class="metric-change up">↑ 0.8%p 개선</div>
+      </div>
+      <div class="metric-card yellow">
+        <div class="metric-label">이탈률</div>
+        <div class="metric-value">41.2%</div>
+        <div class="metric-change down">↑ 2.1%p 증가</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid grid-2">
+
+    <!-- ── Tabs (Compound Component) ── -->
+    <div class="section">
+      <h2>🗂 Tabs — Compound Component</h2>
+      <div class="card">
+        <div class="card-body">
+          <div class="tab-list">
+            <button class="tab-btn active" onclick="switchTab(event,'tab-overview')">개요</button>
+            <button class="tab-btn" onclick="switchTab(event,'tab-traffic')">트래픽</button>
+            <button class="tab-btn" onclick="switchTab(event,'tab-sales')">매출</button>
+          </div>
+
+          <div id="tab-overview" class="tab-panel active">
+            <h3>이번 주 현황</h3>
+            <div style="margin-bottom:14px">
+              <div class="progress-label"><span>목표 달성률</span><span>73%</span></div>
+              <div class="progress-wrap"><div class="progress-bar" style="width:73%"></div></div>
+            </div>
+            <div style="margin-bottom:14px">
+              <div class="progress-label"><span>고객 만족도</span><span>88%</span></div>
+              <div class="progress-wrap"><div class="progress-bar" style="width:88%;background:linear-gradient(90deg,#34d399,#10b981)"></div></div>
+            </div>
+            <div>
+              <div class="progress-label"><span>서버 응답속도</span><span>62%</span></div>
+              <div class="progress-wrap"><div class="progress-bar" style="width:62%;background:linear-gradient(90deg,#fbbf24,#f59e0b)"></div></div>
+            </div>
+          </div>
+
+          <div id="tab-traffic" class="tab-panel">
+            <h3>일별 방문자 (최근 14일)</h3>
+            <div class="sparkline" id="sparkline"></div>
+            <p class="text-muted mt-12">평균 1,778명 / 일 · 최고 3,200명</p>
+          </div>
+
+          <div id="tab-sales" class="tab-panel">
+            <h3>채널별 매출 비중</h3>
+            <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">
+              <div>
+                <div class="progress-label"><span>직접 유입</span><span>₩8.2M</span></div>
+                <div class="progress-wrap"><div class="progress-bar" style="width:55%"></div></div>
+              </div>
+              <div>
+                <div class="progress-label"><span>검색 광고</span><span>₩4.1M</span></div>
+                <div class="progress-wrap"><div class="progress-bar" style="width:28%;background:linear-gradient(90deg,#a78bfa,#7c3aed)"></div></div>
+              </div>
+              <div>
+                <div class="progress-label"><span>SNS</span><span>₩2.5M</span></div>
+                <div class="progress-wrap"><div class="progress-bar" style="width:17%;background:linear-gradient(90deg,#34d399,#059669)"></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Form (Controlled + Validation) ── -->
+    <div class="section">
+      <h2>📝 Form — Controlled Input + Validation</h2>
+      <div class="card">
+        <div class="card-header">
+          <h3 style="margin:0">새 프로젝트 생성</h3>
+          <span class="tag tag-blue">Draft</span>
+        </div>
+        <div class="card-body">
+          <div class="form-group">
+            <label>프로젝트명 *</label>
+            <input type="text" id="proj-name" placeholder="예: 마케팅 캠페인 Q2"
+              oninput="validateField('proj-name','proj-name-err', v => v.length < 2 ? '2자 이상 입력하세요' : '')" />
+            <div class="error-msg" id="proj-name-err"></div>
+          </div>
+          <div class="form-group">
+            <label>마감일 *</label>
+            <input type="date" id="proj-date"
+              oninput="validateField('proj-date','proj-date-err', v => !v ? '날짜를 선택하세요' : '')" />
+            <div class="error-msg" id="proj-date-err"></div>
+          </div>
+          <div class="form-group">
+            <label>설명</label>
+            <textarea rows="2" placeholder="간단한 프로젝트 설명을 입력하세요"></textarea>
+          </div>
+        </div>
+        <div class="card-footer flex justify-between items-center">
+          <span class="text-muted font-mono">useReducer + Zod</span>
+          <div class="flex gap-8">
+            <button class="btn btn-outline btn-sm">취소</button>
+            <button class="btn btn-primary btn-sm" onclick="submitForm()">생성하기</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── List + Loading States ── -->
+  <div class="grid grid-2">
+
+    <div class="section">
+      <h2>👥 List — Data Fetching Hook (useQuery)</h2>
+      <div class="card">
+        <div class="card-header flex justify-between items-center">
+          <h3 style="margin:0">팀 멤버</h3>
+          <button class="btn btn-outline btn-sm" onclick="toggleLoading()">⟳ 재로드</button>
+        </div>
+        <div class="card-body" id="member-list" style="padding:12px 16px">
+          <!-- populated by JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Status + Tags (Render Props / small patterns) ── -->
+    <div class="section">
+      <h2>🏷 Status & Tags — UI Primitives</h2>
+      <div class="card">
+        <div class="card-header"><h3 style="margin:0">배포 현황</h3></div>
+        <div class="card-body" style="display:flex;flex-direction:column;gap:14px">
+          <div class="flex justify-between items-center">
+            <div>
+              <div class="list-item-name">production</div>
+              <div class="list-item-sub font-mono">v2.4.1 · 2시간 전</div>
+            </div>
+            <span><span class="status-dot dot-green"></span><span class="tag tag-green">Live</span></span>
+          </div>
+          <div class="divider"></div>
+          <div class="flex justify-between items-center">
+            <div>
+              <div class="list-item-name">staging</div>
+              <div class="list-item-sub font-mono">v2.5.0-rc1 · 30분 전</div>
+            </div>
+            <span><span class="status-dot dot-yellow"></span><span class="tag tag-yellow">Testing</span></span>
+          </div>
+          <div class="divider"></div>
+          <div class="flex justify-between items-center">
+            <div>
+              <div class="list-item-name">dev</div>
+              <div class="list-item-sub font-mono">v2.5.0-beta · 빌드 중</div>
+            </div>
+            <span><span class="status-dot dot-red"></span><span class="tag tag-red">Building</span></span>
+          </div>
+          <div class="divider"></div>
+          <div style="margin-top:4px">
+            <div class="progress-label"><span class="text-muted">빌드 진행률</span><span>68%</span></div>
+            <div class="progress-wrap">
+              <div class="progress-bar" id="build-bar" style="width:68%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Toast Notifications ── -->
+  <div id="toast-container"></div>
+
+  <script>
+    /* ── Tab switcher (Compound Component pattern) ── */
+    function switchTab(e, id) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'))
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'))
+      e.target.classList.add('active')
+      document.getElementById(id).classList.add('active')
+    }
+
+    /* ── Sparkline chart ── */
+    const data = [1200,980,1450,1800,1320,2100,2450,1900,2800,3200,2700,2200,2950,2600]
+    const max = Math.max(...data)
+    const sparkline = document.getElementById('sparkline')
+    data.forEach(v => {
+      const bar = document.createElement('div')
+      bar.className = 'spark-bar'
+      bar.style.height = (v / max * 100) + '%'
+      bar.title = v.toLocaleString() + '명'
+      sparkline.appendChild(bar)
+    })
+
+    /* ── Validation (Controlled Form) ── */
+    function validateField(inputId, errId, validate) {
+      const input = document.getElementById(inputId)
+      const err = document.getElementById(errId)
+      const msg = validate(input.value)
+      err.textContent = msg
+      input.classList.toggle('error', !!msg)
+    }
+
+    function submitForm() {
+      const name = document.getElementById('proj-name').value
+      const date = document.getElementById('proj-date').value
+      let valid = true
+      if (!name || name.length < 2) {
+        document.getElementById('proj-name-err').textContent = '2자 이상 입력하세요'
+        document.getElementById('proj-name').classList.add('error')
+        valid = false
+      }
+      if (!date) {
+        document.getElementById('proj-date-err').textContent = '날짜를 선택하세요'
+        document.getElementById('proj-date').classList.add('error')
+        valid = false
+      }
+      if (valid) showToast('프로젝트가 생성되었습니다! 🎉', 'success')
+      else       showToast('필수 항목을 확인해 주세요.', 'error')
+    }
+
+    /* ── Member list + skeleton loading (useQuery pattern) ── */
+    const members = [
+      { name: '김지수', role: 'Frontend', color: '#6c7fff', initial: '김', status: 'online' },
+      { name: '이준혁', role: 'Backend',  color: '#34d399', initial: '이', status: 'away'   },
+      { name: '박수민', role: 'Design',   color: '#a78bfa', initial: '박', status: 'online' },
+      { name: '최현우', role: 'DevOps',   color: '#fbbf24', initial: '최', status: 'offline'},
+    ]
+
+    function renderSkeletons() {
+      return Array.from({length:4}).map(() => `
+        <div class="list-item">
+          <div class="skeleton" style="width:36px;height:36px;border-radius:50%"></div>
+          <div style="flex:1">
+            <div class="skeleton" style="width:60%;height:12px;margin-bottom:6px"></div>
+            <div class="skeleton" style="width:40%;height:10px"></div>
+          </div>
+        </div>`).join('')
+    }
+
+    function renderMembers() {
+      return members.map(m => `
+        <div class="list-item">
+          <div class="avatar" style="background:${m.color}22;color:${m.color}">${m.initial}</div>
+          <div>
+            <div class="list-item-name">${m.name}</div>
+            <div class="list-item-sub">${m.role}</div>
+          </div>
+          <div class="list-item-meta">
+            <span class="status-dot ${m.status==='online'?'dot-green':m.status==='away'?'dot-yellow':'dot-red'}" style="margin-right:4px"></span>
+            <span class="tag ${m.status==='online'?'tag-green':m.status==='away'?'tag-yellow':'tag-blue'}">${m.status==='online'?'온라인':m.status==='away'?'자리비움':'오프라인'}</span>
+          </div>
+        </div>`).join('')
+    }
+
+    let isLoading = false
+    function toggleLoading() {
+      if (isLoading) return
+      isLoading = true
+      const list = document.getElementById('member-list')
+      list.innerHTML = renderSkeletons()
+      setTimeout(() => {
+        list.innerHTML = renderMembers()
+        isLoading = false
+        showToast('멤버 목록을 불러왔습니다.', 'success')
+      }, 1200)
+    }
+    toggleLoading()
+
+    /* ── Toast Notification ── */
+    function showToast(msg, type='info') {
+      const c = document.getElementById('toast-container')
+      const t = document.createElement('div')
+      t.className = `toast ${type}`
+      t.textContent = msg
+      c.appendChild(t)
+      setTimeout(() => {
+        t.style.animation = 'fadeOut 0.3s ease forwards'
+        setTimeout(() => t.remove(), 300)
+      }, 2800)
+    }
+
+    /* ── Build bar animation ── */
+    let pct = 68
+    setInterval(() => {
+      pct = Math.min(pct + Math.random() * 2, 100)
+      document.getElementById('build-bar').style.width = pct.toFixed(1) + '%'
+      if (pct >= 100) {
+        showToast('빌드 완료! dev 환경 배포 중...', 'success')
+        pct = 68
+      }
+    }, 1800)
+  </script>
+</body>
+</html>
