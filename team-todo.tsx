@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
+import { doc, onSnapshot, setDoc } from "firebase/firestore";
+import { db } from "./src/firebase";
 
 const INIT_MEMBERS = ["김대윤","김현지","복경민","박정찬","이연수","김혜민"];
 const INIT_PRI = ["긴급","높음","보통","낮음"];
@@ -468,6 +470,8 @@ export default function App(){
   const [todos,setTodos]=useState<any[]>([]);
   const historyRef=useRef<any[][]>([]);
   const redoRef=useRef<any[][]>([]);
+  const clientId=useRef(Math.random().toString(36).slice(2));
+  const FS_DOC=useMemo(()=>doc(db,"todos_db","team"),[]);
   const detHoverTimerRef=useRef<any>(null);
   const noteLeaveTimerRef=useRef<any>(null);
 const setTodosWithHistory=fn=>{
@@ -578,28 +582,36 @@ const setTodosWithHistory=fn=>{
     return()=>document.head.removeChild(st);
   },[]);
 
-  // localStorage: 초기 데이터 로드
+  // 데이터 적용 헬퍼
+  const applyData=(d:any)=>{
+    if(d.todos?.length)setTodos(d.todos);
+    if(d.projects?.length)setProjects(d.projects);
+    if(d.nId)setNId(d.nId);if(d.pNId)setPNId(d.pNId);
+    if(d.pris)setPris(d.pris);if(d.stats)setStats(d.stats);
+    if(d.priC)setPriC(d.priC);if(d.priBg)setPriBg(d.priBg);
+    if(d.stC)setStC(d.stC);if(d.stBg)setStBg(d.stBg);
+    if(d.members?.length)setMembers(d.members);
+  };
+
+  // 초기 로드 + Firestore 실시간 동기화
   useEffect(()=>{
+    // 1) localStorage로 즉시 렌더링
     try{
       const raw=localStorage.getItem("todo-v5");
-      if(raw){
-        const d=JSON.parse(raw);
-        if(d.todos?.length)setTodos(d.todos);
-        if(d.projects?.length)setProjects(d.projects);
-        if(d.nId)setNId(d.nId);if(d.pNId)setPNId(d.pNId);
-        if(d.pris)setPris(d.pris);if(d.stats)setStats(d.stats);
-        if(d.priC)setPriC(d.priC);if(d.priBg)setPriBg(d.priBg);
-        if(d.stC)setStC(d.stC);if(d.stBg)setStBg(d.stBg);
-        if(d.members?.length)setMembers(d.members);
-      }else{
-        setTodos(initTodos);
-        setProjects(initProj);
-      }
-    }catch(e){
-      setTodos(initTodos);
-      setProjects(initProj);
-    }
+      if(raw){applyData(JSON.parse(raw));}
+      else{setTodos(initTodos);setProjects(initProj);}
+    }catch(e){setTodos(initTodos);setProjects(initProj);}
     setLoaded(true);
+
+    // 2) Firestore 실시간 리스너
+    const unsub=onSnapshot(FS_DOC,(snap)=>{
+      if(!snap.exists())return;
+      const d=snap.data();
+      if(d._clientId===clientId.current)return; // 내가 쓴 변경 무시
+      applyData(d);
+      try{localStorage.setItem("todo-v5",JSON.stringify(d));}catch(e){}
+    });
+    return()=>unsub();
   },[]);
 
   useEffect(()=>{if(currentUser)localStorage.setItem("todo-current-user",currentUser);else localStorage.removeItem("todo-current-user");},[currentUser]);
@@ -665,13 +677,15 @@ const setTodosWithHistory=fn=>{
     localStorage.setItem("seed-lotte-2026","1");
   },[loaded]);
 
-  // 변경 시 localStorage에 저장 (debounce)
+  // 변경 시 localStorage + Firestore에 저장 (debounce)
   const skipFirst=useRef(false);
   useEffect(()=>{
     if(!loaded)return;
     if(!skipFirst.current){skipFirst.current=true;return;}
     const t=setTimeout(()=>{
-      try{localStorage.setItem("todo-v5",JSON.stringify({todos,projects,nId,pNId,pris,stats,priC,priBg,stC,stBg,members}));}catch(e){}
+      const data={todos,projects,nId,pNId,pris,stats,priC,priBg,stC,stBg,members,_clientId:clientId.current};
+      try{localStorage.setItem("todo-v5",JSON.stringify(data));}catch(e){}
+      setDoc(FS_DOC,data).catch(()=>{});
     },400);
     return()=>clearTimeout(t);
   },[todos,projects,members,pris,stats,priC,priBg,stC,stBg,loaded]);
