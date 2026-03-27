@@ -1,0 +1,16 @@
+[data-placeholder]:empty:before {
+  content: attr(data-placeholder);
+  color: #aab0ba;
+  pointer-events: none;
+}
+
+/* contentEditable 내부 리스트 스타일 복원 */
+[contenteditable] ul,
+[contenteditable] ol {
+  list-style: revert;
+  padding-left: 1.4em;
+  margin: 2px 0;
+}
+[contenteditable] li {
+  list-style: revert;
+}
