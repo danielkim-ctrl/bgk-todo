@@ -1,0 +1,1266 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>팀 TODO — 리스트 개선 데모</title>
+  <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #f0f4f8;
+      --white:    #ffffff;
+      --border:   #e2e8f0;
+      --border2:  #cbd5e1;
+      --text:     #0f172a;
+      --text2:    #334155;
+      --muted:    #64748b;
+      --faint:    #94a3b8;
+      --blue:     #2563eb;
+      --blue-bg:  #eff6ff;
+      --radius:   10px;
+      --shadow:   0 1px 4px rgba(0,0,0,.07);
+      --shadow2:  0 4px 16px rgba(0,0,0,.10);
+
+      /* priority */
+      --urgent-c: #dc2626; --urgent-bg: #fef2f2; --urgent-border: #fecaca;
+      --high-c:   #d97706; --high-bg:   #fffbeb; --high-border:   #fde68a;
+      --mid-c:    #2563eb; --mid-bg:    #eff6ff; --mid-border:    #bfdbfe;
+      --low-c:    #64748b; --low-bg:    #f8fafc; --low-border:    #e2e8f0;
+
+      /* status */
+      --wait-c:   #64748b; --wait-bg:   #f1f5f9;
+      --inprog-c: #2563eb; --inprog-bg: #dbeafe;
+      --review-c: #d97706; --review-bg: #fef3c7;
+      --done-c:   #16a34a; --done-bg:   #dcfce7;
+    }
+
+    body {
+      font-family: 'Pretendard', 'Noto Sans KR', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    /* ── HEADER ────────────────────────────────── */
+    .app-header {
+      position: sticky; top: 0; z-index: 200;
+      height: 54px;
+      background: linear-gradient(135deg, #1e3a8a, #2563eb);
+      display: flex; align-items: center; padding: 0 24px;
+      gap: 12px; box-shadow: 0 2px 8px rgba(30,58,138,.3);
+    }
+    .app-header-logo {
+      display: flex; align-items: center; gap: 10px; flex: 1;
+    }
+    .app-header-icon {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: rgba(255,255,255,.2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+    }
+    .app-header-title { color: #fff; font-size: 16px; font-weight: 700; }
+    .app-header-actions { display: flex; gap: 8px; align-items: center; }
+    .hbtn {
+      background: rgba(255,255,255,.18);
+      border: 1px solid rgba(255,255,255,.28);
+      color: #fff; font-size: 12px; font-weight: 600;
+      padding: 5px 14px; border-radius: 16px; cursor: pointer;
+      transition: background .15s;
+    }
+    .hbtn:hover { background: rgba(255,255,255,.28); }
+    .hbadge {
+      background: rgba(255,255,255,.15);
+      border: 1px solid rgba(255,255,255,.2);
+      color: #fff; font-size: 12px;
+      padding: 4px 12px; border-radius: 16px;
+    }
+
+    /* ── NAV TABS ──────────────────────────────── */
+    .app-nav {
+      background: var(--white); border-bottom: 1px solid var(--border);
+      display: flex; padding: 0 24px; gap: 2px;
+      position: sticky; top: 54px; z-index: 190;
+    }
+    .nav-tab {
+      padding: 12px 16px; font-size: 13px; font-weight: 500;
+      color: var(--muted); background: none; border: none;
+      border-bottom: 2px solid transparent; cursor: pointer;
+      margin-bottom: -1px; transition: all .15s;
+    }
+    .nav-tab.active {
+      color: var(--blue); font-weight: 700;
+      border-bottom-color: var(--blue); background: var(--blue-bg);
+    }
+
+    /* ── MAIN LAYOUT ───────────────────────────── */
+    .app-body {
+      display: flex;
+      min-height: calc(100vh - 54px - 45px);
+    }
+
+    /* ── LEFT SIDEBAR ──────────────────────────── */
+    .sidebar {
+      width: 220px; flex-shrink: 0;
+      background: var(--white);
+      border-right: 1px solid var(--border);
+      padding: 14px 12px;
+      position: sticky; top: 99px;
+      height: calc(100vh - 99px);
+      overflow-y: auto;
+    }
+
+    .sidebar-section { margin-bottom: 14px; }
+    .sidebar-section-title {
+      font-size: 10px; font-weight: 800;
+      letter-spacing: .10em; text-transform: uppercase;
+      color: var(--faint); margin-bottom: 4px;
+      padding-bottom: 5px; border-bottom: 1px solid var(--border);
+    }
+
+    /* Search in sidebar */
+    .search-wrap {
+      position: relative; margin-bottom: 12px;
+    }
+    .search-icon {
+      position: absolute; left: 8px; top: 50%;
+      transform: translateY(-50%); color: var(--faint); font-size: 13px;
+      pointer-events: none;
+    }
+    .search-input {
+      width: 100%; padding: 7px 8px 7px 28px;
+      border: 1.5px solid var(--border2); border-radius: 7px;
+      font-size: 12px; font-family: inherit;
+      outline: none; color: var(--text);
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .search-input:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(37,99,235,.1);
+    }
+    .search-input::placeholder { color: var(--faint); }
+    .search-clear {
+      position: absolute; right: 8px; top: 50%;
+      transform: translateY(-50%);
+      background: var(--border); border: none;
+      color: var(--muted); border-radius: 50%;
+      width: 18px; height: 18px; font-size: 10px;
+      cursor: pointer; display: none;
+      align-items: center; justify-content: center;
+    }
+
+    /* Filter chips */
+    .filter-chips { display: flex; flex-direction: column; gap: 1px; }
+    .filter-chip {
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 8px; border-radius: 5px;
+      border: 1.5px solid transparent;
+      background: none; cursor: pointer;
+      font-family: inherit; font-size: 12px;
+      color: var(--text2); text-align: left;
+      transition: all .12s;
+    }
+    .filter-chip:hover {
+      background: var(--bg); border-color: var(--border);
+    }
+    .filter-chip.active {
+      background: var(--blue-bg); border-color: #bfdbfe;
+      color: var(--blue); font-weight: 700;
+    }
+    .filter-chip-dot {
+      width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+    }
+    .filter-chip-count {
+      margin-left: auto; font-size: 10px; color: var(--faint);
+      background: var(--bg); padding: 1px 5px; border-radius: 99px;
+    }
+    .filter-chip.active .filter-chip-count {
+      background: rgba(37,99,235,.1); color: var(--blue);
+    }
+
+    /* Reset button */
+    .filter-reset {
+      margin-top: 6px; width: 100%;
+      padding: 5px; border-radius: 5px;
+      border: 1px solid var(--border); background: none;
+      font-family: inherit; font-size: 11px; color: var(--muted);
+      cursor: pointer; transition: all .12s;
+    }
+    .filter-reset:hover { border-color: var(--border2); color: var(--text2); background: var(--bg); }
+
+    /* ── MAIN CONTENT ──────────────────────────── */
+    .main-content {
+      flex: 1; padding: 24px 28px; overflow-x: hidden;
+      min-width: 0;
+    }
+
+    /* Section labels */
+    .section-label {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 12px;
+    }
+    .section-label-num {
+      font-size: 10px; font-weight: 800; letter-spacing: .1em;
+      color: var(--white); background: var(--blue);
+      width: 22px; height: 22px; border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .section-label-title { font-size: 15px; font-weight: 700; color: var(--text); }
+    .section-label-sub { font-size: 12px; color: var(--faint); margin-left: 2px; }
+
+    /* ── ADD TASK PANEL ──────────────────────────  */
+    .add-panel {
+      background: var(--white); border-radius: var(--radius);
+      box-shadow: var(--shadow); margin-bottom: 24px;
+      overflow: hidden; border: 1px solid var(--border);
+    }
+    .add-panel-tabs {
+      display: flex; border-bottom: 2px solid var(--border);
+    }
+    .add-tab {
+      flex: 1; padding: 13px 0; font-size: 13px; font-weight: 600;
+      border: none; cursor: pointer; font-family: inherit;
+      display: flex; align-items: center; justify-content: center;
+      gap: 6px; transition: all .15s; margin-bottom: -2px;
+    }
+    .add-tab.manual {
+      color: var(--blue); background: var(--blue-bg);
+      border-bottom: 2px solid var(--blue);
+    }
+    .add-tab.manual-off { color: var(--muted); background: #f8fafc; border-bottom: 2px solid transparent; }
+    .add-tab.ai { color: #7c3aed; background: #f5f3ff; border-bottom: 2px solid #7c3aed; }
+    .add-tab.ai-off { color: var(--muted); background: #f8fafc; border-bottom: 2px solid transparent; }
+
+    /* Manual add form */
+    .add-form-body { padding: 18px 20px; }
+    .add-form-quick {
+      display: grid;
+      grid-template-columns: 1fr 120px 100px 100px auto;
+      gap: 10px; align-items: end;
+      margin-bottom: 12px;
+    }
+    .form-group { display: flex; flex-direction: column; gap: 5px; }
+    .form-label {
+      font-size: 11px; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .06em;
+    }
+    .form-input, .form-select {
+      padding: 10px 12px; border: 1.5px solid var(--border2);
+      border-radius: 8px; font-size: 14px; font-family: inherit;
+      color: var(--text); outline: none; background: var(--white);
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .form-input:focus, .form-select:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(37,99,235,.1);
+    }
+    .form-input::placeholder { color: var(--faint); }
+    .form-select { cursor: pointer; }
+
+    /* rows table */
+    .new-rows-table {
+      width: 100%; border-collapse: collapse;
+      border: 1.5px solid #c7d8f0; border-radius: 8px; overflow: hidden;
+    }
+    .new-rows-table th {
+      padding: 8px 10px; font-size: 11px; font-weight: 700;
+      color: var(--muted); text-align: left;
+      background: #f0f7ff; border-bottom: 1px solid #c7d8f0;
+      text-transform: uppercase; letter-spacing: .05em;
+    }
+    .new-rows-table td { padding: 7px 8px; border-bottom: 1px solid #dce9f9; }
+    .new-rows-table tr:last-child td { border-bottom: none; }
+    .new-rows-table tr:nth-child(odd) td { background: #eef4ff; }
+    .new-rows-table tr:nth-child(even) td { background: #e8f0fe; }
+
+    .cell-input, .cell-select {
+      width: 100%; padding: 6px 8px;
+      border: 1.5px solid #93b4f0; border-radius: 6px;
+      font-size: 13px; font-family: inherit;
+      color: var(--text); background: #fff; outline: none;
+      transition: border-color .12s;
+    }
+    .cell-input:focus, .cell-select:focus { border-color: var(--blue); }
+    .cell-input.task-inp { font-size: 13px; font-weight: 600; }
+
+    .btn-add-row {
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      color: #fff; border: none; padding: 9px 18px;
+      border-radius: 8px; font-size: 13px; font-weight: 700;
+      cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+      font-family: inherit; transition: transform .12s, box-shadow .12s;
+    }
+    .btn-add-row:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(37,99,235,.3); }
+    .btn-save { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; border: none; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; }
+    .btn-cancel { background: #f1f5f9; color: var(--text2); border: none; padding: 8px 14px; border-radius: 8px; font-size: 13px; cursor: pointer; font-family: inherit; }
+    .btn-confirm { background: #fff; color: var(--blue); border: 1.5px solid #bfdbfe; padding: 4px 8px; border-radius: 5px; font-size: 12px; cursor: pointer; font-family: inherit; font-weight: 700; }
+    .btn-delete { background: #fee2e2; color: #dc2626; border: none; padding: 4px 8px; border-radius: 5px; font-size: 12px; cursor: pointer; font-family: inherit; font-weight: 700; }
+
+    /* AI tab */
+    .ai-body { padding: 18px 20px; }
+    .ai-textarea {
+      width: 100%; padding: 12px 14px;
+      border: 1.5px solid #ddd6fe; border-radius: 8px;
+      font-size: 14px; font-family: inherit; color: var(--text);
+      resize: vertical; line-height: 1.75; outline: none;
+      background: #fdfcff; min-height: 90px;
+      transition: border-color .15s;
+    }
+    .ai-textarea:focus { border-color: #7c3aed; box-shadow: 0 0 0 3px rgba(124,58,237,.1); }
+    .btn-ai {
+      background: linear-gradient(135deg, #7c3aed, #6d28d9);
+      color: #fff; border: none; padding: 10px 22px;
+      border-radius: 8px; font-size: 13px; font-weight: 700;
+      cursor: pointer; font-family: inherit; margin-top: 12px;
+    }
+
+    /* ── TASK LIST ─────────────────────────────── */
+    .list-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .list-count {
+      font-size: 13px; color: var(--muted); font-weight: 500;
+    }
+    .list-sort { display: flex; gap: 4px; }
+    .sort-btn {
+      padding: 5px 12px; border-radius: 7px;
+      border: 1.5px solid var(--border); background: var(--white);
+      font-size: 12px; font-family: inherit; color: var(--muted);
+      cursor: pointer; transition: all .12s;
+    }
+    .sort-btn.active { border-color: var(--blue); color: var(--blue); background: var(--blue-bg); font-weight: 700; }
+
+    .task-card {
+      background: var(--white);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    /* Table header */
+    .task-thead {
+      display: grid;
+      grid-template-columns: 36px 1fr 90px 100px 96px 72px 88px 36px;
+      gap: 0; background: #f8fafc;
+      border-bottom: 2px solid var(--border);
+      padding: 0 16px;
+    }
+    .task-th {
+      padding: 10px 6px; font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .06em;
+      color: var(--faint); cursor: pointer; user-select: none;
+      display: flex; align-items: center; gap: 3px;
+      transition: color .12s;
+    }
+    .task-th:hover { color: var(--blue); }
+    .task-th .sort-icon { font-size: 9px; color: var(--border2); }
+    .task-th.sorted { color: var(--blue); }
+    .task-th.sorted .sort-icon { color: var(--blue); }
+
+    /* Task row */
+    .task-row {
+      display: grid;
+      grid-template-columns: 36px 1fr 90px 100px 96px 72px 88px 36px;
+      gap: 0; padding: 0 16px;
+      border-bottom: 1px solid var(--border);
+      align-items: center; min-height: 54px;
+      transition: background .12s;
+      position: relative;
+    }
+    .task-row:last-child { border-bottom: none; }
+    .task-row:hover { background: #f8fbff; }
+    .task-row.urgent {
+      background: #fff8f8;
+      box-shadow: inset 3px 0 0 var(--urgent-c);
+    }
+    .task-row.urgent:hover { background: #fff0f0; }
+    .task-row.high {
+      background: #fffcf3;
+      box-shadow: inset 3px 0 0 var(--high-c);
+    }
+    .task-row.high:hover { background: #fff8e6; }
+    .task-row.done {
+      opacity: .55;
+    }
+    .task-row.done:hover { opacity: .75; }
+
+    /* Check circle */
+    .check-btn {
+      width: 20px; height: 20px; border-radius: 50%;
+      border: 2px solid var(--faint); background: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all .15s; flex-shrink: 0;
+      padding: 0;
+    }
+    .check-btn:hover { border-color: #16a34a; background: #f0fdf4; }
+    .check-btn.checked { border-color: #16a34a; background: #16a34a; color: #fff; }
+    .check-btn.checked::after { content: '✓'; font-size: 11px; font-weight: 800; color: #fff; }
+
+    /* Task name */
+    .task-name-cell { padding: 6px 0; }
+    .task-name {
+      font-size: 14px; font-weight: 600; color: var(--text);
+      line-height: 1.4; cursor: pointer;
+      transition: color .12s;
+    }
+    .task-name:hover { color: var(--blue); }
+    .task-row.urgent .task-name { color: #991b1b; font-weight: 800; }
+    .task-row.high   .task-name { color: #78350f; font-weight: 700; }
+    .task-row.done   .task-name { text-decoration: line-through; color: var(--muted); }
+    .task-det {
+      font-size: 12px; color: var(--faint); margin-top: 2px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      max-width: 340px;
+    }
+    .task-overdue { font-size: 11px; color: var(--urgent-c); margin-left: 6px; }
+    .task-repeat {
+      display: inline-flex; align-items: center; gap: 3px;
+      font-size: 10px; font-weight: 700; padding: 1px 6px;
+      border-radius: 99px; background: #e0f2fe; color: #0369a1;
+      margin-left: 6px; vertical-align: middle;
+    }
+
+    /* Assignee */
+    .assignee-cell {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 13px; color: var(--text2); cursor: pointer;
+    }
+    .avatar {
+      width: 24px; height: 24px; border-radius: 50%;
+      background: linear-gradient(135deg, #60a5fa, #818cf8);
+      color: #fff; font-size: 10px; font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+
+    /* Due date */
+    .due-cell { font-size: 13px; color: var(--text2); cursor: pointer; }
+    .due-cell.overdue { color: var(--urgent-c); font-weight: 700; }
+
+    /* Priority badge */
+    .pri-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 12px; font-weight: 700; padding: 4px 10px;
+      border-radius: 6px; cursor: pointer; white-space: nowrap;
+    }
+    .pri-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .pri-긴급 { background: var(--urgent-bg); color: var(--urgent-c); border: 1px solid var(--urgent-border); }
+    .pri-높음 { background: var(--high-bg);   color: var(--high-c);   border: 1px solid var(--high-border); }
+    .pri-보통 { background: var(--mid-bg);    color: var(--mid-c);    border: 1px solid var(--mid-border); }
+    .pri-낮음 { background: var(--low-bg);    color: var(--low-c);    border: 1px solid var(--low-border); }
+
+    /* Status badge */
+    .st-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 12px; font-weight: 600; padding: 4px 10px;
+      border-radius: 6px; cursor: pointer; white-space: nowrap;
+    }
+    .st-대기   { background: var(--wait-bg);   color: var(--wait-c); }
+    .st-진행중 { background: var(--inprog-bg); color: var(--inprog-c); }
+    .st-검토   { background: var(--review-bg); color: var(--review-c); }
+    .st-완료   { background: var(--done-bg);   color: var(--done-c); }
+
+    /* Progress mini bar (task name 아래 시각용) */
+    .prog-wrap { height: 4px; background: #f1f5f9; border-radius: 99px; margin-top: 5px; }
+    .prog-bar  { height: 100%; border-radius: 99px; }
+
+    /* Draggable progress bar (진행률 컬럼) */
+    .prog-track {
+      position: relative; height: 6px; background: #f1f5f9;
+      border-radius: 99px; cursor: ew-resize; user-select: none;
+      margin: 2px 0;
+    }
+    .prog-fill { height: 100%; border-radius: 99px; pointer-events: none; }
+    .prog-handle {
+      position: absolute; top: 50%; transform: translate(-50%, -50%);
+      width: 12px; height: 12px; border-radius: 50%;
+      background: #fff; border: 2px solid #cbd5e1;
+      box-shadow: 0 1px 4px rgba(0,0,0,.18);
+      pointer-events: none; transition: box-shadow .1s;
+    }
+    .prog-track:hover .prog-handle { box-shadow: 0 1px 8px rgba(0,0,0,.28); }
+    .prog-tooltip {
+      position: absolute; top: -22px; transform: translateX(-50%);
+      font-size: 10px; font-weight: 700; color: #fff;
+      padding: 1px 5px; border-radius: 4px;
+      pointer-events: none; white-space: nowrap; display: none;
+    }
+    .prog-pct { font-size: 11px; font-weight: 600; color: var(--muted); margin-top: 3px; }
+
+    /* Actions */
+    .row-actions {
+      display: flex; gap: 4px; opacity: 0;
+      transition: opacity .12s;
+    }
+    .task-row:hover .row-actions { opacity: 1; }
+    .action-btn {
+      width: 26px; height: 26px; border-radius: 6px;
+      border: 1.5px solid var(--border); background: var(--white);
+      font-size: 13px; cursor: pointer; color: var(--muted);
+      display: flex; align-items: center; justify-content: center;
+      transition: all .12s;
+    }
+    .action-btn:hover { border-color: var(--border2); color: var(--text); background: var(--bg); }
+    .action-btn.del:hover { border-color: var(--urgent-c); color: var(--urgent-c); background: #fff5f5; }
+
+    /* Done section divider */
+    .done-divider {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 16px; background: #f8fafc;
+      border-bottom: 1px solid var(--border);
+      border-top: 2px solid var(--border);
+      cursor: pointer;
+      user-select: none;
+    }
+    .done-divider-text {
+      font-size: 12px; font-weight: 700;
+      color: var(--done-c); letter-spacing: .05em;
+    }
+    .done-divider-count {
+      font-size: 11px; color: var(--faint);
+      background: var(--done-bg); color: var(--done-c);
+      padding: 1px 8px; border-radius: 99px;
+    }
+    .done-toggle { font-size: 10px; color: var(--faint); margin-left: auto; }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center; padding: 56px 20px; color: var(--faint);
+    }
+    .empty-icon { font-size: 40px; margin-bottom: 12px; }
+    .empty-text { font-size: 14px; font-weight: 500; }
+
+    /* ── MODAL ─────────────────────────────────── */
+    .modal-mask {
+      position: fixed; inset: 0; z-index: 500;
+      background: rgba(0,0,0,.45); backdrop-filter: blur(5px);
+      display: flex; align-items: center; justify-content: center; padding: 20px;
+      opacity: 0; pointer-events: none; transition: opacity .2s;
+    }
+    .modal-mask.open { opacity: 1; pointer-events: all; }
+    .modal-box {
+      background: var(--white); border-radius: 14px;
+      width: 100%; max-width: 480px;
+      box-shadow: var(--shadow2);
+      transform: translateY(12px); transition: transform .2s;
+      overflow: hidden;
+    }
+    .modal-mask.open .modal-box { transform: translateY(0); }
+    .modal-hdr {
+      padding: 18px 20px; border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .modal-title { font-size: 15px; font-weight: 800; }
+    .modal-close {
+      width: 30px; height: 30px; border-radius: 50%;
+      border: 1.5px solid var(--border); background: none;
+      font-size: 14px; cursor: pointer; color: var(--muted);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .modal-body { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
+    .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .modal-field-label {
+      font-size: 11px; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px;
+    }
+    .modal-ftr {
+      padding: 14px 20px; border-top: 1px solid var(--border);
+      display: flex; gap: 8px; justify-content: flex-end;
+    }
+
+    /* ── TOAST ─────────────────────────────────── */
+    .toast {
+      position: fixed; bottom: 24px; right: 24px;
+      padding: 11px 18px; border-radius: 10px;
+      font-size: 13px; font-weight: 600; color: #fff;
+      z-index: 9999; box-shadow: 0 4px 20px rgba(0,0,0,.2);
+      animation: slideUp .25s ease;
+      display: none;
+    }
+    .toast.ok  { background: #16a34a; display: block; }
+    .toast.err { background: #dc2626; display: block; }
+    @keyframes slideUp { from{transform:translateY(16px);opacity:0} to{transform:translateY(0);opacity:1} }
+
+    /* scrollbar */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<!-- ── HEADER ──────────────────── -->
+<header class="app-header">
+  <div class="app-header-logo">
+    <div class="app-header-icon">✅</div>
+    <span class="app-header-title">팀 TODO 통합관리</span>
+  </div>
+  <div class="app-header-actions">
+    <button class="hbtn">📁 프로젝트</button>
+    <button class="hbtn">⚙️ 설정</button>
+    <button class="hbtn">↩️ 되돌리기</button>
+    <span class="hbadge" id="hdr-count">20건</span>
+  </div>
+</header>
+
+<!-- ── NAV ─────────────────────── -->
+<nav class="app-nav">
+  <button class="nav-tab">📊 대시보드</button>
+  <button class="nav-tab">📌 칸반</button>
+  <button class="nav-tab active">📋 리스트</button>
+  <button class="nav-tab">📅 캘린더</button>
+</nav>
+
+<!-- ── BODY ────────────────────── -->
+<div class="app-body">
+
+  <!-- ── SIDEBAR ─────────────────── -->
+  <aside class="sidebar">
+    <!-- 검색 -->
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input class="search-input" id="search" placeholder="업무 검색..." oninput="applyFilters()" />
+      <button class="search-clear" id="search-clear" onclick="clearSearch()">✕</button>
+    </div>
+
+    <!-- 프로젝트 -->
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">프로젝트</div>
+      <div class="filter-chips" id="proj-chips"></div>
+    </div>
+
+    <!-- 담당자 -->
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">담당자</div>
+      <div class="filter-chips" id="who-chips"></div>
+    </div>
+
+    <!-- 우선순위 -->
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">우선순위</div>
+      <div class="filter-chips" id="pri-chips"></div>
+    </div>
+
+    <!-- 상태 -->
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">상태</div>
+      <div class="filter-chips" id="st-chips"></div>
+    </div>
+
+    <button class="filter-reset" onclick="resetFilters()">✕ 필터 초기화</button>
+  </aside>
+
+  <!-- ── MAIN ─────────────────────── -->
+  <div class="main-content">
+
+    <!-- 02 업무 추가 -->
+    <div class="section-label">
+      <div class="section-label-num">01</div>
+      <div class="section-label-title">업무 추가</div>
+      <div class="section-label-sub">직접 입력 또는 AI 자동 생성</div>
+    </div>
+    <div class="add-panel">
+      <div class="add-panel-tabs">
+        <button class="add-tab manual" id="tab-manual" onclick="switchAddTab('manual')">＋ 직접 입력</button>
+        <button class="add-tab ai-off" id="tab-ai"     onclick="switchAddTab('ai')">🤖 AI 자동 입력</button>
+      </div>
+
+      <!-- Manual -->
+      <div id="panel-manual" class="add-form-body">
+        <div id="new-rows-wrap"></div>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:4px">
+          <button class="btn-add-row" onclick="addRow()"><span style="font-size:16px;line-height:1">＋</span> 행 추가</button>
+          <button class="btn-save" id="btn-save-all" style="display:none" onclick="saveAllRows()">💾 저장</button>
+          <button class="btn-cancel" id="btn-cancel-all" style="display:none" onclick="clearRows()">✕ 취소</button>
+        </div>
+      </div>
+
+      <!-- AI -->
+      <div id="panel-ai" class="ai-body" style="display:none">
+        <p style="font-size:13px;color:var(--muted);margin-bottom:10px;line-height:1.7">
+          자유롭게 업무를 입력하면 AI가 자동으로 TODO를 생성합니다.<br/>
+          담당자는 @이름, 마감일은 "4월 10일", 반복은 "매일/매주/매월"처럼 입력하세요.
+        </p>
+        <textarea class="ai-textarea" rows="4"
+          placeholder="예시:&#10;1. 일일 바이어 문의 확인 @박정찬 매일&#10;2. 주간 진행상황 공유 @김대윤 매주 월요일&#10;3. 중국 시안 확인 @김현지 4월 5일 긴급"></textarea>
+        <br/>
+        <button class="btn-ai">🤖 TODO 자동 생성</button>
+      </div>
+    </div>
+
+    <!-- 03 업무 리스트 -->
+    <div class="section-label">
+      <div class="section-label-num">02</div>
+      <div class="section-label-title">업무 리스트</div>
+      <div class="section-label-sub" id="list-sub">총 20건</div>
+    </div>
+
+    <div class="list-header">
+      <div class="list-count" id="list-count"></div>
+      <div class="list-sort">
+        <button class="sort-btn" id="sort-due"  onclick="setSort('due')">마감순</button>
+        <button class="sort-btn" id="sort-pri"  onclick="setSort('pri')">우선순위순</button>
+        <button class="sort-btn active" id="sort-none" onclick="setSort('')">기본</button>
+      </div>
+    </div>
+
+    <div class="task-card">
+      <!-- thead -->
+      <div class="task-thead">
+        <div class="task-th"></div>
+        <div class="task-th">업무내용</div>
+        <div class="task-th" style="font-size:10px">진행률</div>
+        <div class="task-th">담당자</div>
+        <div class="task-th">마감기한</div>
+        <div class="task-th">우선순위</div>
+        <div class="task-th">상태</div>
+        <div class="task-th"></div>
+      </div>
+      <div id="task-body"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── EDIT MODAL ─────────── -->
+<div class="modal-mask" id="modal" onclick="onModalMaskClick(event)">
+  <div class="modal-box" id="modal-box">
+    <div class="modal-hdr">
+      <div class="modal-title" id="m-title">업무 편집</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="m-id" />
+      <div>
+        <div class="modal-field-label">업무내용 *</div>
+        <input class="form-input" id="m-task" placeholder="업무 내용을 입력하세요" style="width:100%;font-size:15px;font-weight:600" />
+      </div>
+      <div class="modal-grid">
+        <div>
+          <div class="modal-field-label">프로젝트 *</div>
+          <select class="form-select" id="m-proj" style="width:100%"></select>
+        </div>
+        <div>
+          <div class="modal-field-label">담당자 *</div>
+          <select class="form-select" id="m-who" style="width:100%"></select>
+        </div>
+        <div>
+          <div class="modal-field-label">마감일 *</div>
+          <input type="date" class="form-input" id="m-due" style="width:100%" />
+        </div>
+        <div>
+          <div class="modal-field-label">우선순위</div>
+          <select class="form-select" id="m-pri" style="width:100%">
+            <option>긴급</option><option>높음</option><option selected>보통</option><option>낮음</option>
+          </select>
+        </div>
+        <div>
+          <div class="modal-field-label">상태</div>
+          <select class="form-select" id="m-st" style="width:100%">
+            <option>대기</option><option>진행중</option><option>검토</option><option>완료</option>
+          </select>
+        </div>
+        <div>
+          <div class="modal-field-label">반복</div>
+          <select class="form-select" id="m-repeat" style="width:100%">
+            <option>없음</option><option>매일</option><option>매주</option><option>매월</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <div class="modal-field-label">메모</div>
+        <textarea class="form-input" id="m-det" rows="3" style="width:100%;resize:vertical" placeholder="상세 내용을 입력하세요..."></textarea>
+      </div>
+    </div>
+    <div class="modal-ftr">
+      <button class="btn-cancel" onclick="closeModal()">취소</button>
+      <button class="btn-save" onclick="saveModal()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── TOAST ──────────────── -->
+<div class="toast" id="toast"></div>
+
+<script>
+/* ── DATA ──────────────────────────────────────── */
+const PROJECTS = [
+  {id:1, name:"만화웹툰2026아시아", color:"#8b5cf6"},
+  {id:2, name:"유녹2026아시아",     color:"#14b8a6"},
+  {id:3, name:"WATER2026구매",      color:"#2563eb"},
+  {id:4, name:"WATER2026수출",      color:"#f59e0b"},
+];
+const MEMBERS = ["김대윤","김현지","복경민","박정찬","이연수","김혜민"];
+const PRI_COLOR = {긴급:"#dc2626", 높음:"#d97706", 보통:"#2563eb", 낮음:"#94a3b8"};
+const ST_COLOR  = {대기:"#64748b", 진행중:"#2563eb", 검토:"#d97706", 완료:"#16a34a"};
+const PRI_ORDER = {긴급:0, 높음:1, 보통:2, 낝음:3};
+
+let todos = [
+  {id:1, pid:1, task:"중국 시안 디자인 확인",      who:"김현지", due:"2026-04-02", pri:"긴급", st:"진행중", det:"착수보고 전까지 완료 필요",   repeat:"없음", progress:60},
+  {id:2, pid:1, task:"참가기업 배포 메일 작성",    who:"김대윤", due:"2026-04-07", pri:"높음", st:"대기",   det:"강하나 차장에게 전달",        repeat:"없음", progress:0},
+  {id:3, pid:1, task:"중국 샘플북 인쇄 발주",      who:"복경민", due:"2026-04-14", pri:"보통", st:"대기",   det:"기업별 3권씩 별도 제작",      repeat:"없음", progress:0},
+  {id:4, pid:2, task:"니카이 컨퍼런스 장소 컨펌",  who:"김혜민", due:"2026-03-30", pri:"긴급", st:"검토",   det:"CKL도쿄 대관 가능 여부 확인", repeat:"없음", progress:75},
+  {id:5, pid:2, task:"일본 사전간담회 자료 준비",  who:"김현지", due:"2026-04-17", pri:"높음", st:"대기",   det:"4월 21일 역삼 간담회용",      repeat:"없음", progress:0},
+  {id:6, pid:2, task:"일본 자료제작 방향 정리",    who:"이연수", due:"2026-04-10", pri:"보통", st:"진행중", det:"내부 논의 후 결정",           repeat:"없음", progress:40},
+  {id:7, pid:3, task:"해외 바이어 리스트 정리",    who:"박정찬", due:"2026-04-05", pri:"높음", st:"진행중", det:"아시아 지역 우선",            repeat:"없음", progress:55},
+  {id:8, pid:3, task:"구매상담회 부스 배치안 작성",who:"김대윤", due:"2026-04-12", pri:"보통", st:"대기",   det:"",                           repeat:"없음", progress:0},
+  {id:9, pid:3, task:"통역 인력 섭외",             who:"이연수", due:"2026-04-08", pri:"낮음", st:"완료",   det:"중국어/일본어 각 2명",        repeat:"없음", progress:100},
+  {id:10,pid:4, task:"수출 상담 매칭 시스템 점검", who:"복경민", due:"2026-04-03", pri:"긴급", st:"진행중", det:"매칭 알고리즘 테스트",        repeat:"없음", progress:30},
+  {id:11,pid:4, task:"참가기업 홍보물 제작 지원",  who:"박정찬", due:"2026-04-18", pri:"보통", st:"대기",   det:"굿즈 vs 자체 프로모션 결정",  repeat:"없음", progress:0},
+  {id:12,pid:4, task:"수출 성과보고서 양식 작성",  who:"김혜민", due:"2026-04-22", pri:"낮음", st:"대기",   det:"전년도 양식 기반 업데이트",   repeat:"없음", progress:0},
+  {id:13,pid:1, task:"토/일 프로그램 기획안",      who:"김대윤", due:"2026-04-09", pri:"높음", st:"대기",   det:"주말 프로그램 구성 고민",     repeat:"없음", progress:10},
+  {id:14,pid:2, task:"CKL 착수보고 자료 준비",     who:"복경민", due:"2026-04-10", pri:"긴급", st:"대기",   det:"4월 10일 금요일 보고",        repeat:"없음", progress:0},
+  {id:15,pid:3, task:"중국 사전간담회 장소 예약",  who:"김혜민", due:"2026-04-14", pri:"보통", st:"완료",   det:"4월 14일 화 역삼",           repeat:"없음", progress:100},
+  {id:16,pid:4, task:"북경센터 컨택포인트 연락",   who:"이연수", due:"2026-03-28", pri:"긴급", st:"검토",   det:"153㎡ 변경건 소통",          repeat:"없음", progress:50},
+  {id:17,pid:2, task:"가예약 장소 기한 확인",      who:"김혜민", due:"2026-03-29", pri:"높음", st:"진행중", det:"니카이 + 대체장소",          repeat:"없음", progress:70},
+  {id:18,pid:4, task:"전시장 브로셔 컨택 정리",    who:"김현지", due:"2026-04-01", pri:"보통", st:"대기",   det:"브릿징 통해 직접 연락",      repeat:"없음", progress:0},
+  {id:19,pid:1, task:"주간 진행상황 팀 공유",      who:"김대윤", due:"2026-03-31", pri:"보통", st:"대기",   det:"매주 월요일 슬랙 보고",       repeat:"매주", progress:0},
+  {id:20,pid:3, task:"일일 바이어 문의 확인",      who:"박정찬", due:"2026-03-26", pri:"높음", st:"대기",   det:"이메일 및 메신저 확인",       repeat:"매일", progress:0},
+];
+
+let nextId = 21;
+let filters = {proj:'', who:'', pri:'', st:''};
+let sortKey = '';
+let newRows  = [];
+let doneOpen = true;
+
+/* ── HELPERS ────────────────────────────────────── */
+const today = () => new Date().toISOString().slice(0,10);
+const isOD   = (d,s) => s !== '완료' && d && d < today();
+const fD     = d => d ? d.slice(5).replace('-','/') : '—';
+const gP     = id => PROJECTS.find(p=>p.id===id) || {id:0,name:'미분류',color:'#94a3b8'};
+const priOrder = {긴급:0, 높음:1, 보통:2, 낮음:3};
+
+function progColor(p) {
+  if(p===0)   return '#e2e8f0';
+  if(p===100) return '#16a34a';
+  if(p>=80)   return '#ca8a04';
+  if(p>=50)   return '#ea580c';
+  return '#dc2626';
+}
+
+/* ── FILTER ──────────────────────────────────────── */
+function filtered() {
+  const q = document.getElementById('search').value.toLowerCase();
+  return todos.filter(t => {
+    const p = gP(t.pid);
+    return (!q || t.task.toLowerCase().includes(q) || t.who.includes(q) || p.name.toLowerCase().includes(q))
+        && (!filters.proj || String(t.pid) === filters.proj)
+        && (!filters.who  || t.who === filters.who)
+        && (!filters.pri  || t.pri === filters.pri)
+        && (!filters.st   || t.st  === filters.st);
+  });
+}
+
+function sorted(list) {
+  if (!sortKey) return list;
+  return [...list].sort((a,b) => {
+    if(sortKey === 'due') return (a.due||'9999').localeCompare(b.due||'9999');
+    if(sortKey === 'pri') return (priOrder[a.pri]??9) - (priOrder[b.pri]??9);
+    return 0;
+  });
+}
+
+/* ── RENDER SIDEBAR CHIPS ────────────────────────── */
+function buildChips(containerId, items, filterKey) {
+  const el = document.getElementById(containerId);
+  const total = todos.length;
+  let html = `<button class="filter-chip ${filters[filterKey]===''?'active':''}" onclick="toggleFilter('${filterKey}','')">
+    <span class="filter-chip-dot" style="background:#94a3b8"></span>전체
+    <span class="filter-chip-count">${todos.length}</span>
+  </button>`;
+  items.forEach(it => {
+    const cnt = todos.filter(t => String(t[filterKey === 'proj' ? 'pid' : filterKey]) === String(it.v)).length;
+    html += `<button class="filter-chip ${filters[filterKey]===String(it.v)?'active':''}" onclick="toggleFilter('${filterKey}','${it.v}')">
+      ${it.c ? `<span class="filter-chip-dot" style="background:${it.c}"></span>` : ''}
+      ${it.l}
+      <span class="filter-chip-count">${cnt}</span>
+    </button>`;
+  });
+  el.innerHTML = html;
+}
+
+function renderSidebar() {
+  buildChips('proj-chips', PROJECTS.map(p=>({v:String(p.id),l:p.name,c:p.color})), 'proj');
+  buildChips('who-chips',  MEMBERS.map(m=>({v:m,l:m,c:null})), 'who');
+  buildChips('pri-chips',  ['긴급','높음','보통','낮음'].map(p=>({v:p,l:p,c:PRI_COLOR[p]})), 'pri');
+  buildChips('st-chips',   ['대기','진행중','검토','완료'].map(s=>({v:s,l:s,c:ST_COLOR[s]})), 'st');
+}
+
+function toggleFilter(key, val) {
+  filters[key] = filters[key] === val ? '' : val;
+  renderSidebar();
+  renderTasks();
+}
+
+function resetFilters() {
+  filters = {proj:'', who:'', pri:'', st:''};
+  document.getElementById('search').value = '';
+  renderSidebar();
+  renderTasks();
+}
+
+/* ── RENDER TASKS ────────────────────────────────── */
+function renderTasks() {
+  const list  = sorted(filtered());
+  const todo  = list.filter(t => t.st !== '완료');
+  const done  = list.filter(t => t.st === '완료');
+  const el    = document.getElementById('task-body');
+
+  document.getElementById('list-sub').textContent   = `총 ${list.length}건${Object.values(filters).some(v=>v)||document.getElementById('search').value ? ' (필터 적용)' : ''}`;
+  document.getElementById('list-count').textContent = `${todo.length}건 미완료 · ${done.length}건 완료`;
+  document.getElementById('hdr-count').textContent  = `${todos.length}건`;
+
+  // Search clear btn
+  const sc = document.getElementById('search-clear');
+  sc.style.display = document.getElementById('search').value ? 'flex' : 'none';
+
+  if (!list.length) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-text">검색 결과가 없습니다</div></div>`;
+    return;
+  }
+
+  let html = '';
+
+  // ─ 미완료 rows ─
+  todo.forEach(t => { html += rowHTML(t); });
+
+  // ─ 완료 divider ─
+  if (done.length) {
+    html += `<div class="done-divider" onclick="toggleDone()">
+      <span class="done-divider-text">✅ 완료된 업무</span>
+      <span class="done-divider-count">${done.length}건</span>
+      <span class="done-toggle" id="done-arrow">${doneOpen ? '▲ 접기' : '▼ 펼치기'}</span>
+    </div>`;
+    if (doneOpen) done.forEach(t => { html += rowHTML(t); });
+  }
+
+  el.innerHTML = html;
+  initProgressBars();
+}
+
+function rowHTML(t) {
+  const p    = gP(t.pid);
+  const od   = isOD(t.due, t.st);
+  const isDone = t.st === '완료';
+  const cls  = isDone ? 'done' : t.pri==='긴급' ? 'urgent' : t.pri==='높음' ? 'high' : '';
+  const pc   = progColor(t.progress || 0);
+  const repeat = t.repeat && t.repeat !== '없음'
+    ? `<span class="task-repeat">🔁 ${t.repeat}</span>` : '';
+
+  return `<div class="task-row ${cls}" id="row-${t.id}">
+    <div style="display:flex;align-items:center">
+      <button class="check-btn ${isDone?'checked':''}" onclick="toggleDone_task(${t.id})" title="${isDone?'완료 취소':'완료 처리'}"></button>
+    </div>
+    <div class="task-name-cell">
+      <div>
+        <span class="task-name" onclick="openModal(${t.id})">${t.task}</span>
+        ${od ? '<span class="task-overdue">⚠️ 마감 초과</span>' : ''}
+        ${repeat}
+      </div>
+      ${t.det ? `<div class="task-det">${t.det}</div>` : ''}
+    </div>
+    <div onclick="event.stopPropagation()">
+      <div class="prog-track" data-id="${t.id}">
+        <div class="prog-fill" style="width:${t.progress||0}%;background:${pc}"></div>
+        <div class="prog-handle" style="left:${t.progress||0}%;border-color:${t.progress?pc:'#cbd5e1'}"></div>
+        <div class="prog-tooltip">${t.progress||0}%</div>
+      </div>
+      <div class="prog-pct">${t.progress||0}%</div>
+    </div>
+    <div class="assignee-cell">
+      <div class="avatar">${t.who[0]}</div>
+      <span style="font-size:13px">${t.who}</span>
+    </div>
+    <div class="due-cell ${od?'overdue':''}">${fD(t.due)}</div>
+    <div>
+      <span class="pri-badge pri-${t.pri}">
+        <span class="pri-dot" style="background:${PRI_COLOR[t.pri]}"></span>${t.pri}
+      </span>
+    </div>
+    <div>
+      <span class="st-badge st-${t.st}">${t.st}</span>
+    </div>
+    <div class="row-actions">
+      <button class="action-btn" onclick="openModal(${t.id})" title="편집">✏️</button>
+      <button class="action-btn del" onclick="deleteTask(${t.id})" title="삭제">🗑</button>
+    </div>
+  </div>`;
+}
+
+function toggleDone() {
+  doneOpen = !doneOpen;
+  renderTasks();
+}
+
+/* ── DRAGGABLE PROGRESS BARS ─────────────────────── */
+function initProgressBars() {
+  document.querySelectorAll('.prog-track').forEach(track => {
+    track.addEventListener('mousedown', onProgDown);
+  });
+}
+
+function calcPct(track, clientX) {
+  const rect = track.getBoundingClientRect();
+  const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
+  return Math.round(Math.round(x / rect.width * 10) * 10); // 10% 단위 스냅
+}
+
+function applyProgBar(track, pct) {
+  const pc = progColor(pct);
+  track.querySelector('.prog-fill').style.width      = pct + '%';
+  track.querySelector('.prog-fill').style.background = pc;
+  const handle = track.querySelector('.prog-handle');
+  handle.style.left        = pct + '%';
+  handle.style.borderColor = pct === 0 ? '#cbd5e1' : pc;
+  const tooltip = track.querySelector('.prog-tooltip');
+  tooltip.style.display    = pct > 0 ? 'block' : 'none';
+  tooltip.style.left       = pct + '%';
+  tooltip.textContent      = pct + '%';
+  tooltip.style.background = pct === 100 ? '#16a34a' : pct >= 50 ? '#ca8a04' : '#ea580c';
+}
+
+function onProgDown(e) {
+  e.stopPropagation();
+  const track = e.currentTarget;
+  const id    = parseInt(track.dataset.id);
+
+  applyProgBar(track, calcPct(track, e.clientX));
+
+  const onMove = ev => applyProgBar(track, calcPct(track, ev.clientX));
+
+  const onUp = ev => {
+    const pct = calcPct(track, ev.clientX);
+    applyProgBar(track, pct);
+    track.querySelector('.prog-tooltip').style.display = 'none';
+
+    // todos 데이터 업데이트 (리렌더 없이 직접 반영)
+    todos = todos.map(t => t.id === id ? {...t, progress: pct} : t);
+
+    // 같은 행의 작은 바도 동기화
+    const row  = track.closest('.task-row');
+    if (row) {
+      const miniBar = row.querySelector('.prog-bar');
+      if (miniBar) { miniBar.style.width = pct + '%'; miniBar.style.background = progColor(pct); }
+      const pctLabel = track.nextElementSibling;
+      if (pctLabel) pctLabel.textContent = pct + '%';
+    }
+
+    window.removeEventListener('mousemove', onMove);
+    window.removeEventListener('mouseup', onUp);
+  };
+
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onUp);
+}
+
+/* ── TASK ACTIONS ────────────────────────────────── */
+function toggleDone_task(id) {
+  const t = todos.find(t=>t.id===id);
+  if (!t) return;
+  const newSt = t.st === '완료' ? '대기' : '완료';
+  const newProg = newSt === '완료' ? 100 : t.progress;
+  todos = todos.map(x => x.id===id ? {...x, st:newSt, progress:newProg} : x);
+  renderSidebar();
+  renderTasks();
+  flash(newSt === '완료' ? '✅ 완료 처리했습니다' : '↩️ 완료 취소했습니다', newSt==='완료'?'ok':'err');
+}
+
+function deleteTask(id) {
+  todos = todos.filter(t=>t.id!==id);
+  renderSidebar();
+  renderTasks();
+  flash('🗑 삭제했습니다', 'err');
+}
+
+/* ── NEW ROWS ────────────────────────────────────── */
+function addRow() {
+  newRows.push({pid:'', task:'', who:'', due:'', pri:'보통', repeat:'없음', det:''});
+  renderNewRows();
+}
+
+function renderNewRows() {
+  const el = document.getElementById('new-rows-wrap');
+  document.getElementById('btn-save-all').style.display   = newRows.length ? '' : 'none';
+  document.getElementById('btn-cancel-all').style.display = newRows.length ? '' : 'none';
+  if (!newRows.length) { el.innerHTML = ''; return; }
+
+  let html = `<div style="border:1.5px solid #c7d8f0;border-radius:8px;overflow:hidden;margin-bottom:12px">
+    <table class="new-rows-table" style="width:100%;table-layout:fixed">
+      <colgroup>
+        <col style="width:130px"/><col/><col style="width:100px"/>
+        <col style="width:110px"/><col style="width:72px"/><col style="width:72px"/><col style="width:56px"/>
+      </colgroup>
+      <thead><tr>
+        <th>프로젝트</th><th>업무내용 *</th><th>담당자</th>
+        <th>마감일</th><th>우선순위</th><th>반복</th><th style="text-align:center">저장</th>
+      </tr></thead><tbody>`;
+
+  newRows.forEach((r,i) => {
+    html += `<tr>
+      <td><select class="cell-select" onchange="updateRow(${i},'pid',this.value)">
+        <option value="">프로젝트 선택</option>
+        ${PROJECTS.map(p=>`<option value="${p.id}" ${r.pid==p.id?'selected':''}>${p.name}</option>`).join('')}
+      </select></td>
+      <td><input class="cell-input task-inp" placeholder="업무 내용 *"
+        value="${r.task}" oninput="updateRow(${i},'task',this.value)"
+        onkeydown="if(event.key==='Enter'&&this.value)saveRow(${i})"
+        ${i===newRows.length-1?'autofocus':''} /></td>
+      <td><select class="cell-select" onchange="updateRow(${i},'who',this.value)">
+        <option value="">담당자 선택</option>
+        ${MEMBERS.map(m=>`<option ${r.who===m?'selected':''}>${m}</option>`).join('')}
+      </select></td>
+      <td><input type="date" class="cell-input" value="${r.due}" onchange="updateRow(${i},'due',this.value)" /></td>
+      <td><select class="cell-select" onchange="updateRow(${i},'pri',this.value)">
+        ${['긴급','높음','보통','낮음'].map(p=>`<option ${r.pri===p?'selected':''}>${p}</option>`).join('')}
+      </select></td>
+      <td><select class="cell-select" onchange="updateRow(${i},'repeat',this.value)">
+        ${['없음','매일','매주','매월'].map(v=>`<option ${r.repeat===v?'selected':''}>${v}</option>`).join('')}
+      </select></td>
+      <td style="text-align:center;display:flex;gap:3px;padding:6px 4px">
+        <button class="btn-confirm" onclick="saveRow(${i})" title="저장">✓</button>
+        <button class="btn-delete"  onclick="removeRow(${i})" title="삭제">✕</button>
+      </td>
+    </tr>`;
+  });
+  html += '</tbody></table></div>';
+  el.innerHTML = html;
+}
+
+function updateRow(i, key, val) { newRows[i][key] = val; }
+function removeRow(i) { newRows.splice(i,1); renderNewRows(); }
+
+function saveRow(i) {
+  const r = newRows[i];
+  if (!r.task) { flash('업무 내용을 입력하세요', 'err'); return; }
+  todos = [...todos, {
+    id: nextId++, pid: r.pid ? parseInt(r.pid) : 0,
+    task: r.task, who: r.who||'미배정', due: r.due||'',
+    pri: r.pri||'보통', st: '대기', det: r.det||'',
+    repeat: r.repeat||'없음', progress: 0
+  }];
+  newRows.splice(i, 1);
+  renderNewRows();
+  renderSidebar();
+  renderTasks();
+  flash('✅ 등록했습니다');
+}
+
+function saveAllRows() {
+  const valid = newRows.filter(r=>r.task);
+  if (!valid.length) { flash('업무 내용을 입력하세요', 'err'); return; }
+  valid.forEach(r => {
+    todos = [...todos, {
+      id: nextId++, pid: r.pid ? parseInt(r.pid) : 0,
+      task: r.task, who: r.who||'미배정', due: r.due||'',
+      pri: r.pri||'보통', st: '대기', det: r.det||'',
+      repeat: r.repeat||'없음', progress: 0
+    }];
+  });
+  clearRows();
+  renderSidebar();
+  renderTasks();
+  flash(`✅ ${valid.length}개 등록했습니다`);
+}
+
+function clearRows() { newRows = []; renderNewRows(); }
+
+/* ── MODAL ───────────────────────────────────────── */
+let editingId = null;
+function openModal(id) {
+  const t = todos.find(t=>t.id===id);
+  if (!t) return;
+  editingId = id;
+  document.getElementById('m-id').value    = id;
+  document.getElementById('m-title').textContent = '업무 편집';
+  document.getElementById('m-task').value  = t.task;
+  document.getElementById('m-due').value   = t.due || '';
+  document.getElementById('m-det').value   = t.det || '';
+
+  // Populate selects
+  const mProj = document.getElementById('m-proj');
+  mProj.innerHTML = PROJECTS.map(p=>`<option value="${p.id}" ${t.pid===p.id?'selected':''}>${p.name}</option>`).join('');
+  const mWho = document.getElementById('m-who');
+  mWho.innerHTML = MEMBERS.map(m=>`<option ${t.who===m?'selected':''}>${m}</option>`).join('');
+  document.getElementById('m-pri').value    = t.pri;
+  document.getElementById('m-st').value     = t.st;
+  document.getElementById('m-repeat').value = t.repeat || '없음';
+
+  document.getElementById('modal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('open');
+  document.body.style.overflow = '';
+  editingId = null;
+}
+
+function onModalMaskClick(e) {
+  if (e.target.id === 'modal') closeModal();
+}
+
+function saveModal() {
+  const task = document.getElementById('m-task').value.trim();
+  if (!task) { flash('업무 내용을 입력하세요', 'err'); return; }
+  const id   = parseInt(document.getElementById('m-id').value);
+  todos = todos.map(t => t.id !== id ? t : {
+    ...t,
+    task:   task,
+    pid:    parseInt(document.getElementById('m-proj').value),
+    who:    document.getElementById('m-who').value,
+    due:    document.getElementById('m-due').value,
+    pri:    document.getElementById('m-pri').value,
+    st:     document.getElementById('m-st').value,
+    det:    document.getElementById('m-det').value,
+    repeat: document.getElementById('m-repeat').value,
+  });
+  closeModal();
+  renderSidebar();
+  renderTasks();
+  flash('✅ 저장했습니다');
+}
+
+document.addEventListener('keydown', e => { if(e.key==='Escape') closeModal(); });
+
+/* ── SORT ────────────────────────────────────────── */
+function setSort(key) {
+  sortKey = key;
+  document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+  const target = key === 'due' ? 'sort-due' : key === 'pri' ? 'sort-pri' : 'sort-none';
+  document.getElementById(target)?.classList.add('active');
+  renderTasks();
+}
+
+/* ── ADD TAB ─────────────────────────────────────── */
+function switchAddTab(tab) {
+  const isManual = tab === 'manual';
+  document.getElementById('tab-manual').className = `add-tab ${isManual ? 'manual' : 'manual-off'}`;
+  document.getElementById('tab-ai').className     = `add-tab ${!isManual ? 'ai' : 'ai-off'}`;
+  document.getElementById('panel-manual').style.display = isManual ? '' : 'none';
+  document.getElementById('panel-ai').style.display     = isManual ? 'none' : '';
+}
+
+/* ── SEARCH ──────────────────────────────────────── */
+function applyFilters() { renderSidebar(); renderTasks(); }
+function clearSearch() { document.getElementById('search').value = ''; applyFilters(); }
+
+/* ── TOAST ───────────────────────────────────────── */
+let toastTimer;
+function flash(msg, type='ok') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `toast ${type}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = 'toast'; }, 2500);
+}
+
+/* ── INIT ────────────────────────────────────────── */
+renderSidebar();
+renderTasks();
+</script>
+</body>
+</html>
