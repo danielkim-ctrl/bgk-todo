@@ -710,14 +710,14 @@ const setTodosWithHistory=fn=>{
     const q=search.toLowerCase();
     return(!q||t.task.toLowerCase().includes(q)||t.who.toLowerCase().includes(q)||gPr(t.pid).name.toLowerCase().includes(q))
       &&(filters.proj.length===0||filters.proj.some(v=>v==="__none__"?gPr(t.pid).id===0:String(t.pid)===v))
-      &&(filters.st.length===0||filters.st.includes(t.st))
-      &&(filters.pri.length===0||filters.pri.includes(t.pri))
-      &&(filters.who.length===0||filters.who.includes(t.who))
+      &&(filters.st.length===0||filters.st.some(v=>v==="__none__"?!t.st:t.st===v))
+      &&(filters.pri.length===0||filters.pri.some(v=>v==="__none__"?!t.pri:t.pri===v))
+      &&(filters.who.length===0||filters.who.some(v=>v==="__none__"?!t.who:t.who===v))
       &&(filters.repeat.length===0||filters.repeat.includes(t.repeat))
       &&(!filters.fav||isFav(t.id));
   });
 
-  const toggleSort=col=>{if(sortCol===col)setSortDir(d=>d==="asc"?"desc":"asc");else{setSortCol(col);setSortDir("asc")}};
+  const toggleSort=col=>{if(sortCol===col){if(sortDir==="asc"){setSortDir("desc")}else{setSortCol(null);setSortDir("asc")}}else{setSortCol(col);setSortDir("asc")}};
   const priOrder={긴급:0,높음:1,보통:2,낮음:3};
   const stOrder={대기:0,진행중:1,검토:2,완료:3};
   const sorted=[...filtered].sort((a,b)=>{
@@ -849,8 +849,8 @@ const setTodosWithHistory=fn=>{
     flash(`${checked.length}건이 AI를 통해 등록되었습니다`);
   };
   const addChip=()=>{if(!chipVal.trim())return;const v=chipVal.trim();
-    if(chipAdd==="proj"){setProjects(p=>[...p,{id:pNId,name:v,color:chipColor,status:"활성"}]);setPNId(pNId+1);flash(`프로젝트 "${v}"이(가) 추가되었습니다`);}
-    else if(chipAdd==="who"){if(!members.includes(v))setMembers(p=>[...p,v]);flash(`담당자 "${v}"이(가) 추가되었습니다`);}
+    if(chipAdd==="proj"){if(projects.some(p=>p.name===v)){flash(`프로젝트 "${v}"은(는) 이미 존재합니다`,"err");return;}setProjects(p=>[...p,{id:pNId,name:v,color:chipColor,status:"활성"}]);setPNId(pNId+1);flash(`프로젝트 "${v}"이(가) 추가되었습니다`);}
+    else if(chipAdd==="who"){if(members.includes(v)){flash(`담당자 "${v}"은(는) 이미 존재합니다`,"err");return;}setMembers(p=>[...p,v]);flash(`담당자 "${v}"이(가) 추가되었습니다`);}
     else if(chipAdd==="pri"){if(!pris.includes(v)){setPris(p=>[...p,v]);setPriC(p=>({...p,[v]:chipColor}));setPriBg(p=>({...p,[v]:chipColor+"18"}));}flash(`우선순위 "${v}"이(가) 추가되었습니다`);}
     else if(chipAdd==="st"){if(!stats.includes(v)){setStats(p=>[...p,v]);setStC(p=>({...p,[v]:chipColor}));setStBg(p=>({...p,[v]:chipColor+"18"}));}flash(`상태 "${v}"이(가) 추가되었습니다`);}
     setChipVal("");setChipAdd(null);};
@@ -979,9 +979,9 @@ return <div style={S.wrap}>
               <span style={{flex:1}}>전체</span>
               <span style={{fontSize:10,color:empty?"#93c5fd":"#94a3b8",background:empty?"#dbeafe":"#f1f5f9",borderRadius:99,padding:"0 5px",fontWeight:600,flexShrink:0}}>{todos.length}</span>
             </div>);})()}
-            {key==="proj"&&(()=>{const sel=(filters[key] as string[]).includes("__none__");return(<div onClick={()=>togF(key,"__none__")} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 12px",cursor:"pointer",background:sel?"#eff6ff":"transparent",color:sel?"#2563eb":"#475569",fontWeight:sel?600:400,fontSize:12,userSelect:"none" as const}}>
+            {(()=>{const sel=(filters[key] as string[]).includes("__none__");const cnt=key==="proj"?todos.filter(t=>gPr(t.pid).id===0).length:todos.filter(t=>!t[key]).length;return(<div onClick={()=>togF(key,"__none__")} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 12px",cursor:"pointer",background:sel?"#eff6ff":"transparent",color:sel?"#2563eb":"#475569",fontWeight:sel?600:400,fontSize:12,userSelect:"none" as const}}>
               <span style={{flex:1}}>미배정</span>
-              <span style={{fontSize:10,color:sel?"#93c5fd":"#94a3b8",background:sel?"#dbeafe":"#f1f5f9",borderRadius:99,padding:"0 5px",fontWeight:600,flexShrink:0}}>{todos.filter(t=>gPr(t.pid).id===0).length}</span>
+              <span style={{fontSize:10,color:sel?"#93c5fd":"#94a3b8",background:sel?"#dbeafe":"#f1f5f9",borderRadius:99,padding:"0 5px",fontWeight:600,flexShrink:0}}>{cnt}</span>
             </div>);})()}
             {[...items].sort((a,b)=>{const fa=(favSidebar[key]||[]).includes(a.v)?0:1,fb=(favSidebar[key]||[]).includes(b.v)?0:1;return fa-fb;}).map(it=>{const isFav=(favSidebar[key]||[]).includes(it.v);const sel=(filters[key] as string[]).includes(it.v);return <div key={it.v} onClick={()=>togF(key,it.v)} style={{display:"flex",alignItems:"center",gap:5,padding:"4px 8px 4px 6px",cursor:"pointer",background:sel?"#eff6ff":"transparent",color:sel?"#2563eb":"#475569",fontWeight:sel?600:400,fontSize:12,userSelect:"none" as const}}>
               <button onClick={e=>{e.stopPropagation();togFavSidebar(key,it.v);}} title={isFav?"고정 해제":"상단 고정"} style={{background:"none",border:"none",cursor:"pointer",fontSize:11,padding:"0 2px",lineHeight:1,color:isFav?"#f59e0b":"#d1d5db",flexShrink:0,transition:"color .12s"}} onMouseEnter={e=>{if(!isFav)(e.currentTarget as HTMLButtonElement).style.color="#fbbf24";}} onMouseLeave={e=>{if(!isFav)(e.currentTarget as HTMLButtonElement).style.color="#d1d5db";}}>{isFav?"★":"☆"}</button>
@@ -990,7 +990,7 @@ return <div style={S.wrap}>
               <span style={{fontSize:10,color:"#94a3b8",background:"#f1f5f9",borderRadius:99,padding:"0 5px",fontWeight:500,flexShrink:0}}>{it.n}</span>
             </div>;})}
 
-            {key!=="st"&&<div style={{padding:"2px 8px 4px"}}>
+            {(key==="proj"||key==="who")&&<div style={{padding:"2px 8px 4px"}}>
               <button onClick={()=>{setChipAdd(key);setChipVal("");const used=projects.map((pr:{color:string})=>pr.color);setChipColor(key==="proj"?(PROJ_PALETTE.find(c=>!used.includes(c))||PROJ_PALETTE[0]):"#8b5cf6")}} style={{fontSize:10,color:"#94a3b8",background:"none",border:"1px dashed #d1d5db",borderRadius:5,padding:"2px 10px",cursor:"pointer",width:"100%"}}>+ 추가</button>
             </div>}
           </div>)}

@@ -1,6 +1,7 @@
 import { Project } from "./types";
 
-export const td = () => new Date().toISOString().slice(0,10);
+export const fmt2 = (n: number) => String(n).padStart(2,"0");
+export const td = () => { const d = new Date(); return `${d.getFullYear()}-${fmt2(d.getMonth()+1)}-${fmt2(d.getDate())}`; };
 export const isOD = (d: string, s: string) => s!=="완료"&&d&&new Date(d.split(" ")[0])<new Date(new Date().toDateString());
 export const dDay = (d: string, s: string) => {
   if(!d||s==="완료")return null;
@@ -17,7 +18,6 @@ export const gP = (ps: Project[], id: number): Project => ps.find(p=>p.id===id)|
 export const fD = (d: string) => d?d.slice(5).replace("-","/"):"—";
 export const DOW = ["일","월","화","수","목","금","토"];
 export const fDow = (d: string) => { if(!d) return ""; const dt=new Date(d.split(" ")[0]); return isNaN(dt.getTime())?"":DOW[dt.getDay()]; };
-export const fmt2 = (n: number) => String(n).padStart(2,"0");
 export const dateStr = (y: number, m: number, d: number) => `${y}-${fmt2(m+1)}-${fmt2(d)}`;
 export const stripHtml = (h: string) => h ? h.replace(/<[^>]*>/g,"").replace(/&nbsp;/g," ").trim() : "";
 
@@ -27,7 +27,8 @@ export function expandRepeats(todos: any[], startDs: string, endDs: string) {
   const end = new Date(endDs);
   todos.forEach(t => {
     if (!t.repeat || t.repeat === "없음") {
-      if (t.due >= startDs && t.due <= endDs) result.push({...t, _instance: false});
+      const dueDate = t.due ? t.due.split(" ")[0] : "";
+      if (dueDate && dueDate >= startDs && dueDate <= endDs) result.push({...t, _instance: false});
       return;
     }
     if (!t.due) { result.push({...t, _instance: false}); return; }

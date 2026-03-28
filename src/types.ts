@@ -17,8 +17,8 @@ export interface Todo {
   cre: string;
   done: string | null;
   repeat: string;
-  progress: number;
   noteColor?: number;
+  memoOrder?: number;
   _instance?: boolean;
   _originDue?: string;
 }
@@ -70,4 +70,17 @@ export interface NotePopupState {
   x: number;
   y: number;
   _newRow?: number;
+}
+
+// 삭제된 업무 기록 (localStorage에 보관, 데일리 활동 로그에서 사용)
+export interface DeletedTodo {
+  id: number;
+  task: string;
+  who: string;
+  pid: number;
+  pri: string;
+  st: string;
+  repeat: string;
+  det: string;
+  deletedAt: string; // "YYYY-MM-DD"
 }

@@ -1,10 +1,12 @@
-import { useRef } from "react";
+import { useRef, useState, useEffect } from "react";
 import { REPEAT_OPTS } from "../../constants";
 import { S } from "../../styles";
 import { fD, stripHtml } from "../../utils";
 import { NewRow, DatePopState } from "../../types";
 import { Project } from "../../types";
 import { SectionLabel } from "../ui/SectionLabel";
+
+type AiFile = { name: string; type: string; data: string; textContent?: string };
 
 interface AddTodoSectionProps {
   addTab: string;
@@ -22,6 +24,8 @@ interface AddTodoSectionProps {
   setNrDatePop: (v: DatePopState | null) => void;
   aiText: string;
   setAiText: (v: string) => void;
+  aiFiles: AiFile[];
+  setAiFiles: (fn: any) => void;
   aiLoad: boolean;
   aiSt: string;
   setAiSt: (v: string) => void;
@@ -31,27 +35,71 @@ interface AddTodoSectionProps {
   confirmAI: () => void;
   priC: Record<string, string>;
   priBg: Record<string, string>;
-  sorted: any[];
-  filters: any;
+  currentUser: string | null;
 }
+
+const readAsBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const result = e.target?.result as string | null;
+    if (!result) { reject(new Error("파일을 읽을 수 없습니다")); return; }
+    resolve(result.split(",")[1] ?? "");
+  };
+  reader.onerror = () => reject(new Error(reader.error?.message ?? "읽기 오류"));
+  reader.readAsDataURL(file);
+});
+
+const readAsText = (file: File): Promise<string> => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = e => resolve((e.target?.result as string) ?? "");
+  reader.onerror = () => reject(new Error(reader.error?.message ?? "읽기 오류"));
+  reader.readAsText(file);
+});
+
+const ACCEPT_TYPES = "image/*,application/pdf,text/plain,text/markdown,text/csv,.md,.csv";
 
 export function AddTodoSection({
   addTab, setAddTab, newRows, setNewRows, addNR, saveNRs, saveOneNR, isNREmpty,
   aProj, members, pris, setNotePopup, setNrDatePop, aiText, setAiText,
-  aiLoad, aiSt, setAiSt, aiParsed, setAiParsed, parseAI, confirmAI,
-  priC, priBg, sorted, filters
+  aiFiles, setAiFiles, aiLoad, aiSt, setAiSt, aiParsed, setAiParsed, parseAI, confirmAI,
+  priC, priBg, currentUser
 }: AddTodoSectionProps) {
   const addSecRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState<string|null>(null);
+  const applyBulk = (field: string, value: string) => { setAiParsed((p: any[]) => p.map((t: any) => t._chk ? {...t, [field]: value} : t)); setBulkOpen(null); };
+  useEffect(() => { if (!bulkOpen) return; const close = () => setBulkOpen(null); document.addEventListener("mousedown", close); return () => document.removeEventListener("mousedown", close); }, [bulkOpen]);
+
+  const handleFiles = async (files: FileList | File[]) => {
+    const arr = Array.from(files);
+    const results: AiFile[] = [];
+    for (const file of arr) {
+      try {
+        if (file.type.startsWith("image/") || file.type === "application/pdf") {
+          const data = await readAsBase64(file);
+          results.push({ name: file.name, type: file.type, data });
+        } else {
+          const textContent = await readAsText(file);
+          results.push({ name: file.name, type: file.type || "text/plain", data: "", textContent });
+        }
+      } catch (e) {
+        console.error("파일 읽기 실패:", file.name, e);
+      }
+    }
+    if (results.length) setAiFiles((p: AiFile[]) => [...p, ...results]);
+  };
 
   return (
     <div ref={addSecRef} style={{overflow:"hidden"}}>
     <SectionLabel num="01" title="업무 추가" sub="직접 입력 또는 AI 자동 생성"/>
     <div style={{...S.card,padding:0,marginBottom:10,overflow:"hidden"}}>
-      <div style={{display:"flex",borderBottom:"2px solid #e2e8f0"}}>
-        <button onClick={()=>{setAddTab("manual");setNewRows((r: NewRow[])=>r.length?r:[{pid:"",task:"",who:"",due:"",pri:"보통",det:"",repeat:"없음"}]);}} style={{flex:1,padding:"11px 0",fontSize:12,fontWeight:addTab==="manual"?700:500,color:addTab==="manual"?"#2563eb":"#64748b",background:addTab==="manual"?"#eff6ff":"#f8fafc",border:"none",borderBottom:addTab==="manual"?"2px solid #2563eb":"2px solid transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginBottom:-2}}>＋ 직접 입력</button>
-        <button onClick={()=>{setAddTab("ai");setNewRows([]);}} style={{flex:1,padding:"11px 0",fontSize:12,fontWeight:addTab==="ai"?700:500,color:addTab==="ai"?"#7c3aed":"#64748b",background:addTab==="ai"?"#f5f3ff":"#f8fafc",border:"none",borderBottom:addTab==="ai"?"2px solid #7c3aed":"2px solid transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginBottom:-2}}>🤖 AI 자동 입력</button>
+      <div style={{display:"flex",borderBottom:collapsed?"none":"2px solid #e2e8f0"}}>
+        <button onClick={()=>{if(addTab==="manual"){if(collapsed){setCollapsed(false);setNewRows((r:NewRow[])=>r.length?r:[{pid:"",task:"",who:currentUser||"",due:"",pri:"보통",det:"",repeat:"없음"}]);}else{setCollapsed(true);}}else{setAddTab("manual");setCollapsed(false);setNewRows((r:NewRow[])=>r.length?r:[{pid:"",task:"",who:currentUser||"",due:"",pri:"보통",det:"",repeat:"없음"}]);}}} style={{flex:1,padding:"11px 0",fontSize:12,fontWeight:addTab==="manual"?700:500,color:addTab==="manual"?"#2563eb":"#64748b",background:addTab==="manual"&&!collapsed?"#eff6ff":"#f8fafc",border:"none",borderBottom:addTab==="manual"&&!collapsed?"2px solid #2563eb":"2px solid transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginBottom:-2}}>＋ 직접 입력 {addTab==="manual"&&<span style={{fontSize:9,opacity:.6}}>{collapsed?"▼":"▲"}</span>}</button>
+        <button onClick={()=>{if(addTab==="ai"){setCollapsed(p=>!p);}else{setAddTab("ai");setCollapsed(false);setNewRows([]);}}} style={{flex:1,padding:"11px 0",fontSize:12,fontWeight:addTab==="ai"?700:500,color:addTab==="ai"?"#7c3aed":"#64748b",background:addTab==="ai"&&!collapsed?"#f5f3ff":"#f8fafc",border:"none",borderBottom:addTab==="ai"&&!collapsed?"2px solid #7c3aed":"2px solid transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginBottom:-2}}>🤖 AI 자동 입력 {addTab==="ai"&&<span style={{fontSize:9,opacity:.6}}>{collapsed?"▼":"▲"}</span>}</button>
       </div>
-      {addTab==="manual"&&<div style={{padding:"12px 14px"}}>
+      {!collapsed&&addTab==="manual"&&<div style={{padding:"12px 14px"}}>
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:newRows.length?10:0}}>
           <button onClick={addNR} style={{background:"linear-gradient(135deg,#2563eb,#1d4ed8)",color:"#fff",border:"none",padding:"7px 16px",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}><span style={{fontSize:15,lineHeight:1}}>＋</span> 행 추가</button>
           {newRows.length>0&&<><button style={{...S.bp,fontSize:11,padding:"6px 14px"}} onClick={saveNRs}>💾 {newRows.length}개 저장</button><button style={{...S.bs,fontSize:11,padding:"6px 12px"}} onClick={()=>setNewRows([])}>✕ 전체 취소</button></>}
@@ -83,22 +131,92 @@ export function AddTodoSection({
           </table>
         </div>}
       </div>}
-      {addTab==="ai"&&<div style={{padding:"14px 16px"}}>
-        <p style={{fontSize:11,color:"#64748b",margin:"0 0 10px"}}>자유롭게 업무를 입력하면 AI가 자동으로 TODO를 생성합니다.<br/>담당자는 @이름, 마감일은 "4월 10일", 반복은 "매일/매주/매월"처럼 입력하세요.</p>
-        <textarea value={aiText} onChange={e=>setAiText(e.target.value)} rows={4} placeholder={"예시:\n1. 일일 바이어 문의 확인 @박정찬 매일\n2. 주간 진행상황 공유 @김대윤 매주 월요일\n3. 중국 시안 확인 @김현지 4월 5일 긴급"} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #ddd6fe",borderRadius:8,fontSize:12,outline:"none",resize:"vertical",lineHeight:1.7,boxSizing:"border-box",background:"#fdfcff"}}/>
+      {!collapsed&&addTab==="ai"&&<div style={{padding:"14px 16px"}}>
+        <p style={{fontSize:11,color:"#64748b",margin:"0 0 10px"}}>자유롭게 업무를 입력하거나 파일·이미지를 첨부하면 AI가 자동으로 TODO를 생성합니다.<br/>담당자는 @이름, 마감일은 "4월 10일", 반복은 "매일/매주/매월"처럼 입력하세요.</p>
+
+        {/* 파일 첨부 영역 */}
+        <input ref={fileInputRef} type="file" multiple accept={ACCEPT_TYPES} style={{display:"none"}}
+          onChange={e=>{if(e.target.files)handleFiles(e.target.files);e.target.value="";}}/>
+        <div
+          onDragEnter={e=>{e.preventDefault();setDragOver(true);}}
+          onDragOver={e=>{e.preventDefault();setDragOver(true);}}
+          onDragLeave={e=>{e.preventDefault();setDragOver(false);}}
+          onDrop={e=>{e.preventDefault();setDragOver(false);handleFiles(e.dataTransfer.files);}}
+          onClick={()=>fileInputRef.current?.click()}
+          style={{border:`2px dashed ${dragOver?"#7c3aed":"#ddd6fe"}`,borderRadius:8,padding:"12px 16px",marginBottom:10,cursor:"pointer",background:dragOver?"#f5f3ff":"#fdfcff",transition:"all .15s",display:"flex",alignItems:"center",gap:10}}>
+          <span style={{fontSize:20}}>📎</span>
+          <div>
+            <div style={{fontSize:12,fontWeight:600,color:dragOver?"#7c3aed":"#6d28d9"}}>파일·이미지 첨부</div>
+            <div style={{fontSize:10,color:"#94a3b8",marginTop:2}}>이미지, PDF, 텍스트 파일 · 드래그 또는 클릭</div>
+          </div>
+          {aiFiles.length>0&&<span style={{marginLeft:"auto",fontSize:10,fontWeight:700,color:"#7c3aed",background:"#ede9fe",borderRadius:99,padding:"2px 8px"}}>{aiFiles.length}개 첨부됨</span>}
+        </div>
+
+        {/* 첨부 파일 목록 */}
+        {aiFiles.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
+          {aiFiles.map((f,i)=>(
+            <div key={i} style={{display:"flex",alignItems:"center",gap:6,background:"#f5f3ff",border:"1px solid #ddd6fe",borderRadius:8,padding:"4px 8px",maxWidth:200}}>
+              {f.type.startsWith("image/")?
+                <img src={`data:${f.type};base64,${f.data}`} style={{width:32,height:32,objectFit:"cover",borderRadius:4,flexShrink:0}}/>:
+                <span style={{fontSize:20,flexShrink:0}}>{f.type==="application/pdf"?"📄":"📝"}</span>}
+              <span style={{fontSize:10,color:"#4c1d95",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{f.name}</span>
+              <button onClick={e=>{e.stopPropagation();setAiFiles((p:AiFile[])=>p.filter((_,j)=>j!==i));}}
+                style={{background:"none",border:"none",cursor:"pointer",color:"#a78bfa",fontSize:13,padding:0,lineHeight:1,flexShrink:0}}>✕</button>
+            </div>
+          ))}
+        </div>}
+
+        <textarea value={aiText} onChange={e=>setAiText(e.target.value)} rows={3} placeholder={"예시:\n1. 일일 바이어 문의 확인 @박정찬 매일\n2. 주간 진행상황 공유 @김대윤 매주 월요일\n3. 중국 시안 확인 @김현지 4월 5일 긴급"} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #ddd6fe",borderRadius:8,fontSize:12,outline:"none",resize:"vertical",lineHeight:1.7,boxSizing:"border-box" as const,background:"#fdfcff"}}/>
         <div style={{display:"flex",alignItems:"center",gap:8,marginTop:10}}>
           <button style={{background:"linear-gradient(135deg,#7c3aed,#6d28d9)",color:"#fff",border:"none",padding:"8px 20px",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",opacity:aiLoad?.6:1}} onClick={parseAI} disabled={aiLoad}>{aiLoad?"⏳ 분석 중...":"🤖 TODO 자동 생성"}</button>
           {aiSt&&<span style={{fontSize:11,fontWeight:600,color:aiSt.startsWith("ok:")?"#16a34a":"#dc2626"}}>{aiSt.startsWith("ok:")||aiSt.startsWith("err:")?aiSt.slice(aiSt.indexOf(":")+1):aiSt}</span>}
-          {aiText&&<button style={{...S.bs,fontSize:10,marginLeft:"auto"}} onClick={()=>{setAiText("");setAiSt("");setAiParsed([])}}>초기화</button>}
+          {(aiText||aiFiles.length>0)&&<button style={{...S.bs,fontSize:10,marginLeft:"auto"}} onClick={()=>{setAiText("");setAiSt("");setAiParsed([]);setAiFiles([]);}}>초기화</button>}
         </div>
         {aiParsed.length>0&&<div style={{marginTop:12,border:"1.5px solid #ddd6fe",borderRadius:10,overflow:"hidden"}}>
-          <div style={{padding:"10px 14px",background:"#f5f3ff",borderBottom:"1px solid #ddd6fe",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <div style={{padding:"10px 14px",background:"#f5f3ff",borderBottom:"1px solid #ddd6fe",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
               <input type="checkbox" checked={aiParsed.every(t=>t._chk)}
                 ref={el=>{if(el)el.indeterminate=aiParsed.some(t=>t._chk)&&!aiParsed.every(t=>t._chk);}}
                 onChange={e=>setAiParsed((p: any[])=>p.map(t=>({...t,_chk:e.target.checked})))}
                 style={{cursor:"pointer",accentColor:"#7c3aed",width:13,height:13}}/>
               <span style={{fontSize:12,fontWeight:700,color:"#7c3aed"}}>✨ {aiParsed.filter(t=>t._chk).length} / {aiParsed.length}건 선택됨</span>
+              <div style={{display:"flex",gap:4}} onMouseDown={e=>e.stopPropagation()}>
+                {([
+                  {key:"project",icon:"📁",label:"프로젝트",opts:aProj.map(p=>({label:p.name,value:p.name}))},
+                  {key:"assignee",icon:"👤",label:"담당자",opts:members.map(m=>({label:m,value:m}))},
+                  {key:"priority",icon:"⚡",label:"우선순위",opts:pris.map(p=>({label:p,value:p}))},
+                  {key:"repeat",icon:"🔁",label:"반복",opts:["없음","매일","매주","매월"].map(r=>({label:r,value:r}))},
+                ] as {key:string,icon:string,label:string,opts:{label:string,value:string}[]}[]).map(({key,icon,label,opts})=>(
+                  <div key={key} style={{position:"relative"}}>
+                    <button title={`${label} 일괄배정`} onMouseDown={e=>{e.stopPropagation();setBulkOpen(bulkOpen===key?null:key);}}
+                      style={{background:bulkOpen===key?"#ddd6fe":"#ede9fe",border:"1px solid #c4b5fd",borderRadius:6,padding:"3px 7px",cursor:"pointer",fontSize:12,color:"#7c3aed",transition:"background .1s"}}>
+                      {icon}
+                    </button>
+                    {bulkOpen===key&&<div onMouseDown={e=>e.stopPropagation()} style={{position:"absolute",top:"calc(100% + 4px)",left:0,zIndex:200,background:"#fff",border:"1px solid #ddd6fe",borderRadius:8,minWidth:130,boxShadow:"0 6px 20px rgba(124,58,237,.15)",overflow:"hidden"}}>
+                      <div style={{padding:"5px 10px",fontSize:10,color:"#94a3b8",fontWeight:600,borderBottom:"1px solid #f3f0ff",background:"#faf9ff"}}>{label} 일괄배정</div>
+                      {opts.map(o=>(
+                        <div key={o.value} onMouseDown={()=>applyBulk(key,o.value)}
+                          style={{padding:"7px 12px",fontSize:12,cursor:"pointer",color:"#4c1d95",background:"#fff"}}
+                          onMouseEnter={e=>(e.currentTarget as HTMLElement).style.background="#f5f3ff"}
+                          onMouseLeave={e=>(e.currentTarget as HTMLElement).style.background="#fff"}>
+                          {o.label}
+                        </div>
+                      ))}
+                    </div>}
+                  </div>
+                ))}
+                <div style={{position:"relative"}}>
+                  <button title="마감일 일괄배정" onMouseDown={e=>{e.stopPropagation();setBulkOpen(bulkOpen==="due"?null:"due");}}
+                    style={{background:bulkOpen==="due"?"#ddd6fe":"#ede9fe",border:"1px solid #c4b5fd",borderRadius:6,padding:"3px 7px",cursor:"pointer",fontSize:12,color:"#7c3aed",transition:"background .1s"}}>
+                    📅
+                  </button>
+                  {bulkOpen==="due"&&<div onMouseDown={e=>e.stopPropagation()} style={{position:"absolute",top:"calc(100% + 4px)",left:0,zIndex:200,background:"#fff",border:"1px solid #ddd6fe",borderRadius:8,boxShadow:"0 6px 20px rgba(124,58,237,.15)",padding:"8px 10px"}}>
+                    <div style={{fontSize:10,color:"#94a3b8",fontWeight:600,marginBottom:6}}>마감일 일괄배정</div>
+                    <input type="date" autoFocus onMouseDown={e=>e.stopPropagation()} onChange={e=>{if(e.target.value)applyBulk("due",e.target.value);}}
+                      style={{padding:"4px 8px",border:"1px solid #ddd6fe",borderRadius:6,fontSize:12,outline:"none",color:"#4c1d95"}}/>
+                  </div>}
+                </div>
+              </div>
             </div>
             <div style={{display:"flex",gap:6}}>
               <button style={{background:"linear-gradient(135deg,#7c3aed,#6d28d9)",color:"#fff",border:"none",padding:"5px 18px",borderRadius:7,fontSize:12,fontWeight:700,cursor:"pointer"}} onClick={confirmAI}>등록</button>
@@ -117,7 +235,7 @@ export function AddTodoSection({
                   onChange={e=>{const n=[...aiParsed];n[i]._chk=e.target.checked;setAiParsed(n);}}/>
                 <div style={{flex:1,minWidth:0}}>
                   <input value={t.task} onChange={e=>{const n=[...aiParsed];n[i].task=e.target.value;setAiParsed(n);}}
-                    style={{width:"100%",border:"none",borderBottom:"1.5px solid transparent",fontSize:13,fontWeight:600,padding:"1px 0",outline:"none",background:"transparent",color:"#0f172a",transition:"border-color .15s",boxSizing:"border-box"}}
+                    style={{width:"100%",border:"none",borderBottom:"1.5px solid transparent",fontSize:13,fontWeight:600,padding:"1px 0",outline:"none",background:"transparent",color:"#0f172a",transition:"border-color .15s",boxSizing:"border-box" as const}}
                     onFocus={e=>(e.target.style.borderBottomColor="#7c3aed")}
                     onBlur={e=>(e.target.style.borderBottomColor="transparent")}/>
                   <div style={{display:"flex",gap:5,flexWrap:"wrap" as const,marginTop:7,alignItems:"center"}}>
@@ -141,8 +259,11 @@ export function AddTodoSection({
                       style={{...selStyle,borderColor:"#e2e8f0",background:"#f1f5f9",color:t.repeat&&t.repeat!=="없음"?"#7c3aed":"#94a3b8"}}>
                       {REPEAT_OPTS.map(r=><option key={r}>{r}</option>)}
                     </select>
-                    {t.detail&&<span style={{fontSize:10,color:"#94a3b8",fontStyle:"italic",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,maxWidth:160}}>💬 {t.detail}</span>}
                   </div>
+                  <input value={t.detail||""} onChange={e=>{const n=[...aiParsed];n[i].detail=e.target.value;setAiParsed(n);}} placeholder="💬 상세내용 입력..."
+                    style={{width:"100%",border:"none",borderBottom:"1.5px solid transparent",fontSize:10,padding:"3px 0",marginTop:5,outline:"none",background:"transparent",color:"#64748b",boxSizing:"border-box" as const,transition:"border-color .15s"}}
+                    onFocus={e=>(e.target.style.borderBottomColor="#7c3aed")}
+                    onBlur={e=>(e.target.style.borderBottomColor="transparent")}/>
                 </div>
                 <button onClick={()=>setAiParsed((p: any[])=>p.filter((_,j)=>j!==i))}
                   style={{background:"none",border:"none",color:"#cbd5e1",cursor:"pointer",fontSize:15,padding:"2px 3px",flexShrink:0,lineHeight:1,marginTop:1,transition:"color .12s"}}

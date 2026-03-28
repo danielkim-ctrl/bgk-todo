@@ -18,12 +18,15 @@ export function NotePopup({todo, x, y, onSave, onClose}: {
     if(ref.current){ref.current.innerHTML=todo.det||"";ref.current.focus();}
     const onDown=(e: MouseEvent)=>{if(wrapRef.current&&!wrapRef.current.contains(e.target as Node))onClose();};
     const onKey=(e: KeyboardEvent)=>{if(e.key==="Escape")onClose();};
+    const onScroll=()=>onClose();
     setTimeout(()=>document.addEventListener("mousedown",onDown),0);
     document.addEventListener("keydown",onKey);
+    window.addEventListener("scroll",onScroll,true);
     return()=>{
       if(ref.current)onSaveRef.current(ref.current.innerHTML);
       document.removeEventListener("mousedown",onDown);
       document.removeEventListener("keydown",onKey);
+      window.removeEventListener("scroll",onScroll,true);
     };
   },[]);
 
@@ -41,8 +44,11 @@ export function NotePopup({todo, x, y, onSave, onClose}: {
   },[]);
 
   const cmd=(c: string)=>{ref.current!.focus();document.execCommand(c,false,null!);};
-  const left=Math.min(Math.max(8,x),window.innerWidth-size.w-8);
-  const top=(window.innerHeight-y<size.h+8)?y-size.h:y+6;
+  const zoom=parseFloat(getComputedStyle(document.documentElement).zoom)||1;
+  const ax=x/zoom, ay=y/zoom;
+  const vw=window.innerWidth/zoom, vh=window.innerHeight/zoom;
+  const left=Math.min(Math.max(8,ax),vw-size.w-8);
+  const top=(vh-ay<size.h+8)?ay-size.h:ay+6;
   const tools=[
     {label:"B",c:"bold",s:{fontWeight:800},title:"굵게"},
     {label:"I",c:"italic",s:{fontStyle:"italic"},title:"기울임"},

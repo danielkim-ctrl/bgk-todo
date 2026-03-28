@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Todo, Project } from "../../types";
-import { isOD, dDay, fD, stripHtml } from "../../utils";
+import { isOD, dDay, fD } from "../../utils";
 
 interface MemoViewProps {
   sorted: Todo[];
@@ -25,24 +25,51 @@ interface MemoViewProps {
   flash: (msg: string, type?: string) => void;
 }
 
-// 스티키노트 색상 팔레트 — Windows Sticky Notes 기준
 const NOTE_PALETTE = [
-  { bg: "#fff9c4", header: "#fff176", border: "#f0d800" },  // 노란색 (기본)
-  { bg: "#ffd6e0", header: "#ffb3c6", border: "#ff85a1" },  // 핑크
-  { bg: "#e8d5f5", header: "#d4b0f0", border: "#b97fe8" },  // 라벤더
-  { bg: "#c9e4ff", header: "#a8d4ff", border: "#74b8ff" },  // 파랑
-  { bg: "#e8e8e8", header: "#d4d4d4", border: "#b0b0b0" },  // 회색
+  { bg: "#fff9c4", header: "#fff176", border: "#f0d800" },
+  { bg: "#ffd6e0", header: "#ffb3c6", border: "#ff85a1" },
+  { bg: "#e8d5f5", header: "#d4b0f0", border: "#b97fe8" },
+  { bg: "#c9e4ff", header: "#a8d4ff", border: "#74b8ff" },
+  { bg: "#e8e8e8", header: "#d4d4d4", border: "#b0b0b0" },
 ];
-const getNote = (t: { noteColor?: number }) =>
-  NOTE_PALETTE[t.noteColor ?? 0];
+const getNote = (t: { noteColor?: number }) => NOTE_PALETTE[t.noteColor ?? 0];
 
 type DropType = { id: number; field: string } | null;
+type InsertPos = number | "end" | null;
+
+// 안드로이드 아이콘 드래그 스타일 — 놓을 위치 미리 보기
+function PlaceholderCard() {
+  return (
+    <div style={{
+      minHeight: 240,
+      border: "2.5px dashed #2563eb",
+      borderRadius: 6,
+      background: "rgba(37,99,235,0.07)",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      boxSizing: "border-box" as const,
+      animation: "memo-ph-pulse 1.1s ease-in-out infinite",
+      pointerEvents: "none" as const,
+    }}>
+      <span style={{ fontSize: 24, opacity: 0.35 }}>📋</span>
+      <span style={{ fontSize: 11, color: "#2563eb", fontWeight: 700, opacity: 0.7, letterSpacing: 0.2 }}>여기에 놓기</span>
+    </div>
+  );
+}
 
 function MemoCard({
   t, gPr, aProj, members, pris, stats,
   priC, priBg, stC, stBg,
   updTodo, delTodo, isFav, toggleFav, flash,
   openDrop, setOpenDrop,
+  isDragging,
+  onHeaderDragStart,
+  onCardDragOver,
+  onCardDrop,
+  onCardDragEnd,
 }: {
   t: Todo;
   gPr: (pid: number) => Project;
@@ -61,6 +88,11 @@ function MemoCard({
   flash: (msg: string, type?: string) => void;
   openDrop: DropType;
   setOpenDrop: (v: DropType) => void;
+  isDragging: boolean;
+  onHeaderDragStart: () => void;
+  onCardDragOver: (e: React.DragEvent) => void;
+  onCardDrop: (e: React.DragEvent) => void;
+  onCardDragEnd: () => void;
 }) {
   const note = getNote(t);
   const p = gPr(t.pid);
@@ -69,7 +101,6 @@ function MemoCard({
   const isDone = t.st === "완료";
   const editorRef = useRef<HTMLDivElement>(null);
 
-  // contentEditable 초기값 설정
   useEffect(() => {
     if (editorRef.current) {
       editorRef.current.innerHTML = t.det || "";
@@ -82,9 +113,9 @@ function MemoCard({
     setOpenDrop(isOpen(field) ? null : { id: t.id, field });
   };
 
-  const cmd = (command: string, val: string | null = null) => {
+  const cmd = (command: string) => {
     editorRef.current?.focus();
-    document.execCommand(command, false, val ?? undefined);
+    document.execCommand(command, false, undefined);
     if (editorRef.current) updTodo(t.id, { det: editorRef.current.innerHTML });
   };
 
@@ -101,46 +132,53 @@ function MemoCard({
     display: "flex", alignItems: "center", gap: 6,
   });
 
-  const fmtBtn = (label: string, command: string, title: string) => (
-    <button
-      key={command}
-      title={title}
-      onMouseDown={e => { e.preventDefault(); cmd(command); }}
-      style={{
-        padding: "4px 8px", border: "none", borderRadius: 5,
-        background: "transparent", cursor: "pointer", fontSize: 12,
-        color: "#475569", fontFamily: "inherit", lineHeight: 1,
-        transition: "background .1s",
-      }}
-      onMouseEnter={e => (e.currentTarget.style.background = "rgba(0,0,0,.08)")}
-      onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-    >
-      {label}
-    </button>
-  );
-
   return (
-    <div style={{
-      display: "flex", flexDirection: "column",
-      background: note.bg, border: `1.5px solid ${isDone ? "#e2e8f0" : note.border}`,
-      borderRadius: 6, overflow: "hidden", opacity: isDone ? 0.6 : 1,
-      boxShadow: isDone ? "none" : "2px 4px 12px rgba(0,0,0,.1)",
-      minHeight: 240, transition: "box-shadow .15s",
-    }}
-      onMouseEnter={e => { if (!isDone) (e.currentTarget as HTMLDivElement).style.boxShadow = "3px 6px 20px rgba(0,0,0,.16)"; }}
-      onMouseLeave={e => { if (!isDone) (e.currentTarget as HTMLDivElement).style.boxShadow = "2px 4px 12px rgba(0,0,0,.1)"; }}
+    <div
+      onDragOver={onCardDragOver}
+      onDrop={onCardDrop}
+      style={{
+        display: "flex", flexDirection: "column",
+        background: note.bg, border: `1.5px solid ${isDone ? "#e2e8f0" : note.border}`,
+        borderRadius: 6, overflow: "hidden",
+        opacity: isDragging ? 0.28 : isDone ? 0.6 : 1,
+        boxShadow: isDone ? "none" : isDragging ? "0 8px 24px rgba(37,99,235,.22)" : "2px 4px 12px rgba(0,0,0,.1)",
+        minHeight: 240, transition: "box-shadow .15s, opacity .2s",
+        outline: isDragging ? "2px solid #2563eb" : "none",
+        outlineOffset: -1,
+      }}
+      onMouseEnter={e => { if (!isDone && !isDragging) (e.currentTarget as HTMLDivElement).style.boxShadow = "3px 6px 20px rgba(0,0,0,.16)"; }}
+      onMouseLeave={e => { if (!isDone && !isDragging) (e.currentTarget as HTMLDivElement).style.boxShadow = "2px 4px 12px rgba(0,0,0,.1)"; }}
     >
-      {/* ── 헤더 바 ── */}
-      <div style={{
-        background: isDone ? "#f1f5f9" : note.header,
-        padding: "6px 8px",
-        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 4,
-        borderBottom: `1px solid ${isDone ? "#e2e8f0" : note.border}`,
-        flexWrap: "wrap", rowGap: 4,
-      }}>
+      {/* ── 헤더 바 (드래그 핸들) ── */}
+      <div
+        draggable
+        onDragStart={e => {
+          e.stopPropagation();
+          onHeaderDragStart();
+          e.dataTransfer.effectAllowed = "move";
+          // 드래그 고스트 이미지: 카드 전체
+          const card = (e.currentTarget as HTMLElement).closest("[data-memocard]") as HTMLElement;
+          if (card) {
+            e.dataTransfer.setDragImage(card, card.offsetWidth / 2, 20);
+          }
+        }}
+        onDragEnd={onCardDragEnd}
+        style={{
+          background: isDone ? "#f1f5f9" : note.header,
+          padding: "6px 8px",
+          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 4,
+          borderBottom: `1px solid ${isDone ? "#e2e8f0" : note.border}`,
+          flexWrap: "wrap", rowGap: 4,
+          cursor: isDragging ? "grabbing" : "grab",
+          userSelect: "none" as const,
+        }}
+        title="드래그하여 순서 변경"
+      >
+        {/* 드래그 핸들 아이콘 */}
+        <span style={{ fontSize: 12, color: "rgba(0,0,0,0.3)", letterSpacing: "-1px", marginRight: 2, flexShrink: 0 }}>⠿⠿</span>
+
         {/* 메타 배지들 */}
         <div style={{ display: "flex", alignItems: "center", gap: 3, flexWrap: "wrap", flex: 1 }}>
-
           {/* 프로젝트 */}
           <div style={{ position: "relative" }}>
             <span onClick={e => toggle("proj", e)} style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 99, background: p.id ? p.color + "33" : "rgba(0,0,0,.08)", color: p.id ? p.color : "#64748b", cursor: "pointer", whiteSpace: "nowrap", display: "inline-block" }}>
@@ -214,9 +252,8 @@ function MemoCard({
           </div>
         </div>
 
-        {/* 우측: 색상 선택(···) + 액션 */}
+        {/* 우측: 색상 선택 */}
         <div style={{ display: "flex", alignItems: "center", gap: 1, flexShrink: 0 }}>
-          {/* ··· 버튼 + 색상 팔레트 드롭다운 */}
           <div style={{ position: "relative" }}>
             <button onClick={e => toggle("color", e)} title="색상 변경"
               style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, padding: "2px 4px", color: "#64748b", lineHeight: 1, letterSpacing: 1 }}>···</button>
@@ -237,7 +274,7 @@ function MemoCard({
       </div>
 
       {/* ── 업무명 ── */}
-      <div style={{ padding: "8px 10px 2px" }}>
+      <div data-memocard style={{ padding: "8px 10px 2px" }}>
         <textarea
           defaultValue={t.task}
           disabled={isDone}
@@ -255,7 +292,7 @@ function MemoCard({
         />
       </div>
 
-      {/* ── 내용 (contentEditable 리치텍스트) ── */}
+      {/* ── 내용 (contentEditable) ── */}
       <div
         ref={editorRef}
         contentEditable={!isDone}
@@ -275,7 +312,7 @@ function MemoCard({
         <div style={{
           display: "flex", alignItems: "center", gap: 0,
           padding: "2px 4px", borderTop: `1px solid ${note.border}`,
-          background: isDone ? "#f1f5f9" : note.header,
+          background: note.header,
         }}>
           <span style={{ fontSize: 11, fontWeight: 800, padding: "4px 8px", border: "none", borderRadius: 5, cursor: "pointer", color: "#334155", fontFamily: "serif" }}
             onMouseDown={e => { e.preventDefault(); cmd("bold"); }}>B</span>
@@ -290,7 +327,6 @@ function MemoCard({
           <span title="불릿 목록" style={{ fontSize: 13, padding: "2px 4px", borderRadius: 4, cursor: "pointer", color: "#334155" }}
             onMouseDown={e => { e.preventDefault(); cmd("insertUnorderedList"); }}>•≡</span>
 
-          {/* 구분선 */}
           <div style={{ width: 1, height: 14, background: note.border, margin: "0 3px" }} />
 
           {/* 담당자 */}
@@ -313,18 +349,14 @@ function MemoCard({
             )}
           </div>
 
-          {/* 구분선 */}
           <div style={{ width: 1, height: 14, background: note.border, margin: "0 3px" }} />
 
-          {/* 즐겨찾기 / 완료 / 삭제 */}
           <button onClick={() => toggleFav(t.id)} title={isFav(t.id) ? "즐겨찾기 해제" : "즐겨찾기"}
             style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, padding: "2px 4px", color: isFav(t.id) ? "#f59e0b" : "#94a3b8", lineHeight: 1 }}>
             {isFav(t.id) ? "★" : "☆"}
           </button>
-          {!isDone && (
-            <button onClick={() => { updTodo(t.id, { st: "완료" }); flash("완료 처리되었습니다"); }} title="완료"
-              style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, padding: "2px 4px", color: "#16a34a", lineHeight: 1 }}>✓</button>
-          )}
+          <button onClick={() => { updTodo(t.id, { st: "완료" }); flash("완료 처리되었습니다"); }} title="완료"
+            style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, padding: "2px 4px", color: "#16a34a", lineHeight: 1 }}>✓</button>
           <button onClick={() => { if (confirm("삭제하시겠습니까?")) { delTodo(t.id); flash("업무가 삭제되었습니다", "err"); } }} title="삭제"
             style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, padding: "2px 4px", color: "#dc2626", lineHeight: 1 }}>✕</button>
         </div>
@@ -347,7 +379,13 @@ function MemoCard({
   );
 }
 
-function AddCard({ addTodo, currentUser, flash }: { addTodo: (t: any) => void; currentUser: string; flash: (m: string, t?: string) => void }) {
+function AddCard({ addTodo, currentUser, flash, onDragOver, onDrop }: {
+  addTodo: (t: any) => void;
+  currentUser: string;
+  flash: (m: string, t?: string) => void;
+  onDragOver: (e: React.DragEvent) => void;
+  onDrop: (e: React.DragEvent) => void;
+}) {
   const [active, setActive] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -360,7 +398,10 @@ function AddCard({ addTodo, currentUser, flash }: { addTodo: (t: any) => void; c
   };
 
   if (!active) return (
-    <div onClick={() => { setActive(true); setTimeout(() => inputRef.current?.focus(), 50); }}
+    <div
+      onClick={() => { setActive(true); setTimeout(() => inputRef.current?.focus(), 50); }}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
       style={{ minHeight: 240, border: "2px dashed #cbd5e1", borderRadius: 6, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, cursor: "pointer", color: "#94a3b8", transition: "all .15s", background: "transparent" }}
       onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = "#2563eb"; (e.currentTarget as HTMLDivElement).style.color = "#2563eb"; (e.currentTarget as HTMLDivElement).style.background = "#f0f7ff"; }}
       onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = "#cbd5e1"; (e.currentTarget as HTMLDivElement).style.color = "#94a3b8"; (e.currentTarget as HTMLDivElement).style.background = "transparent"; }}
@@ -395,13 +436,140 @@ export function MemoView({
   const active = sorted.filter(t => t.st !== "완료");
   const done = sorted.filter(t => t.st === "완료");
 
+  // ── 드래그 순서 ──
+  const [dragId, setDragId] = useState<number | null>(null);
+  const [insertPos, setInsertPos] = useState<InsertPos>(null);
+
+  // Todo.memoOrder 기준 정렬 (undefined인 카드는 뒤에)
+  const orderedActive = [...active].sort((a, b) =>
+    (a.memoOrder ?? Infinity) - (b.memoOrder ?? Infinity)
+  );
+
+  // 플레이스홀더를 포함한 표시 목록
+  type DisplayItem = Todo | { __ph: true };
+  const displayItems: DisplayItem[] = (() => {
+    if (dragId === null || insertPos === null) return orderedActive;
+    if (insertPos === "end") return [...orderedActive, { __ph: true }];
+    const idx = orderedActive.findIndex(t => t.id === insertPos);
+    if (idx >= 0) {
+      return [...orderedActive.slice(0, idx), { __ph: true }, ...orderedActive.slice(idx)];
+    }
+    return [...orderedActive, { __ph: true }];
+  })();
+
+  const handleDragStart = (id: number) => {
+    setDragId(id);
+    setInsertPos(null);
+    document.body.style.cursor = "grabbing";
+  };
+
+  const handleDragOver = (e: React.DragEvent, targetId: number) => {
+    e.preventDefault();
+    if (dragId === null || dragId === targetId) return;
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const isLeft = e.clientX < rect.left + rect.width / 2;
+    if (isLeft) {
+      if (insertPos !== targetId) setInsertPos(targetId);
+    } else {
+      // 이 카드 다음 = 다음 카드 앞
+      const tIdx = orderedActive.findIndex(t => t.id === targetId);
+      let next: InsertPos = "end";
+      for (let i = tIdx + 1; i < orderedActive.length; i++) {
+        if (orderedActive[i].id !== dragId) { next = orderedActive[i].id; break; }
+      }
+      if (insertPos !== next) setInsertPos(next);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (dragId === null) return;
+
+    // undefined 카드에 가상 순서 부여 (fractional indexing 계산용)
+    const maxDefined = orderedActive.reduce((m, t) => t.memoOrder != null ? Math.max(m, t.memoOrder) : m, 0);
+    let vIdx = 1;
+    const withOrder = orderedActive.map(t => ({
+      id: t.id,
+      ord: t.memoOrder ?? maxDefined + (vIdx++) * 1000,
+    }));
+
+    const withoutDrag = withOrder.filter(t => t.id !== dragId);
+
+    let newOrder: number;
+    if (insertPos === null || insertPos === "end") {
+      const last = withoutDrag[withoutDrag.length - 1];
+      newOrder = last ? last.ord + 1000 : 1000;
+    } else {
+      const insertIdx = withoutDrag.findIndex(t => t.id === insertPos);
+      if (insertIdx <= 0) {
+        const first = withoutDrag[0];
+        newOrder = first ? first.ord - 1000 : 1000;
+      } else {
+        const prev = withoutDrag[insertIdx - 1];
+        const next = withoutDrag[insertIdx];
+        newOrder = (prev.ord + next.ord) / 2;
+      }
+    }
+
+    updTodo(dragId, { memoOrder: newOrder });
+    setDragId(null);
+    setInsertPos(null);
+    document.body.style.cursor = "";
+  };
+
+  const handleDragEnd = () => {
+    setDragId(null);
+    setInsertPos(null);
+    document.body.style.cursor = "";
+  };
+
   const cardProps = { gPr, aProj, members, pris, stats, priC, priBg, stC, stBg, updTodo, delTodo, isFav, toggleFav, flash, openDrop, setOpenDrop };
 
   return (
     <div onClick={() => setOpenDrop(null)}>
-      <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 16 }}>
-        {active.map(t => <MemoCard key={t.id} t={t} {...cardProps} />)}
-        <AddCard addTodo={addTodo} currentUser={currentUser} flash={flash} />
+      {/* 플레이스홀더 펄스 애니메이션 */}
+      <style>{`
+        @keyframes memo-ph-pulse {
+          0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(37,99,235,0.25); }
+          50% { opacity: 0.75; box-shadow: 0 0 0 6px rgba(37,99,235,0); }
+        }
+      `}</style>
+
+      <div
+        style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 16 }}
+        onDragOver={e => { if (!(e.target as HTMLElement).closest("[data-memocard]")) e.preventDefault(); }}
+        onDrop={handleDrop}
+        onDragLeave={e => {
+          if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) {
+            setInsertPos(null);
+          }
+        }}
+      >
+        {displayItems.map((item) => {
+          if ("__ph" in item) {
+            return <PlaceholderCard key="__placeholder" />;
+          }
+          const todo = item as Todo;
+          return (
+            <MemoCard
+              key={todo.id}
+              t={todo}
+              {...cardProps}
+              isDragging={todo.id === dragId}
+              onHeaderDragStart={() => handleDragStart(todo.id)}
+              onCardDragOver={e => handleDragOver(e, todo.id)}
+              onCardDrop={handleDrop}
+              onCardDragEnd={handleDragEnd}
+            />
+          );
+        })}
+        <AddCard
+          addTodo={addTodo}
+          currentUser={currentUser}
+          flash={flash}
+          onDragOver={e => { e.preventDefault(); if (insertPos !== "end") setInsertPos("end"); }}
+          onDrop={handleDrop}
+        />
       </div>
 
       {done.length > 0 && (
@@ -414,7 +582,15 @@ export function MemoView({
           </div>
           {showDone && (
             <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 16 }}>
-              {done.map(t => <MemoCard key={t.id} t={t} {...cardProps} />)}
+              {done.map(t => (
+                <MemoCard key={t.id} t={t} {...cardProps}
+                  isDragging={false}
+                  onHeaderDragStart={() => {}}
+                  onCardDragOver={e => e.preventDefault()}
+                  onCardDrop={e => e.preventDefault()}
+                  onCardDragEnd={() => {}}
+                />
+              ))}
             </div>
           )}
         </div>
