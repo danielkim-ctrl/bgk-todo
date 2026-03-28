@@ -5,7 +5,7 @@ import {
   INIT_MEMBERS, INIT_PRI, INIT_ST, INIT_PRI_C, INIT_PRI_BG, INIT_ST_C, INIT_ST_BG,
   initTodos, initProj
 } from "../constants";
-import { td, gP, stripHtml } from "../utils";
+import { td, gP, stripHtml, isOD } from "../utils";
 import { Filters, NewRow, AiParsed, DatePopState, NotePopupState, Project, Todo, DeletedTodo } from "../types";
 import { useAI } from "./useAI";
 import { useCalendar } from "./useCalendar";
@@ -114,6 +114,7 @@ export function useTodoApp() {
   const [hoverRow, setHoverRow] = useState<number | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const lastSelRef = useRef<number | null>(null);
+  const lastSelActionRef = useRef<"add"|"remove">("add");
   const addSecRef = useRef<HTMLDivElement>(null);
   const tblDivRef = useRef<HTMLDivElement>(null);
   const selAll = (ids: number[]) => setSelectedIds(new Set(ids));
@@ -462,7 +463,7 @@ export function useTodoApp() {
     const q = search.toLowerCase();
     return (!q || t.task.toLowerCase().includes(q) || t.who.toLowerCase().includes(q) || gPr(t.pid).name.toLowerCase().includes(q))
       && (filters.proj.length === 0 || filters.proj.some(v => v === "__none__" ? gPr(t.pid).id === 0 : String(t.pid) === v))
-      && (filters.st.length === 0 || filters.st.some(v => v === "__none__" ? !t.st : t.st === v))
+      && (filters.st.length === 0 || filters.st.some(v => v === "__none__" ? !t.st : v === "__overdue__" ? isOD(t.due, t.st) : t.st === v))
       && (filters.pri.length === 0 || filters.pri.some(v => v === "__none__" ? !t.pri : t.pri === v))
       && (filters.who.length === 0 || filters.who.some(v => v === "__none__" ? !t.who : t.who === v))
       && (filters.repeat.length === 0 || filters.repeat.includes(t.repeat))
@@ -496,18 +497,28 @@ export function useTodoApp() {
   const allVisibleSelected = visibleTodoIds.length > 0 && visibleTodoIds.every(id => selectedIds.has(id));
   const someVisibleSelected = visibleTodoIds.some(id => selectedIds.has(id));
   const toggleSelectAll = () => { if (allVisibleSelected) { clrSel(); } else { setSelectedIds(new Set(visibleTodoIds)); lastSelRef.current = null; } };
+  // 체크박스 Shift+Click: 앵커 클릭 동작(선택/해제)을 기억하여 범위에 동일 적용
+  // 예) 체크 해제 후 Shift+Click → 범위 전체 해제, 체크 선택 후 Shift+Click → 범위 전체 선택
   const handleCheck = (id: number, shift: boolean) => {
     if (shift && lastSelRef.current !== null) {
       const ids = sorted.map(t => t.id);
       const a = ids.indexOf(lastSelRef.current), b = ids.indexOf(id);
       if (a !== -1 && b !== -1) {
         const [lo, hi] = a < b ? [a, b] : [b, a];
-        setSelectedIds(prev => { const n = new Set(prev); ids.slice(lo, hi + 1).forEach(rid => n.add(rid)); return n; });
-        lastSelRef.current = id;
+        const range = ids.slice(lo, hi + 1);
+        const adding = lastSelActionRef.current === "add";
+        setSelectedIds(prev => {
+          const n = new Set(prev);
+          range.forEach(rid => adding ? n.add(rid) : n.delete(rid));
+          return n;
+        });
         return;
       }
     }
-    setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+    // 단일 클릭: 토글하고 동작 방향을 기억
+    const wasSelected = selectedIds.has(id);
+    lastSelActionRef.current = wasSelected ? "remove" : "add";
+    setSelectedIds(prev => { const n = new Set(prev); wasSelected ? n.delete(id) : n.add(id); return n; });
     lastSelRef.current = id;
   };
   const togF = (k: string, v: string) => {

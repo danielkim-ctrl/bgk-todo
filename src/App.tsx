@@ -3,6 +3,7 @@ import { useTodoApp } from "./hooks/useTodoApp";
 import { PermissionProvider } from "./auth/PermissionContext";
 import { S } from "./styles";
 import { REPEAT_OPTS } from "./constants";
+import { FolderIcon, Cog6ToothIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, TrashIcon, KeyboardIcon, ChartBarIcon, ListBulletIcon, CalendarIcon, ViewColumnsIcon, ArrowPathIcon, UserIcon, BoltIcon, CheckCircleIcon, DocumentTextIcon, StarIcon as StarSolidIcon, StarOutlineIcon, PlusIcon, ClipboardDocumentIcon, CheckIcon, PencilSquareIcon, XMarkIcon, ICON_SM } from "./components/ui/Icons";
 
 import { Toast } from "./components/ui/Toast";
 import { Modal } from "./components/ui/Modal";
@@ -220,23 +221,38 @@ export default function App() {
   const openEvPop = (e: React.MouseEvent, t: any) => {
     e.stopPropagation();
     justOpenedPopup.current = true;
+    const zoom = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const x = Math.min(r.right + 8, window.innerWidth - 308);
-    const y = Math.min(r.top, window.innerHeight - 290);
+    // 팝업이 화면 밖으로 넘어가지 않도록 좌표를 뷰포트 범위 내로 보정 (zoom 반영)
+    const vw = window.innerWidth / zoom;
+    const vh = window.innerHeight / zoom;
+    const x = Math.max(8, Math.min(r.right / zoom + 8, vw - 308));
+    const y = Math.max(8, Math.min(r.top / zoom, vh - 290));
     setCalEvPop({todo: todos.find(x => x.id === t.id) || t, x, y});
     setCalQA(null); setCalDayPop(null);
   };
 
+  // 클릭한 날짜 셀 위에 팝업 배치 (zoom 보정 포함)
   const openQA = (e: React.MouseEvent, ds: string, h: number) => {
     e.stopPropagation();
     justOpenedPopup.current = true; // window click 핸들러가 즉시 닫지 못하게 차단
-    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const zoom = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
+    // e.currentTarget보다 안정적인 e.target에서 셀 영역을 찾음
+    const target = e.target as HTMLElement;
+    const cell = target.closest("[data-calcell]") as HTMLElement | null;
+    const r = cell ? cell.getBoundingClientRect() : (e.currentTarget as HTMLElement).getBoundingClientRect();
     const popW = 300;
-    // 오른쪽 오버플로우 시 팝업을 왼쪽으로 배치
-    const x = r.left + 8 + popW > window.innerWidth
-      ? Math.max(8, r.right - popW)
-      : r.left + 8;
-    const y = Math.min(r.bottom + 4, window.innerHeight - 200);
+    const popH = 200;
+    const vw = window.innerWidth / zoom;
+    const vh = window.innerHeight / zoom;
+    // X: 셀 왼쪽 정렬, 오른쪽 넘치면 왼쪽으로 밀어서 배치 (zoom 반영)
+    let x = r.left / zoom;
+    if (x + popW > vw - 8) x = r.right / zoom - popW;
+    if (x < 8) x = 8;
+    // Y: 셀 상단 + 26px(날짜 숫자 높이) 아래, 공간 부족하면 위로 (zoom 반영)
+    let y = r.top / zoom + 26;
+    if (y + popH > vh - 8) y = r.top / zoom - popH - 4;
+    if (y < 8) y = 8;
     setCalQA({ds, h, x, y}); setCalQATitle(""); setCalQADue(""); setCalQAPid(""); setCalQAWho(currentUser||""); setCalQAPri("보통"); setCalQAPicker(null);
     setCalEvPop(null); setCalDayPop(null);
   };
@@ -272,7 +288,7 @@ export default function App() {
       setTimeout(() => {
         updTodo(id, {st: "완료"});
         setPendingComplete(s => { const n = new Set(s); n.delete(id); return n; });
-        flash("완료 처리되었습니다 ✓");
+        flash("완료 처리되었습니다");
       }, 600);
     } else {
       updTodo(id, {st: "대기"});
@@ -294,34 +310,33 @@ export default function App() {
         <div style={{fontSize:14,fontWeight:700,letterSpacing:"0.01em"}}>팀 TODO 통합관리</div>
       </div>
       <div style={{display:"flex",alignItems:"center",gap:6}}>
-        <button style={S.hBtn} onClick={()=>setProjMod(true)}>📁 프로젝트</button>
-        <button style={S.hBtn} onClick={()=>setSettMod(true)}>⚙️ 설정</button>
-        <button style={{...S.hBtn,opacity:historyRef.current.length?1:.4}} onClick={undo} title="되돌리기 (Ctrl+Z)">↩️ 되돌리기</button>
-        <button style={{...S.hBtn,opacity:redoRef.current.length?1:.4}} onClick={redo} title="다시 실행 (Ctrl+Y)">↪️ 다시 실행</button>
+        <button style={S.hBtn} onClick={()=>setProjMod(true)}><FolderIcon style={ICON_SM}/> 프로젝트</button>
+        <button style={S.hBtn} onClick={()=>setSettMod(true)}><Cog6ToothIcon style={ICON_SM}/> 설정</button>
         {/* 삭제된 업무가 있을 때만 휴지통 버튼 표시 */}
         {deletedLog.length>0&&<button style={{...S.hBtn,position:"relative" as const}} onClick={()=>setShowTrash(true)} title="삭제된 업무 복원">
-          🗑️ 휴지통
-          <span style={{position:"absolute" as const,top:-4,right:-4,background:"#ef4444",color:"#fff",borderRadius:99,fontSize:9,fontWeight:800,padding:"1px 5px",lineHeight:1.4}}>{deletedLog.length}</span>
+          <TrashIcon style={ICON_SM}/> 휴지통
+          <span style={{position:"absolute" as const,top:-4,right:-4,background:"#ef4444",color:"#fff",borderRadius:99,fontSize:10,fontWeight:800,padding:"1px 5px",lineHeight:1.4}}>{deletedLog.length}</span>
         </button>}
-        <button style={S.hBtn} onClick={()=>setShowShortcuts(true)} title="단축키 도움말 (?)">⌨️</button>
-        <span style={S.hBdg}>{todos.length}건</span>
+        <button style={S.hBtn} onClick={()=>setShowShortcuts(true)} title="단축키 도움말 (?)"><KeyboardIcon style={ICON_SM}/></button>
         <div style={{width:1,height:20,background:"rgba(255,255,255,.25)",margin:"0 4px"}}/>
         <div style={{display:"flex",alignItems:"center",gap:7}}>
           <div style={{width:28,height:28,borderRadius:"50%",background:"rgba(255,255,255,.25)",border:"1.5px solid rgba(255,255,255,.4)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,color:"#fff",flexShrink:0}}>{currentUser?.[0]}</div>
           <span style={{fontSize:12,fontWeight:600,color:"#fff"}}>{currentUser}</span>
-          <button style={{...S.hBtn,fontSize:10,padding:"3px 10px",background:"rgba(255,255,255,.12)"}} onClick={()=>setCurrentUser(null)}>로그아웃</button>
+          <button style={{...S.hBtn,fontSize:10,padding:"3px 10px",background:"rgba(255,255,255,.12)"}} onClick={()=>{if(window.confirm("정말 로그아웃하시겠습니까?"))setCurrentUser(null);}}>로그아웃</button>
         </div>
       </div>
     </header>
 
     <nav style={S.nav}>
-      {[["dashboard","📊 대시보드"],["list","📋 리스트"],["calendar","📅 캘린더"],["kanban","📌 칸반"]].map(([k,l])=><button key={k} style={S.navB(view===k)} onClick={()=>setView(k)}>{l}{k==="kanban"&&(kbF.length>0||kbFWho.length>0)&&<span style={{fontSize:9,background:"#ef4444",color:"#fff",borderRadius:99,padding:"0 5px",marginLeft:5,fontWeight:700,verticalAlign:"middle"}}>{kbF.length+kbFWho.length}</span>}</button>)}
+      {([["dashboard",<ChartBarIcon style={ICON_SM}/>,"대시보드"],["list",<ListBulletIcon style={ICON_SM}/>,"리스트"],["calendar",<CalendarIcon style={ICON_SM}/>,"캘린더"],["kanban",<ViewColumnsIcon style={ICON_SM}/>,"칸반"]] as [string,React.ReactNode,string][]).map(([k,icon,l])=><button key={k} style={{...S.navB(view===k),transition:"color .15s, background .15s"}} onClick={()=>{setView(k);window.scrollTo(0,0);}}
+        onMouseEnter={e=>{if(view!==k){e.currentTarget.style.color="#2563eb";e.currentTarget.style.background="#f8fafc";}}}
+        onMouseLeave={e=>{if(view!==k){e.currentTarget.style.color="#64748b";e.currentTarget.style.background="none";}}}>{icon}{l}{k==="kanban"&&(kbF.length>0||kbFWho.length>0)&&<span style={{fontSize:10,background:"#ef4444",color:"#fff",borderRadius:99,padding:"0 5px",fontWeight:700}}>{kbF.length+kbFWho.length}</span>}</button>)}
     </nav>
 
     <main style={S.main}>
       {view==="dashboard"&&<Dashboard todos={todos} projects={projects} members={members} priC={priC} priBg={priBg} stC={stC} stBg={stBg} gPr={gPr} deletedLog={deletedLog}
         // KPI 카드 클릭 시 리스트 뷰로 이동하고 해당 상태 필터를 자동 적용
-        onNavigate={(stF)=>{setView("list");setFilters({proj:[],who:[],pri:[],st:stF,repeat:[],fav:""});}}/>}
+        onNavigate={(stF)=>{setView("list");setFilters({proj:[],who:[],pri:[],st:stF,repeat:[],fav:""});window.scrollTo(0,0);}}/>}
 
       {view==="kanban"&&<KanbanView
         todos={todos} stats={stats} pris={pris} priC={priC} priBg={priBg} stC={stC} stBg={stBg}
@@ -421,7 +436,13 @@ export default function App() {
       />}
     </main>
 
-    <DateTimePicker datePop={datePop} onSave={(id,val)=>{updTodo(id,{due:val});setDatePop(null);setEditCell(null);}} onClose={()=>{setDatePop(null);setEditCell(null);}}/>
+    <DateTimePicker datePop={datePop} onSave={(id,val)=>{
+      // AI 일괄배정 마감일 — id -9999
+      if(id===-9999){setAiParsed((p:any[])=>p.map((t:any)=>t._chk?{...t,due:val}:t));setDatePop(null);return;}
+      // AI 결과 개별 행 날짜 선택 — id가 -1000 이하이면 aiParsed 업데이트
+      if(id<=-1000){const idx=-(id+1000);setAiParsed((p:any[])=>{const n=[...p];if(n[idx])n[idx]={...n[idx],due:val};return n;});setDatePop(null);return;}
+      updTodo(id,{due:val});setDatePop(null);setEditCell(null);
+    }} onClose={()=>{setDatePop(null);setEditCell(null);}}/>
     <DateTimePicker datePop={nrDatePop} onSave={(id,val)=>{const n=[...newRows];n[id].due=val;setNewRows(n);setNrDatePop(null);}} onClose={()=>setNrDatePop(null)}/>
 
     {selectedIds.size>0&&(()=>{
@@ -432,14 +453,14 @@ export default function App() {
         <button key={label} onClick={fn} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"9px 12px",background:"none",border:"none",cursor:"pointer",fontSize:12,color:"#334155",textAlign:"left" as const}}
           onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.background="#f8fafc";}}
           onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.background="none";}}>{pre}{label}</button>;
-      const pb=(key:string,icon:string,label:string,content:React.ReactNode)=>{
+      const pb=(key:string,icon:React.ReactNode,label:string,content:React.ReactNode)=>{
         const active=key==="proj"?movePop:bulkPop===key;
         return <div key={key} style={{position:"relative"}} onClick={e=>e.stopPropagation()}>
           <button onClick={()=>{if(key==="proj"){setBulkPop(null);setMovePop(p=>!p);}else{setMovePop(false);setBulkPop(bulkPop===key?null:key);}}}
             style={{display:"flex",alignItems:"center",gap:4,background:active?"#334155":"transparent",border:"none",borderRadius:8,padding:"5px 9px",cursor:"pointer",color:"#cbd5e1",fontSize:12,fontWeight:600,whiteSpace:"nowrap" as const,flexShrink:0}}
             onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.background="#334155";}}
             onMouseLeave={e=>{if(!active)(e.currentTarget as HTMLButtonElement).style.background="transparent";}}>
-            <span style={{fontSize:13}}>{icon}</span>{label}
+            {icon}{label}
           </button>
           {active&&content}
         </div>;
@@ -447,11 +468,11 @@ export default function App() {
       return <div onClick={closeAll} style={{position:"fixed",bottom:28,left:"50%",transform:"translateX(-50%)",zIndex:2000,display:"flex",alignItems:"center",gap:1,background:"#1e293b",borderRadius:12,boxShadow:"0 8px 32px rgba(0,0,0,.35)",padding:"5px 8px 5px 12px",animation:"slideUp .2s ease",whiteSpace:"nowrap" as const,flexWrap:"nowrap" as const}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"center",width:22,height:22,borderRadius:"50%",background:"#2563eb",color:"#fff",fontSize:11,fontWeight:800,marginRight:6,flexShrink:0}}>{selectedIds.size}</div>
         {([
-          {label:"복제",icon:"⧉",fn:()=>{const base=Math.max(...todos.map((t:any)=>t.id),0);let i=1;const copies=todos.filter((t:any)=>selectedIds.has(t.id)).map((t:any)=>({...t,id:base+i++,task:t.task+" (복사)",cre:todayStr,done:null}));setTodos((p:any)=>[...p,...copies]);setNId((n:number)=>n+copies.length);clrSel();flash(`${copies.length}건이 복제되었습니다`);}},
-          {label:"완료",icon:"✓",fn:()=>{selectedIds.forEach(id=>updTodo(id,{st:"완료",done:todayStr}));flash(`${selectedIds.size}건이 완료 처리되었습니다`);clrSel();}},
-          {label:"즐겨찾기",icon:"☆",fn:()=>{selectedIds.forEach(id=>toggleFav(id));flash(`${selectedIds.size}건의 즐겨찾기가 변경되었습니다`);clrSel();}},
-          {label:"삭제",icon:"🗑",fn:()=>{if(!confirm(`선택한 ${selectedIds.size}건을 삭제하시겠습니까?`))return;setTodos((p:any)=>p.filter((t:any)=>!selectedIds.has(t.id)));flash(`${selectedIds.size}건이 삭제되었습니다`,"err");clrSel();},danger:true},
-        ] as {label:string,icon:string,fn:()=>void,danger?:boolean}[]).map(({label,icon,fn,danger})=>
+          {label:"복제",icon:<ClipboardDocumentIcon style={ICON_SM}/>,fn:()=>{const base=Math.max(...todos.map((t:any)=>t.id),0);let i=1;const copies=todos.filter((t:any)=>selectedIds.has(t.id)).map((t:any)=>({...t,id:base+i++,task:t.task+" (복사)",cre:todayStr,done:null}));setTodos((p:any)=>[...p,...copies]);setNId((n:number)=>n+copies.length);clrSel();flash(`${copies.length}건이 복제되었습니다`);}},
+          {label:"완료",icon:<CheckIcon style={ICON_SM}/>,fn:()=>{selectedIds.forEach(id=>updTodo(id,{st:"완료",done:todayStr}));flash(`${selectedIds.size}건이 완료 처리되었습니다`);clrSel();}},
+          {label:"즐겨찾기",icon:<StarOutlineIcon style={ICON_SM}/>,fn:()=>{selectedIds.forEach(id=>toggleFav(id));flash(`${selectedIds.size}건의 즐겨찾기가 변경되었습니다`);clrSel();}},
+          {label:"삭제",icon:<TrashIcon style={ICON_SM}/>,fn:()=>{if(!confirm(`선택한 ${selectedIds.size}건을 삭제하시겠습니까?`))return;setTodos((p:any)=>p.filter((t:any)=>!selectedIds.has(t.id)));flash(`${selectedIds.size}건이 삭제되었습니다`,"err");clrSel();},danger:true},
+        ] as {label:string,icon:React.ReactNode,fn:()=>void,danger?:boolean}[]).map(({label,icon,fn,danger})=>
           <button key={label} title={label} onClick={e=>{e.stopPropagation();fn();}} style={{display:"flex",alignItems:"center",justifyContent:"center",background:danger?"#dc2626":"transparent",border:"none",borderRadius:7,width:30,height:30,cursor:"pointer",color:danger?"#fff":"#cbd5e1",fontSize:15,transition:"background .12s",flexShrink:0}}
             onMouseEnter={e=>{if(!danger)(e.currentTarget as HTMLButtonElement).style.background="#334155";}}
             onMouseLeave={e=>{if(!danger)(e.currentTarget as HTMLButtonElement).style.background="transparent";}}>
@@ -459,11 +480,11 @@ export default function App() {
           </button>
         )}
         <div style={{width:1,height:18,background:"#334155",margin:"0 4px",flexShrink:0}}/>
-        {pb("proj","📁","프로젝트",<div style={ps}>{ph("이동할 프로젝트 선택")}{visibleProj.map(p=>pi(p.name,()=>{setTodos((prev:any)=>prev.map((t:any)=>selectedIds.has(t.id)?{...t,pid:p.id}:t));flash(`${selectedIds.size}건이 "${p.name}"으로 이동`);closeAll();clrSel();},<span style={{width:10,height:10,borderRadius:"50%",background:p.color,flexShrink:0,display:"inline-block"}}/>))}</div>)}
-        {pb("who","👤","담당자",<div style={ps}>{ph("담당자 선택")}{visibleMembers.map(m=>pi(m,()=>{setTodos((prev:any)=>prev.map((t:any)=>selectedIds.has(t.id)?{...t,who:m}:t));flash(`${selectedIds.size}건 담당자 → "${m}"`);closeAll();clrSel();}))}</div>)}
-        {pb("pri","⚡","우선순위",<div style={ps}>{ph("우선순위 선택")}{pris.map(v=>pi(v,()=>{setTodos((prev:any)=>prev.map((t:any)=>selectedIds.has(t.id)?{...t,pri:v}:t));flash(`${selectedIds.size}건 우선순위 → "${v}"`);closeAll();clrSel();}))}</div>)}
-        {pb("st","📋","상태",<div style={ps}>{ph("상태 선택")}{stats.map(v=>pi(v,()=>{setTodos((prev:any)=>prev.map((t:any)=>selectedIds.has(t.id)?{...t,st:v,done:v==="완료"?todayStr:null}:t));flash(`${selectedIds.size}건 상태 → "${v}"`);closeAll();clrSel();}))}</div>)}
-        {pb("due","📅","마감기한",<div style={{...ps,minWidth:200,padding:"10px 12px",overflow:"visible"}} onClick={e=>e.stopPropagation()}>
+        {pb("proj",<FolderIcon style={ICON_SM}/>,"프로젝트",<div style={ps}>{ph("이동할 프로젝트 선택")}{visibleProj.map(p=>pi(p.name,()=>{setTodos((prev:any)=>prev.map((t:any)=>selectedIds.has(t.id)?{...t,pid:p.id}:t));flash(`${selectedIds.size}건이 "${p.name}"으로 이동`);closeAll();clrSel();},<span style={{width:10,height:10,borderRadius:"50%",background:p.color,flexShrink:0,display:"inline-block"}}/>))}</div>)}
+        {pb("who",<UserIcon style={ICON_SM}/>,"담당자",<div style={ps}>{ph("담당자 선택")}{visibleMembers.map(m=>pi(m,()=>{setTodos((prev:any)=>prev.map((t:any)=>selectedIds.has(t.id)?{...t,who:m}:t));flash(`${selectedIds.size}건 담당자 → "${m}"`);closeAll();clrSel();}))}</div>)}
+        {pb("pri",<BoltIcon style={ICON_SM}/>,"우선순위",<div style={ps}>{ph("우선순위 선택")}{pris.map(v=>pi(v,()=>{setTodos((prev:any)=>prev.map((t:any)=>selectedIds.has(t.id)?{...t,pri:v}:t));flash(`${selectedIds.size}건 우선순위 → "${v}"`);closeAll();clrSel();}))}</div>)}
+        {pb("st",<CheckCircleIcon style={ICON_SM}/>,"상태",<div style={ps}>{ph("상태 선택")}{stats.map(v=>pi(v,()=>{setTodos((prev:any)=>prev.map((t:any)=>selectedIds.has(t.id)?{...t,st:v,done:v==="완료"?todayStr:null}:t));flash(`${selectedIds.size}건 상태 → "${v}"`);closeAll();clrSel();}))}</div>)}
+        {pb("due",<CalendarIcon style={ICON_SM}/>,"마감기한",<div style={{...ps,minWidth:200,padding:"10px 12px",overflow:"visible"}} onClick={e=>e.stopPropagation()}>
           {ph("마감기한 선택")}
           <div style={{display:"flex",gap:4,margin:"8px 0",flexWrap:"wrap" as const}}>
             {([["오늘",0],["내일",1],["다음 주",7]] as [string,number][]).map(([l,n])=>{
@@ -475,35 +496,35 @@ export default function App() {
           <input type="date" onChange={e=>{if(!e.target.value)return;setTodos((prev:any)=>prev.map((t:any)=>selectedIds.has(t.id)?{...t,due:e.target.value}:t));flash(`${selectedIds.size}건 마감기한 변경`);closeAll();clrSel();}}
             style={{width:"100%",padding:"7px 8px",border:"1px solid #e2e8f0",borderRadius:7,fontSize:12,fontFamily:"inherit",boxSizing:"border-box" as const}}/>
         </div>)}
-        {pb("repeat","🔁","반복",<div style={ps}>{ph("반복 설정")}{REPEAT_OPTS.map(v=>pi(v==="없음"?"반복 없음":v,()=>{setTodos((prev:any)=>prev.map((t:any)=>selectedIds.has(t.id)?{...t,repeat:v}:t));flash(`${selectedIds.size}건 반복 변경`);closeAll();clrSel();}))}</div>)}
+        {pb("repeat",<ArrowPathIcon style={ICON_SM}/>,"반복",<div style={ps}>{ph("반복 설정")}{REPEAT_OPTS.map(v=>pi(v==="없음"?"반복 없음":v,()=>{setTodos((prev:any)=>prev.map((t:any)=>selectedIds.has(t.id)?{...t,repeat:v}:t));flash(`${selectedIds.size}건 반복 변경`);closeAll();clrSel();}))}</div>)}
         <div style={{width:1,height:20,background:"#334155",margin:"0 4px"}}/>
         <button onClick={e=>{e.stopPropagation();clrSel();closeAll();}} style={{background:"none",border:"none",cursor:"pointer",color:"#64748b",fontSize:16,padding:"4px 6px",borderRadius:6,lineHeight:1}}
           onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.background="#334155";(e.currentTarget as HTMLButtonElement).style.color="#fff";}}
-          onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.background="none";(e.currentTarget as HTMLButtonElement).style.color="#64748b";}}>✕</button>
+          onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.background="none";(e.currentTarget as HTMLButtonElement).style.color="#64748b";}}><XMarkIcon style={{width:16,height:16}}/></button>
       </div>;
     })()}
 
-    <Modal open={!!editMod} onClose={()=>setEditMod(null)} title={editMod?.id?"업무 수정":"새 업무"} footer={<>{editMod?.id&&<button style={{...S.bd,marginRight:"auto"}} onClick={()=>{if(confirm(`"${editMod.task}" 업무를 삭제하시겠습니까?`)){const id=parseInt(editMod.id);setEditMod(null);delTodo(id)}}}>🗑️ 삭제</button>}<button style={S.bs} onClick={()=>setEditMod(null)}>취소</button><button style={S.bp} onClick={()=>saveMod(editMod)}>💾 저장</button></>}>
+    <Modal open={!!editMod} onClose={()=>setEditMod(null)} title={editMod?.id?"업무 수정":"새 업무"} footer={<>{editMod?.id&&<button style={{...S.bd,marginRight:"auto"}} onClick={()=>{if(confirm(`"${editMod.task}" 업무를 삭제하시겠습니까?`)){const id=parseInt(editMod.id);setEditMod(null);delTodo(id)}}}><TrashIcon style={ICON_SM}/> 삭제</button>}<button style={S.bs} onClick={()=>setEditMod(null)}>취소</button><button style={S.bp} onClick={()=>saveMod(editMod)}>저장</button></>}>
       {editMod&&<EditForm f={editMod} onChange={setEditMod} proj={visibleProj} members={visibleMembers} pris={pris} stats={stats}/>}
     </Modal>
 
-    <Modal open={!!detMod} onClose={()=>setDetMod(null)} title={detMod?.task||""} footer={<><button style={{...S.bd,marginRight:"auto"}} onClick={()=>{if(confirm(`"${detMod.task}" 업무를 삭제하시겠습니까?`)){delTodo(detMod.id);setDetMod(null)}}}>🗑️</button><button style={S.bs} onClick={()=>setDetMod(null)}>닫기</button><button style={S.bp} onClick={()=>{setEditMod(detMod);setDetMod(null)}}>✏️ 수정</button></>}>
+    <Modal open={!!detMod} onClose={()=>setDetMod(null)} title={detMod?.task||""} footer={<><button style={{...S.bd,marginRight:"auto"}} onClick={()=>{if(confirm(`"${detMod.task}" 업무를 삭제하시겠습니까?`)){delTodo(detMod.id);setDetMod(null)}}}><TrashIcon style={ICON_SM}/></button><button style={S.bs} onClick={()=>setDetMod(null)}>닫기</button><button style={S.bp} onClick={()=>{setEditMod(detMod);setDetMod(null)}}><PencilSquareIcon style={ICON_SM}/> 수정</button></>}>
       {detMod&&<DetailView t={detMod} p={gPr(detMod.pid)} stats={stats} stC={stC} stBg={stBg} priC={priC} priBg={priBg} onSt={st=>{updTodo(detMod.id,{st});setDetMod({...detMod,st});flash(`상태가 "${st}"(으)로 변경되었습니다`)}}/>}
     </Modal>
 
-    <Modal open={projMod} onClose={()=>setProjMod(false)} title="📁 프로젝트 관리" footer={<button style={S.bs} onClick={()=>setProjMod(false)}>닫기</button>}>
+    <Modal open={projMod} onClose={()=>setProjMod(false)} title="프로젝트 관리" footer={<button style={S.bs} onClick={()=>setProjMod(false)}>닫기</button>}>
       <ProjMgr projects={projects} todos={todos}
         onAdd={p=>{const np={...p,id:pNId};setProjects((prev: any)=>[...prev,np]);setPNId(pNId+1);flash(`"${p.name}" 프로젝트가 추가되었습니다`)}}
         onDel={id=>{if(todos.some(t=>t.pid===id)){alert("해당 프로젝트에 업무가 존재하여 삭제할 수 없습니다.");return;}setProjects((p: any)=>p.filter((x: any)=>x.id!==id));flash("프로젝트가 삭제되었습니다","err")}}
         onEdit={(id,u)=>{setProjects((p: any)=>p.map((x: any)=>{if(x.id!==id)return x;return{...x,...u};}));flash("프로젝트 정보가 수정되었습니다")}}/>
     </Modal>
 
-    <Modal open={settMod} onClose={()=>setSettMod(false)} title="⚙️ 설정" footer={<button style={S.bs} onClick={()=>setSettMod(false)}>닫기</button>}>
+    <Modal open={settMod} onClose={()=>setSettMod(false)} title="설정" footer={<button style={S.bs} onClick={()=>setSettMod(false)}>닫기</button>}>
       <SettingsMgr members={members} setMembers={setMembers} pris={pris} setPris={setPris} stats={stats} setStats={setStats} priC={priC} setPriC={setPriC} priBg={priBg} setPriBg={setPriBg} stC={stC} setStC={setStC} stBg={stBg} setStBg={setStBg} todos={todos} flash={flash} apiKey={apiKey} setApiKey={setApiKey}/>
     </Modal>
 
     {/* ── 단축키 도움말 모달 ─────────────────────────────────── */}
-    <Modal open={showShortcuts} onClose={()=>setShowShortcuts(false)} title="⌨️ 단축키 안내" footer={<button style={S.bs} onClick={()=>setShowShortcuts(false)}>닫기</button>}>
+    <Modal open={showShortcuts} onClose={()=>setShowShortcuts(false)} title="단축키 안내" footer={<button style={S.bs} onClick={()=>setShowShortcuts(false)}>닫기</button>}>
       <table style={{width:"100%",borderCollapse:"collapse" as const,fontSize:13}}>
         <tbody>
           {([
@@ -538,7 +559,7 @@ export default function App() {
     </Modal>
 
     {/* ── 휴지통 모달 (삭제된 업무 복원) ───────────────────────── */}
-    <Modal open={showTrash} onClose={()=>setShowTrash(false)} title="🗑️ 휴지통" footer={<button style={S.bs} onClick={()=>setShowTrash(false)}>닫기</button>}>
+    <Modal open={showTrash} onClose={()=>setShowTrash(false)} title="휴지통" footer={<button style={S.bs} onClick={()=>setShowTrash(false)}>닫기</button>}>
       {deletedLog.length===0
         ? <div style={{textAlign:"center" as const,padding:"28px 0",color:"#94a3b8",fontSize:13}}>삭제된 업무가 없습니다</div>
         : <div style={{maxHeight:440,overflowY:"auto" as const}}>
@@ -561,7 +582,7 @@ export default function App() {
 
     {chipAdd&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.3)",zIndex:1100,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={e=>{if(e.target===e.currentTarget)setChipAdd(null)}}>
       <div style={{background:"#fff",borderRadius:12,padding:20,width:320,boxShadow:"0 10px 25px rgba(0,0,0,.15)"}}>
-        <div style={{fontSize:14,fontWeight:700,marginBottom:14}}>{({proj:"📁 프로젝트",who:"👤 담당자",pri:"🔥 우선순위",st:"📋 상태"} as any)[chipAdd]} 추가</div>
+        <div style={{fontSize:14,fontWeight:700,marginBottom:14}}>{({proj:"프로젝트",who:"담당자",pri:"우선순위",st:"상태"} as any)[chipAdd]} 추가</div>
         <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:14}}>
           {chipAdd!=="who"&&<input type="color" value={chipColor} onChange={e=>setChipColor(e.target.value)} style={{width:36,height:34,padding:1,borderRadius:6,cursor:"pointer",border:"1px solid #e2e8f0"}}/>}
           <input autoFocus value={chipVal} onChange={e=>setChipVal(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")addChip()}} placeholder="이름 입력" style={{flex:1,padding:"8px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:13,outline:"none"}}/>

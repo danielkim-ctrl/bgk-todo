@@ -126,7 +126,166 @@ const handleClick = () => { ... }
 
 ---
 
-## 8. 수정 시 사이드 이펙트 점검
+## 8. 폰트 통일
+
+- 앱 전체에서 **Pretendard 패밀리**만 사용한다: `'Pretendard', system-ui, sans-serif`
+- Pretendard 계열 굵기(ExtraBold, Bold, SemiBold, Medium, Regular 등)는 자유롭게 사용할 수 있다.
+- 다른 폰트 패밀리(`monospace`, `serif`, `cursive` 등)는 사용하지 않는다.
+- 새 컴포넌트를 만들 때 `fontFamily`를 직접 쓰지 않고, 최상위 `S.wrap`에서 상속받게 한다.
+- `input`, `button`, `textarea`, `select` 등 폼 요소에는 `fontFamily: 'inherit'`을 사용한다.
+
+---
+
+## 9. 이모지 사용 금지 — Heroicons 사용
+
+**UI에 이모지(📁 ⚙️ ✅ ❌ 🔥 📅 👤 📋 🔁 📊 📌 ↩️ 등)를 사용하지 않는다.**
+
+### 이유
+- 이모지는 OS/브라우저마다 렌더링이 다르다 (Windows ↔ macOS ↔ Android 전부 다르게 보임)
+- 디자인 톤이 통일되지 않아 앱이 산만해 보인다
+- 크기/색상/정렬을 CSS로 세밀하게 제어할 수 없다
+
+### 아이콘 라이브러리: Heroicons
+
+- **패키지**: `@heroicons/react` (https://github.com/tailwindlabs/heroicons)
+- **스타일**: `24/outline`을 기본으로 사용한다 (선이 깔끔하고 가독성 높음)
+- 강조가 필요한 경우에만 `24/solid` 사용 (예: 즐겨찾기 활성 상태)
+- 아이콘 크기는 인라인 `style`로 `width`, `height`를 지정한다 (기본 `16px`)
+- 아이콘 색상은 `currentColor`를 기본으로 하여 부모의 `color`를 자동 상속한다
+
+### import 규칙
+
+```tsx
+// 기본 — outline 스타일
+import { FolderIcon, UserIcon, CalendarIcon } from '@heroicons/react/24/outline'
+
+// 강조 — solid 스타일 (즐겨찾기 활성 등 제한적 사용)
+import { StarIcon } from '@heroicons/react/24/solid'
+```
+
+### 예시
+
+```tsx
+// 나쁜 예 — 이모지 직접 사용
+<button>📁 프로젝트</button>
+<span>👤 {assignee}</span>
+<span>📅 {dueDate}</span>
+
+// 좋은 예 — Heroicons 사용
+import { FolderIcon, UserIcon, CalendarIcon } from '@heroicons/react/24/outline'
+
+<button><FolderIcon style={{width:14,height:14}}/> 프로젝트</button>
+<span><UserIcon style={{width:14,height:14}}/> {assignee}</span>
+<span><CalendarIcon style={{width:14,height:14}}/> {dueDate}</span>
+```
+
+---
+
+## 10. 아이콘 일관성 원칙
+
+**같은 의미의 아이콘은 앱 전체에서 동일한 Heroicons 아이콘을 사용한다.**
+
+### 아이콘 매핑 표 (단일 출처)
+
+동일한 개념에는 반드시 아래 지정된 아이콘을 사용한다. 임의로 다른 아이콘으로 대체하지 않는다.
+
+| 개념 | Heroicons 컴포넌트 | import 경로 | 사용처 |
+|------|-------------------|-------------|--------|
+| 프로젝트 | `FolderIcon` | `24/outline` | 사이드바, 헤더, 카드, 필터, 드롭다운, 대시보드 |
+| 담당자 | `UserIcon` | `24/outline` | 사이드바, 헤더, 카드, 필터, 드롭다운, 대시보드 |
+| 마감기한 | `CalendarIcon` | `24/outline` | 카드, 입력 폼, 캘린더 뷰, 대시보드 |
+| 우선순위 | `FlagIcon` | `24/outline` | 카드, 입력 폼, 필터, 설정, 대시보드 |
+| 상태 | `CheckCircleIcon` | `24/outline` | 카드, 입력 폼, 필터, 설정, 대시보드 |
+| 반복 | `ArrowPathIcon` | `24/outline` | 카드, 입력 폼, 필터, 배지 |
+| 설정 | `Cog6ToothIcon` | `24/outline` | 헤더 |
+| 되돌리기 | `ArrowUturnLeftIcon` | `24/outline` | 헤더 |
+| 다시 실행 | `ArrowUturnRightIcon` | `24/outline` | 헤더 |
+| 삭제 | `TrashIcon` | `24/outline` | 카드, 모달, 일괄 작업 |
+| 즐겨찾기 (비활성) | `StarIcon` | `24/outline` | 카드, 필터 |
+| 즐겨찾기 (활성) | `StarIcon` | `24/solid` | 카드, 필터 |
+| 대시보드 | `ChartBarIcon` | `24/outline` | 탭 네비게이션 |
+| 칸반 | `ViewColumnsIcon` | `24/outline` | 탭 네비게이션 |
+| 리스트 | `ListBulletIcon` | `24/outline` | 탭 네비게이션 |
+| 성공 알림 | `CheckIcon` | `24/outline` | 토스트 |
+| 오류 알림 | `XMarkIcon` | `24/outline` | 토스트 |
+| 검색 | `MagnifyingGlassIcon` | `24/outline` | 검색창 |
+| 닫기 | `XMarkIcon` | `24/outline` | 모달, 패널 |
+| 추가 | `PlusIcon` | `24/outline` | 버튼, 카드 |
+| 메모 | `DocumentTextIcon` | `24/outline` | 탭 네비게이션 |
+
+### 체크 방법
+아이콘을 추가하거나 변경할 때 반드시 아래 질문에 답한다:
+> "이 개념에 이미 지정된 Heroicons 아이콘이 매핑 표에 있는가?"
+있다면 그 아이콘을 그대로 사용한다. 없다면 https://heroicons.com 에서 적절한 아이콘을 선택하고 매핑 표를 업데이트한다.
+
+---
+
+## 11. UX 표준 — Google 생태계 기준
+
+**UI/UX 설계 시 Google 서비스(Google Tasks, Google Calendar, Gmail, Google Sheets 등)의 인터랙션 패턴을 표준으로 삼는다.**
+
+### 이유
+- 대부분의 사용자가 Google 서비스에 익숙하므로, 동일한 패턴을 따르면 학습 비용이 0에 가깝다
+- 검증된 UX 패턴이므로 실수할 확률이 낮다
+
+### 적용 기준
+- **리스트 조작**: Google Tasks / Google Sheets 방식 (인라인 편집, 체크박스 완료, 드래그 정렬)
+- **캘린더**: Google Calendar 방식 (날짜 클릭 빠른 추가, 이벤트 드래그 이동, 월/주/일 뷰 전환)
+- **칸반**: 업계 표준 (Trello/Notion 칸반 — 드래그로 상태 변경)
+- **알림/토스트**: Gmail 방식 (하단 토스트 + "실행 취소" 버튼)
+- **모달/다이얼로그**: Google Material Design 가이드라인 (명확한 제목, 우측 하단 액션 버튼, ESC/외부 클릭 닫기)
+- **필터/검색**: Gmail 방식 (검색창 + 필터 칩 조합)
+- **키보드 단축키**: Google 서비스의 공통 단축키 패턴 참고 (?, Ctrl+Z 등)
+
+### 새 기능 설계 시 체크
+> "Google 서비스에서 이와 같은 기능은 어떻게 동작하는가?"
+해당 패턴이 있다면 그것을 따른다. 없거나 맞지 않는 경우에만 독자적으로 설계한다.
+
+---
+
+## 12. 아이콘 hover 효과 규칙
+
+**클릭 가능한 아이콘(접기/펼치기, 닫기, 설정 등)에는 반드시 hover 효과를 적용한다.**
+
+### 이유
+- hover 없는 아이콘은 클릭 가능한지 알 수 없다
+- 미세한 시각 피드백이 앱의 완성도를 결정한다
+
+### 적용 방법
+- **색상 진하게**: 기본 `#94a3b8` → hover 시 `#334155`
+- **stroke 두껍게**: Heroicons의 `stroke-width`를 기본 `1.5` → hover 시 `2.5`로 변경
+- **transition 적용**: `transition: "color .12s"`로 부드럽게 전환
+
+### 구현 패턴
+
+```tsx
+<button
+  style={{ color: "#94a3b8", transition: "color .12s" }}
+  onMouseEnter={e => {
+    e.currentTarget.style.color = "#334155";
+    (e.currentTarget.querySelector("svg") as SVGElement|null)
+      ?.setAttribute("stroke-width", "2.5");
+  }}
+  onMouseLeave={e => {
+    e.currentTarget.style.color = "#94a3b8";
+    (e.currentTarget.querySelector("svg") as SVGElement|null)
+      ?.setAttribute("stroke-width", "1.5");
+  }}
+>
+  <ChevronDownIcon style={{ width: 12, height: 12 }} />
+</button>
+```
+
+### 적용 대상
+- 사이드바 섹션 접기/펼치기 아이콘
+- 사이드바 확장/좁히기 아이콘
+- 모달/패널 닫기 아이콘
+- 업무 추가 섹션 접기/펼치기 아이콘
+- 테이블 행 hover 시 나타나는 액션 아이콘
+
+---
+
+## 13. 수정 시 사이드 이펙트 점검
 
 코드 수정 후 반드시 아래 항목을 점검한다:
 

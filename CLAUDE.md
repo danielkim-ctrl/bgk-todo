@@ -4,7 +4,9 @@
 
 - **목적**: BGK 팀 TODO 통합관리 웹앱
 - **스택**: React + TypeScript, Firebase Firestore, Anthropic Claude API
-- **주요 뷰**: 리스트 / 메모(스티키노트) / 칸반 / 캘린더 / 대시보드
+- **전체 폰트**: Pretendard 패밀리 (`'Pretendard', system-ui, sans-serif`) — ExtraBold, Bold, SemiBold, Medium, Regular 등 Pretendard 계열 굵기는 자유롭게 사용 가능. 다른 폰트 패밀리(monospace, serif 등)는 사용 금지
+- **UX 표준**: Google 생태계(Google Tasks, Google Calendar, Gmail, Google Sheets 등) 사용자가 익숙한 인터랙션 패턴을 표준으로 삼아 개발
+- **주요 뷰**: 리스트 / 칸반 / 캘린더 / 대시보드
 
 ## 구조 요약
 
@@ -53,4 +55,9 @@ src/
 5. **상수**: `src/constants.ts`에서 관리
 6. **전역 상태**: `useTodoApp` → 로컬 UI 상태만 컴포넌트 내 `useState`
 7. **한글 주석**: 비개발자도 이해할 수 있도록 "왜"를 중심으로 작성
-8. **수정 후 점검**: 리스트/칸반/캘린더/대시보드 모든 뷰에서 동작 확인
+8. **폰트 통일**: Pretendard 패밀리만 사용 (ExtraBold~Regular 굵기 자유), 다른 폰트 패밀리 금지
+9. **이모지 금지**: UI에 이모지 사용 금지, `@heroicons/react` (Heroicons)만 사용
+10. **아이콘 일관성**: 같은 개념(프로젝트, 담당자, 우선순위 등)은 매핑 표에 지정된 동일한 Heroicons 아이콘 사용
+11. **수정 후 점검**: 리스트/칸반/캘린더/대시보드 모든 뷰에서 동작 확인
+12. **UX 표준**: Google 생태계(Tasks, Calendar, Gmail, Sheets)의 인터랙션 패턴을 표준으로 삼아 개발
+13. **아이콘 hover**: 클릭 가능한 아이콘(접기/펼치기, 닫기 등)에는 반드시 hover 효과 적용 — 색상 진하게(`#334155`) + stroke-width 두껍게(1.5→2.5)

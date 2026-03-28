@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Todo, Project } from "../../types";
+import { Todo, Project, DatePopState } from "../../types";
 import { isOD, dDay, fD } from "../../utils";
+import { ListBulletIcon, CalendarIcon, FolderIcon, StarIcon, StarOutlineIcon, CheckIcon, XMarkIcon, TrashIcon, ICON_SM } from "../ui/Icons";
 
 interface MemoViewProps {
   sorted: Todo[];
@@ -23,6 +24,7 @@ interface MemoViewProps {
   isFav: (id: number) => boolean;
   toggleFav: (id: number) => void;
   flash: (msg: string, type?: string) => void;
+  setDatePop: (v: DatePopState | null) => void;
 }
 
 const NOTE_PALETTE = [
@@ -54,7 +56,7 @@ function PlaceholderCard() {
       animation: "memo-ph-pulse 1.1s ease-in-out infinite",
       pointerEvents: "none" as const,
     }}>
-      <span style={{ fontSize: 24, opacity: 0.35 }}>📋</span>
+      <ListBulletIcon style={{ width: 24, height: 24, opacity: 0.35 }} />
       <span style={{ fontSize: 11, color: "#2563eb", fontWeight: 700, opacity: 0.7, letterSpacing: 0.2 }}>여기에 놓기</span>
     </div>
   );
@@ -64,6 +66,7 @@ function MemoCard({
   t, gPr, aProj, members, pris, stats,
   priC, priBg, stC, stBg,
   updTodo, delTodo, isFav, toggleFav, flash,
+  setDatePop,
   openDrop, setOpenDrop,
   isDragging,
   onHeaderDragStart,
@@ -86,6 +89,7 @@ function MemoCard({
   isFav: (id: number) => boolean;
   toggleFav: (id: number) => void;
   flash: (msg: string, type?: string) => void;
+  setDatePop: (v: DatePopState | null) => void;
   openDrop: DropType;
   setOpenDrop: (v: DropType) => void;
   isDragging: boolean;
@@ -98,6 +102,15 @@ function MemoCard({
   const p = gPr(t.pid);
   const od = isOD(t.due, t.st);
   const dd = dDay(t.due, t.st);
+
+  // 메타 배지 공통 스타일 — 높이·폰트·정렬을 완전히 통일
+  const badgeBase: React.CSSProperties = {
+    fontSize: 10, fontWeight: 600, padding: "0 6px",
+    borderRadius: 99, height: 20, lineHeight: "20px",
+    display: "inline-flex", alignItems: "center", gap: 2,
+    boxSizing: "border-box", whiteSpace: "nowrap", cursor: "pointer",
+    border: "1px solid transparent",
+  };
   const isDone = t.st === "완료";
   const editorRef = useRef<HTMLDivElement>(null);
 
@@ -140,7 +153,8 @@ function MemoCard({
         display: "flex", flexDirection: "column",
         background: note.bg, border: `1.5px solid ${isDone ? "#e2e8f0" : note.border}`,
         borderRadius: 6, overflow: "hidden",
-        opacity: isDragging ? 0.28 : isDone ? 0.6 : 1,
+        opacity: isDragging ? 0.28 : isDone ? 0.75 : 1,
+        filter: isDone ? "saturate(0.3)" : "none",
         boxShadow: isDone ? "none" : isDragging ? "0 8px 24px rgba(37,99,235,.22)" : "2px 4px 12px rgba(0,0,0,.1)",
         minHeight: 240, transition: "box-shadow .15s, opacity .2s",
         outline: isDragging ? "2px solid #2563eb" : "none",
@@ -175,14 +189,14 @@ function MemoCard({
         title="드래그하여 순서 변경"
       >
         {/* 드래그 핸들 아이콘 */}
-        <span style={{ fontSize: 12, color: "rgba(0,0,0,0.3)", letterSpacing: "-1px", marginRight: 2, flexShrink: 0 }}>⠿⠿</span>
+        <span style={{ fontSize: 14, color: "rgba(0,0,0,0.3)", letterSpacing: "-1px", marginRight: 2, flexShrink: 0, padding: "2px 4px", cursor: "grab" }}>⠿⠿</span>
 
         {/* 메타 배지들 */}
         <div style={{ display: "flex", alignItems: "center", gap: 3, flexWrap: "wrap", flex: 1 }}>
           {/* 프로젝트 */}
           <div style={{ position: "relative" }}>
-            <span onClick={e => toggle("proj", e)} style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 99, background: p.id ? p.color + "33" : "rgba(0,0,0,.08)", color: p.id ? p.color : "#64748b", cursor: "pointer", whiteSpace: "nowrap", display: "inline-block" }}>
-              {p.id ? p.name : "📁 ▾"}
+            <span onClick={e => toggle("proj", e)} style={{ ...badgeBase, fontWeight: 700, background: p.id ? p.color + "33" : "rgba(0,0,0,.08)", color: p.id ? p.color : "#64748b" }}>
+              {p.id ? p.name : <><FolderIcon style={{width:10,height:10,flexShrink:0}} /> ▾</>}
             </span>
             {isOpen("proj") && (
               <div style={dropStyle} onClick={e => e.stopPropagation()}>
@@ -198,30 +212,27 @@ function MemoCard({
 
           {/* 마감기한 */}
           <div style={{ position: "relative" }}>
-            <span onClick={e => toggle("due", e)} style={{ display: "inline-flex", alignItems: "center", gap: 3, cursor: "pointer", whiteSpace: "nowrap" }}>
-              <span style={{ fontSize: 9, fontWeight: 600, padding: "1px 5px", borderRadius: 99, background: od ? "#fee2e2" : "rgba(0,0,0,.08)", color: od ? "#dc2626" : "#64748b" }}>
-                📅 {t.due ? fD(t.due) : "▾"}
+            <span onClick={e => {
+              e.stopPropagation();
+              // 공통 DateTimePicker를 열기 위해 클릭한 요소의 위치 정보 전달
+              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+              setDatePop({ id: t.id, rect, value: t.due || "" });
+              setOpenDrop(null);
+            }} style={{ display: "inline-flex", alignItems: "center", gap: 3, cursor: "pointer", whiteSpace: "nowrap" }}>
+              <span style={{ ...badgeBase, background: od ? "#fee2e2" : "rgba(0,0,0,.08)", color: od ? "#dc2626" : "#64748b" }}>
+                <CalendarIcon style={{width:10,height:10,flexShrink:0}} /> {t.due ? fD(t.due) : "▾"}
               </span>
               {t.due && dd && (
-                <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 99, background: dd.bg, color: dd.color, border: `1px solid ${dd.border}` }}>
+                <span style={{ ...badgeBase, fontWeight: 700, background: dd.bg, color: dd.color, borderColor: dd.border }}>
                   {dd.label}
                 </span>
               )}
             </span>
-            {isOpen("due") && (
-              <div style={{ ...dropStyle, padding: "8px 10px", minWidth: 168 }} onClick={e => e.stopPropagation()}>
-                <input type="date" defaultValue={t.due || ""} autoFocus
-                  style={{ width: "100%", padding: "5px 8px", border: "1.5px solid #e2e8f0", borderRadius: 6, fontSize: 11, outline: "none", boxSizing: "border-box" }}
-                  onChange={e => updTodo(t.id, { due: e.target.value })}
-                  onBlur={() => setOpenDrop(null)} />
-                {t.due && <div onClick={() => { updTodo(t.id, { due: "" }); setOpenDrop(null); }} style={{ fontSize: 10, color: "#94a3b8", cursor: "pointer", marginTop: 5, textAlign: "center" }}>날짜 삭제</div>}
-              </div>
-            )}
           </div>
 
           {/* 우선순위 */}
           <div style={{ position: "relative" }}>
-            <span onClick={e => toggle("pri", e)} style={{ fontSize: 9, fontWeight: 600, padding: "1px 5px", borderRadius: 99, background: priBg[t.pri] ? priBg[t.pri] + "cc" : "rgba(0,0,0,.08)", color: priC[t.pri] || "#64748b", cursor: "pointer", display: "inline-block" }}>
+            <span onClick={e => toggle("pri", e)} style={{ ...badgeBase, background: priBg[t.pri] ? priBg[t.pri] + "cc" : "rgba(0,0,0,.08)", color: priC[t.pri] || "#64748b" }}>
               {t.pri} ▾
             </span>
             {isOpen("pri") && (
@@ -237,7 +248,7 @@ function MemoCard({
 
           {/* 상태 */}
           <div style={{ position: "relative" }}>
-            <span onClick={e => toggle("st", e)} style={{ fontSize: 9, fontWeight: 600, padding: "1px 5px", borderRadius: 99, background: stBg[t.st] ? stBg[t.st] + "cc" : "rgba(0,0,0,.08)", color: stC[t.st] || "#64748b", cursor: "pointer", display: "inline-block" }}>
+            <span onClick={e => toggle("st", e)} style={{ ...badgeBase, background: stBg[t.st] ? stBg[t.st] + "cc" : "rgba(0,0,0,.08)", color: stC[t.st] || "#64748b" }}>
               {t.st} ▾
             </span>
             {isOpen("st") && (
@@ -256,7 +267,7 @@ function MemoCard({
         <div style={{ display: "flex", alignItems: "center", gap: 1, flexShrink: 0 }}>
           <div style={{ position: "relative" }}>
             <button onClick={e => toggle("color", e)} title="색상 변경"
-              style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, padding: "2px 4px", color: "#64748b", lineHeight: 1, letterSpacing: 1 }}>···</button>
+              style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, padding: "0 4px", color: "#64748b", lineHeight: 1, letterSpacing: 0, height: 20, display: "inline-flex", alignItems: "center", boxSizing: "border-box" as const }}>···</button>
             {isOpen("color") && (
               <div style={{ ...dropStyle, right: 0, left: "auto", minWidth: "auto", padding: "8px 10px", display: "flex", gap: 6 }} onClick={e => e.stopPropagation()}>
                 {NOTE_PALETTE.map((c, i) => (
@@ -314,7 +325,7 @@ function MemoCard({
           padding: "2px 4px", borderTop: `1px solid ${note.border}`,
           background: note.header,
         }}>
-          <span style={{ fontSize: 11, fontWeight: 800, padding: "4px 8px", border: "none", borderRadius: 5, cursor: "pointer", color: "#334155", fontFamily: "serif" }}
+          <span style={{ fontSize: 11, fontWeight: 800, padding: "4px 8px", border: "none", borderRadius: 6, cursor: "pointer", color: "#334155", fontFamily: "serif" }}
             onMouseDown={e => { e.preventDefault(); cmd("bold"); }}>B</span>
           <span style={{ fontSize: 11, fontStyle: "italic", padding: "2px 4px", border: "none", borderRadius: 4, cursor: "pointer", color: "#334155", fontFamily: "serif" }}
             onMouseDown={e => { e.preventDefault(); cmd("italic"); }}>I</span>
@@ -353,12 +364,12 @@ function MemoCard({
 
           <button onClick={() => toggleFav(t.id)} title={isFav(t.id) ? "즐겨찾기 해제" : "즐겨찾기"}
             style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, padding: "2px 4px", color: isFav(t.id) ? "#f59e0b" : "#94a3b8", lineHeight: 1 }}>
-            {isFav(t.id) ? "★" : "☆"}
+            {isFav(t.id) ? <StarIcon style={{width:13,height:13}}/> : <StarOutlineIcon style={{width:13,height:13}}/>}
           </button>
           <button onClick={() => { updTodo(t.id, { st: "완료" }); flash("완료 처리되었습니다"); }} title="완료"
-            style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, padding: "2px 4px", color: "#16a34a", lineHeight: 1 }}>✓</button>
+            style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, padding: "2px 4px", color: "#16a34a", lineHeight: 1, display: "inline-flex", alignItems: "center" }}><CheckIcon style={{width:12,height:12}}/></button>
           <button onClick={() => { if (confirm("삭제하시겠습니까?")) { delTodo(t.id); flash("업무가 삭제되었습니다", "err"); } }} title="삭제"
-            style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, padding: "2px 4px", color: "#dc2626", lineHeight: 1 }}>✕</button>
+            style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, padding: "2px 4px", color: "#dc2626", lineHeight: 1, display: "inline-flex", alignItems: "center" }}><XMarkIcon style={{width:12,height:12}}/></button>
         </div>
       )}
 
@@ -369,10 +380,10 @@ function MemoCard({
           <span style={{ fontSize: 10, color: "#94a3b8" }}>{t.who}</span>
           <button onClick={() => toggleFav(t.id)} title={isFav(t.id) ? "즐겨찾기 해제" : "즐겨찾기"}
             style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, padding: "2px 4px", color: isFav(t.id) ? "#f59e0b" : "#94a3b8", lineHeight: 1, marginLeft: "auto" }}>
-            {isFav(t.id) ? "★" : "☆"}
+            {isFav(t.id) ? <StarIcon style={{width:13,height:13}}/> : <StarOutlineIcon style={{width:13,height:13}}/>}
           </button>
           <button onClick={() => { if (confirm("삭제하시겠습니까?")) { delTodo(t.id); flash("업무가 삭제되었습니다", "err"); } }} title="삭제"
-            style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, padding: "2px 4px", color: "#dc2626", lineHeight: 1 }}>✕</button>
+            style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, padding: "2px 4px", color: "#dc2626", lineHeight: 1, display: "inline-flex", alignItems: "center" }}><XMarkIcon style={{width:12,height:12}}/></button>
         </div>
       )}
     </div>
@@ -430,7 +441,7 @@ export function MemoView({
   sorted, showDone, setShowDone,
   gPr, aProj, members, pris, stats,
   priC, priBg, stC, stBg,
-  updTodo, addTodo, currentUser, cols = 3, delTodo, isFav, toggleFav, flash,
+  updTodo, addTodo, currentUser, cols = 3, delTodo, isFav, toggleFav, flash, setDatePop,
 }: MemoViewProps) {
   const [openDrop, setOpenDrop] = useState<DropType>(null);
   const active = sorted.filter(t => t.st !== "완료");
@@ -523,7 +534,7 @@ export function MemoView({
     document.body.style.cursor = "";
   };
 
-  const cardProps = { gPr, aProj, members, pris, stats, priC, priBg, stC, stBg, updTodo, delTodo, isFav, toggleFav, flash, openDrop, setOpenDrop };
+  const cardProps = { gPr, aProj, members, pris, stats, priC, priBg, stC, stBg, updTodo, delTodo, isFav, toggleFav, flash, setDatePop, openDrop, setOpenDrop };
 
   return (
     <div onClick={() => setOpenDrop(null)}>
@@ -576,7 +587,7 @@ export function MemoView({
         <div style={{ marginTop: 18 }}>
           <div onClick={e => { e.stopPropagation(); setShowDone((p: boolean) => !p); }}
             style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: "#f0fdf4", borderRadius: 8, cursor: "pointer", marginBottom: showDone ? 14 : 0, border: "1px solid #bbf7d0" }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "#16a34a" }}>✓ 완료됨</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "#16a34a", display: "inline-flex", alignItems: "center", gap: 4 }}><CheckIcon style={{width:12,height:12}}/> 완료됨</span>
             <span style={{ fontSize: 10, color: "#86efac" }}>{done.length}건</span>
             <span style={{ fontSize: 10, color: "#4ade80", marginLeft: "auto" }}>{showDone ? "접기" : "펼치기"}</span>
           </div>

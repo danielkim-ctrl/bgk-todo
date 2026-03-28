@@ -6,6 +6,7 @@ import { Chip } from "../components/ui/Chip";
 import { RepeatBadge } from "../components/ui/RepeatBadge";
 import { MultiMonthView } from "../components/calendar/MultiMonthView";
 import { DateTimePicker } from "../components/editor/DateTimePicker";
+import { Bars3Icon, ArrowPathIcon, UserIcon, ExclamationTriangleIcon, CalendarIcon, FolderIcon, CheckCircleIcon, CheckIcon, XMarkIcon, PencilSquareIcon, TrashIcon, BoltIcon, StarIcon, StarOutlineIcon, ICON_SM } from "../components/ui/Icons";
 
 interface CalendarViewProps {
   // calendar state
@@ -25,10 +26,10 @@ interface CalendarViewProps {
   agendaItems: () => any[];
   ftodosExpanded: any[];
   evStyle: (p: any, repeat?: string) => any;
-  calF: string;
-  setCalF: (v: string) => void;
-  calFWho: string;
-  setCalFWho: (v: string) => void;
+  calF: string[];
+  setCalF: (v: string[]) => void;
+  calFWho: string[];
+  setCalFWho: (v: string[]) => void;
   visibleProj: any[];
   members: string[];
   visibleMembers: string[];
@@ -166,20 +167,20 @@ export function CalendarView(props: CalendarViewProps) {
       <div style={{display:"flex",alignItems:"center",gap:4}}>
         {[["day","일",1],["week","주",2],["month","월",3],["custom",`${customDays}일`,4],["agenda","일정",5]].map(([k,l,n])=>
           <button key={k} onClick={()=>setCalView(k as string)} style={{padding:"5px 10px",borderRadius:6,border:`1.5px solid ${calView===k?"#2563eb":"#e2e8f0"}`,background:calView===k?"#2563eb":"#fff",color:calView===k?"#fff":"#64748b",fontSize:11,fontWeight:calView===k?600:500,cursor:"pointer"}}>
-            <span style={{fontSize:9,opacity:.6,fontWeight:700}}>{n}</span>{l}
+            <span style={{fontSize:10,opacity:.6,fontWeight:700}}>{n}</span>{l}
           </button>)}
         {calView==="custom"&&<input type="number" min="2" max="14" value={customDays} onChange={e=>setCustomDays(Math.max(2,Math.min(14,parseInt(e.target.value)||4)))} style={{width:44,padding:"4px 6px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:11,textAlign:"center"}}/>}
         {/* 우측 사이드바 토글 버튼 */}
-        <button onClick={()=>setCalSidebarOpen(v=>!v)} title={calSidebarOpen?"사이드바 닫기":"사이드바 열기"} style={{marginLeft:4,width:28,height:28,borderRadius:6,border:`1.5px solid ${calSidebarOpen?"#2563eb":"#e2e8f0"}`,background:calSidebarOpen?"#eff6ff":"#fff",cursor:"pointer",fontSize:14,color:calSidebarOpen?"#2563eb":"#64748b",display:"flex",alignItems:"center",justifyContent:"center"}}>☰</button>
+        <button onClick={()=>setCalSidebarOpen(v=>!v)} title={calSidebarOpen?"사이드바 닫기":"사이드바 열기"} style={{marginLeft:4,width:28,height:28,borderRadius:6,border:`1.5px solid ${calSidebarOpen?"#2563eb":"#e2e8f0"}`,background:calSidebarOpen?"#eff6ff":"#fff",cursor:"pointer",fontSize:14,color:calSidebarOpen?"#2563eb":"#64748b",display:"flex",alignItems:"center",justifyContent:"center"}}><Bars3Icon style={ICON_SM}/></button>
       </div>
     </div>
     <div style={{display:"flex",gap:3,flexWrap:"wrap",marginBottom:4}}>
-      <Chip active={calF===""} onClick={()=>setCalF("")}>전체</Chip>
-      {visibleProj.map(p=><Chip key={p.id} active={calF===String(p.id)} color={p.color} onClick={()=>setCalF(calF===String(p.id)?"":String(p.id))}>{p.name}</Chip>)}
+      <Chip active={calF.length===0} onClick={()=>setCalF([])}>전체</Chip>
+      {visibleProj.map(p=><Chip key={p.id} active={calF.includes(String(p.id))} color={p.color} onClick={()=>setCalF(calF.includes(String(p.id))?calF.filter(x=>x!==String(p.id)):[...calF,String(p.id)])}>{p.name}</Chip>)}
     </div>
     <div style={{display:"flex",gap:3,flexWrap:"wrap",marginBottom:4}}>
-      <Chip active={calFWho===""} onClick={()=>setCalFWho("")}>전체</Chip>
-      {members.map(n=><Chip key={n} active={calFWho===n} onClick={()=>setCalFWho(calFWho===n?"":n)}>{n}</Chip>)}
+      <Chip active={calFWho.length===0} onClick={()=>setCalFWho([])}>전체</Chip>
+      {members.map(n=><Chip key={n} active={calFWho.includes(n)} onClick={()=>setCalFWho(calFWho.includes(n)?calFWho.filter(x=>x!==n):[...calFWho,n])}>{n}</Chip>)}
     </div>
     <div style={{fontSize:10,color:"#94a3b8",display:"flex",alignItems:"center",gap:6}}>
       <span style={{display:"inline-flex",alignItems:"center",gap:3}}><span style={{width:12,height:8,borderLeft:"3px dashed #64748b",display:"inline-block"}}/> 반복 업무</span>
@@ -200,19 +201,20 @@ export function CalendarView(props: CalendarViewProps) {
       const nowTop=isT?(now.getHours()*60+now.getMinutes())/60*hourH:-1;
       return <div style={{background:"#fff",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 3px rgba(0,0,0,.08)",display:"flex",flexDirection:"column" as const}}>
         <div style={{display:"grid",gridTemplateColumns:"56px 1fr",borderBottom:"1px solid #e2e8f0",flexShrink:0}}>
-          <div style={{fontSize:9,color:"#94a3b8",textAlign:"center",borderRight:"1px solid #e2e8f0",display:"flex",alignItems:"center",justifyContent:"center",padding:"10px 4px",lineHeight:1.3}}>GMT<br/>+9</div>
+          <div style={{fontSize:10,color:"#94a3b8",textAlign:"center",borderRight:"1px solid #e2e8f0",display:"flex",alignItems:"center",justifyContent:"center",padding:"10px 4px",lineHeight:1.3}}>GMT<br/>+9</div>
           <div style={{textAlign:"center",padding:"10px 0",background:isSun?"#fff5f5":isSat?"#f0f4ff":"#fff"}}>
             <div style={{fontSize:11,fontWeight:700,color:isSun?"#dc2626":isSat?"#2563eb":"#64748b"}}>{calDays[dow]}</div>
             <div style={{fontSize:28,fontWeight:400,lineHeight:1.1,color:isT?"#fff":"#334155",marginTop:4,...(isT?{display:"inline-flex",alignItems:"center",justifyContent:"center",background:"#1a73e8",width:42,height:42,borderRadius:"50%",fontSize:22}:{})}}>{calD}</div>
           </div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"56px 1fr",borderBottom:"2px solid #e2e8f0",flexShrink:0,minHeight:40}}>
-          <div style={{fontSize:9,color:"#94a3b8",textAlign:"center",borderRight:"1px solid #e2e8f0",display:"flex",alignItems:"flex-start",justifyContent:"center",paddingTop:10}}>종일</div>
+          <div style={{fontSize:10,color:"#94a3b8",textAlign:"center",borderRight:"1px solid #e2e8f0",display:"flex",alignItems:"flex-start",justifyContent:"center",paddingTop:10}}>종일</div>
           {(()=>{const isDragOverAllDay=(calDragId!==null||sidebarDragId!==null)&&calDragOverDs===ds&&calDragOverH===-1;return(
           <div style={{padding:"4px 6px",display:"flex",flexDirection:"column" as const,gap:2,
             background:isDragOverAllDay?"#eff6ff":isT?"#fafcff":"#fff",
-            outline:isDragOverAllDay?"2px solid #2563eb":"none",outlineOffset:-2,
+            outline:isDragOverAllDay?"2px solid #2563eb":"none",outlineOffset:-2,overflow:"hidden",
             cursor:(calDragId!==null||sidebarDragId!==null)?"copy":"pointer",transition:"background .1s"}}
+            data-calcell
             onClick={e=>{if(!calDragId&&!sidebarDragId)openQA(e,ds,0);}}
             onDragOver={e=>{if(calDragId!==null||sidebarDragId!==null){e.preventDefault();setCalDragOverDs(ds);setCalDragOverH(-1);}}}
             onDragLeave={e=>{if(!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)){setCalDragOverDs(null);setCalDragOverH(null);}}}
@@ -225,9 +227,11 @@ export function CalendarView(props: CalendarViewProps) {
                   onDragStart={e=>{e.stopPropagation();calDragStart(t.id);}}
                   onDragEnd={e=>{e.stopPropagation();calDragEnd();}}
                   onClick={e=>{e.stopPropagation();if(!isThisDragging)openEvPop(e,t);}}
-                  style={{...evStyle(p,t.repeat),whiteSpace:"normal" as const,overflow:"visible",textOverflow:"unset",display:"flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:4,cursor:"grab",opacity:isThisDragging?.4:1,transition:"opacity .15s"}}>
-                  {t.repeat&&t.repeat!=="없음"&&"🔁 "}{t.task}
-                  {t.who&&<span style={{opacity:.7,fontSize:9}}> · {t.who}</span>}
+                  onMouseEnter={e=>{(e.currentTarget as HTMLDivElement).style.filter="brightness(.92)";}}
+                  onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.filter="none";}}
+                  style={{...evStyle(p,t.repeat),whiteSpace:"nowrap" as const,overflow:"hidden",textOverflow:"ellipsis",display:"flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:4,cursor:"grab",opacity:isThisDragging?(t._instance?0.28:0.4):(t._instance?0.7:1),transition:"opacity .15s, filter .12s",...(t._instance?{borderLeft:"2px dashed "+p.color}:{}),maxWidth:"100%"}}>
+                  <span style={{overflow:"hidden",textOverflow:"ellipsis",minWidth:0,flex:1,display:"inline-flex",alignItems:"center",gap:2}}>{t.repeat&&t.repeat!=="없음"&&<><ArrowPathIcon style={ICON_SM}/>{" "}</>}{t.task}</span>
+                  {t.who&&<span style={{opacity:.7,fontSize:10,flexShrink:0}}> · {t.who}</span>}
                 </div>);})}
           </div>);})()}
         </div>
@@ -237,13 +241,14 @@ export function CalendarView(props: CalendarViewProps) {
             const hTodos=timedTodos.filter(t=>getH(t.due)===h);
             const isDragOverCell=(calDragId!==null||sidebarDragId!==null)&&calDragOverDs===ds&&calDragOverH===h;
             return <div key={h} style={{display:"grid",gridTemplateColumns:"56px 1fr",minHeight:hourH,borderBottom:"1px solid #f1f5f9"}}>
-              <div style={{fontSize:9,color:"#94a3b8",textAlign:"right",paddingRight:8,borderRight:"1px solid #e2e8f0",paddingTop:h===0?4:0,lineHeight:1,minHeight:hourH,boxSizing:"border-box" as const}}>
+              <div style={{fontSize:10,color:"#94a3b8",textAlign:"right",paddingRight:8,borderRight:"1px solid #e2e8f0",paddingTop:h===0?4:0,lineHeight:1,minHeight:hourH,boxSizing:"border-box" as const}}>
                 {h===0?"":h<12?`오전 ${h}시`:h===12?"오후 12시":`오후 ${h-12}시`}
               </div>
               <div style={{background:isDragOverCell?"#eff6ff":isT?"#fafcff":"#fff",
                 outline:isDragOverCell?"2px solid #2563eb":"none",outlineOffset:-2,
-                padding:hTodos.length>0?"2px 4px":0,
+                padding:hTodos.length>0?"2px 4px":0,overflow:"hidden",
                 cursor:(calDragId!==null||sidebarDragId!==null)?"copy":"pointer",transition:"background .1s"}}
+                data-calcell
                 onClick={e=>{if(!calDragId&&!sidebarDragId)openQA(e,ds,h);}}
                 onDragOver={e=>{if(calDragId!==null||sidebarDragId!==null){e.preventDefault();setCalDragOverDs(ds);setCalDragOverH(h);}}}
                 onDragLeave={e=>{if(!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)){setCalDragOverDs(null);setCalDragOverH(null);}}}
@@ -254,9 +259,11 @@ export function CalendarView(props: CalendarViewProps) {
                     onDragStart={e=>{e.stopPropagation();calDragStart(t.id);}}
                     onDragEnd={e=>{e.stopPropagation();calDragEnd();}}
                     onClick={e=>{e.stopPropagation();if(!isThisDragging)openEvPop(e,t);}}
-                    style={{...evStyle(p,t.repeat),display:"flex",alignItems:"center",gap:4,padding:"2px 8px",marginBottom:2,whiteSpace:"nowrap" as const,cursor:"grab",opacity:isThisDragging?.4:1,transition:"opacity .15s"}}>
+                    onMouseEnter={e=>{(e.currentTarget as HTMLDivElement).style.filter="brightness(.92)";}}
+                    onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.filter="none";}}
+                    style={{...evStyle(p,t.repeat),display:"flex",alignItems:"center",gap:4,padding:"2px 8px",marginBottom:2,whiteSpace:"nowrap" as const,cursor:"grab",opacity:isThisDragging?(t._instance?0.28:0.4):(t._instance?0.7:1),transition:"opacity .15s, filter .12s",...(t._instance?{borderLeft:"2px dashed "+p.color}:{}),maxWidth:"100%",overflow:"hidden"}}>
                     <span style={{fontSize:8,fontWeight:700,flexShrink:0,opacity:.9}}>{tl}</span>
-                    <span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{t.repeat&&t.repeat!=="없음"&&"🔁 "}{t.task}</span>
+                    <span style={{overflow:"hidden",textOverflow:"ellipsis",minWidth:0,flex:1,display:"inline-flex",alignItems:"center",gap:2}}>{t.repeat&&t.repeat!=="없음"&&<ArrowPathIcon style={ICON_SM}/>}{t.task}</span>
                     {t.who&&<span style={{opacity:.7,fontSize:8,flexShrink:0}}> · {t.who}</span>}
                   </div>);})}
               </div>
@@ -279,7 +286,7 @@ export function CalendarView(props: CalendarViewProps) {
       return <div style={{background:"#fff",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 3px rgba(0,0,0,.08)",display:"flex",flexDirection:"column" as const}}>
         {/* 헤더: 요일 + 날짜 */}
         <div style={{display:"grid",gridTemplateColumns:"56px repeat(7,1fr)",borderBottom:"1px solid #e2e8f0",flexShrink:0}}>
-          <div style={{fontSize:9,color:"#94a3b8",textAlign:"center",borderRight:"1px solid #e2e8f0",display:"flex",alignItems:"center",justifyContent:"center",padding:"10px 4px",lineHeight:1.3}}>GMT<br/>+9</div>
+          <div style={{fontSize:10,color:"#94a3b8",textAlign:"center",borderRight:"1px solid #e2e8f0",display:"flex",alignItems:"center",justifyContent:"center",padding:"10px 4px",lineHeight:1.3}}>GMT<br/>+9</div>
           {wDates.map((d,i)=>{
             const ds=dateStr(d.getFullYear(),d.getMonth(),d.getDate());
             const isT=ds===todayStr;const isSun=d.getDay()===0;const isSat=d.getDay()===6;
@@ -289,16 +296,16 @@ export function CalendarView(props: CalendarViewProps) {
             </div>;})}
         </div>
         <div style={{display:"grid",gridTemplateColumns:"56px repeat(7,1fr)",borderBottom:"2px solid #e2e8f0",flexShrink:0,minHeight:36}}>
-          <div style={{fontSize:9,color:"#94a3b8",textAlign:"center",borderRight:"1px solid #e2e8f0",display:"flex",alignItems:"flex-start",justifyContent:"center",paddingTop:10}}>종일</div>
+          <div style={{fontSize:10,color:"#94a3b8",textAlign:"center",borderRight:"1px solid #e2e8f0",display:"flex",alignItems:"flex-start",justifyContent:"center",paddingTop:10}}>종일</div>
           {wDates.map((d,i)=>{
             const ds=dateStr(d.getFullYear(),d.getMonth(),d.getDate());
             const isT=ds===todayStr;const isSun=d.getDay()===0;const isSat=d.getDay()===6;
             const allDayT=ftodosExpanded.filter(t=>t.due&&t.due.split(" ")[0]===ds&&!t.due.includes(" "));
             const isDragOverAllDay=(calDragId!==null||sidebarDragId!==null)&&calDragOverDs===ds&&calDragOverH===-1;
-            return <div key={i}
+            return <div key={i} data-calcell
               style={{padding:"2px 3px",borderRight:i<6?"1px solid #e2e8f0":"none",
                 background:isDragOverAllDay?"#eff6ff":isT?"#fafcff":isSun?"#fff8f8":isSat?"#f8f9ff":"#fff",
-                outline:isDragOverAllDay?"2px solid #2563eb":"none",outlineOffset:-2,
+                outline:isDragOverAllDay?"2px solid #2563eb":"none",outlineOffset:-2,overflow:"hidden",
                 cursor:(calDragId!==null||sidebarDragId!==null)?"copy":"pointer",transition:"background .1s"}}
               onClick={e=>{if(!calDragId&&!sidebarDragId)openQA(e,ds,0);}}
               onDragOver={e=>{if(calDragId!==null||sidebarDragId!==null){e.preventDefault();setCalDragOverDs(ds);setCalDragOverH(-1);}}}
@@ -310,9 +317,11 @@ export function CalendarView(props: CalendarViewProps) {
                   onDragStart={e=>{e.stopPropagation();calDragStart(t.id);}}
                   onDragEnd={e=>{e.stopPropagation();calDragEnd();}}
                   onClick={e=>{e.stopPropagation();if(!isThisDragging)openEvPop(e,t);}}
-                  style={{...evStyle(p,t.repeat),marginBottom:1,cursor:"grab",opacity:isThisDragging?.4:1,transition:"opacity .15s"}}>
-                  <div style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>{t.repeat&&t.repeat!=="없음"?"🔁 ":""}{t.task}</div>
-                  {t.who&&<div style={{fontSize:8,opacity:.75,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>👤 {t.who}</div>}
+                  onMouseEnter={e=>{(e.currentTarget as HTMLDivElement).style.filter="brightness(.92)";}}
+                  onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.filter="none";}}
+                  style={{...evStyle(p,t.repeat),marginBottom:1,cursor:"grab",opacity:isThisDragging?(t._instance?0.28:0.4):(t._instance?0.7:1),transition:"opacity .15s, filter .12s",...(t._instance?{borderLeft:"2px dashed "+p.color}:{})}}>
+                  <div style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,display:"flex",alignItems:"center",gap:2}}>{t.repeat&&t.repeat!=="없음"&&<ArrowPathIcon style={ICON_SM}/>}{t.task}</div>
+                  {t.who&&<div style={{fontSize:8,opacity:.75,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,display:"flex",alignItems:"center",gap:2}}><UserIcon style={ICON_SM}/> {t.who}</div>}
                 </div>);})}
             </div>;})}
         </div>
@@ -321,7 +330,7 @@ export function CalendarView(props: CalendarViewProps) {
           {Array.from({length:24},(_,h)=>{
             const getH=(due:string)=>parseInt((due.split(" ")[1]||"0:0").split(":")[0])||0;
             return <div key={h} style={{display:"grid",gridTemplateColumns:"56px repeat(7,1fr)",minHeight:hourH,borderBottom:"1px solid #f1f5f9"}}>
-              <div style={{fontSize:9,color:"#94a3b8",textAlign:"right",paddingRight:8,borderRight:"1px solid #e2e8f0",paddingTop:h===0?4:0,lineHeight:1,minHeight:hourH,boxSizing:"border-box" as const}}>
+              <div style={{fontSize:10,color:"#94a3b8",textAlign:"right",paddingRight:8,borderRight:"1px solid #e2e8f0",paddingTop:h===0?4:0,lineHeight:1,minHeight:hourH,boxSizing:"border-box" as const}}>
                 {h===0?"":h<12?`오전 ${h}시`:h===12?"오후 12시":`오후 ${h-12}시`}
               </div>
               {wDates.map((d,i)=>{
@@ -329,11 +338,11 @@ export function CalendarView(props: CalendarViewProps) {
                 const isT=ds===todayStr;const isSun=d.getDay()===0;const isSat=d.getDay()===6;
                 const hTodos=ftodosExpanded.filter(t=>t.due&&t.due.split(" ")[0]===ds&&t.due.includes(" ")&&getH(t.due)===h);
                 const isDragOverCell=(calDragId!==null||sidebarDragId!==null)&&calDragOverDs===ds&&calDragOverH===h;
-                return <div key={i}
+                return <div key={i} data-calcell
                   style={{borderRight:i<6?"1px solid #f1f5f9":"none",
                     background:isDragOverCell?"#eff6ff":isT?"#fafcff":isSun?"#fff8f8":isSat?"#f8f9ff":"#fff",
                     outline:isDragOverCell?"2px solid #2563eb":"none",outlineOffset:-2,
-                    padding:hTodos.length>0?"2px 3px":0,
+                    padding:hTodos.length>0?"2px 3px":0,overflow:"hidden",
                     cursor:(calDragId!==null||sidebarDragId!==null)?"copy":"pointer",transition:"background .1s"}}
                   onClick={e=>{if(!calDragId&&!sidebarDragId)openQA(e,ds,h);}}
                   onDragOver={e=>{if(calDragId!==null||sidebarDragId!==null){e.preventDefault();setCalDragOverDs(ds);setCalDragOverH(h);}}}
@@ -345,9 +354,11 @@ export function CalendarView(props: CalendarViewProps) {
                       onDragStart={e=>{e.stopPropagation();calDragStart(t.id);}}
                       onDragEnd={e=>{e.stopPropagation();calDragEnd();}}
                       onClick={e=>{e.stopPropagation();if(!isThisDragging)openEvPop(e,t);}}
-                      style={{...evStyle(p,t.repeat),marginBottom:1,cursor:"grab",opacity:isThisDragging?.4:1,transition:"opacity .15s"}}>
+                      onMouseEnter={e=>{(e.currentTarget as HTMLDivElement).style.filter="brightness(.92)";}}
+                      onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.filter="none";}}
+                      style={{...evStyle(p,t.repeat),marginBottom:1,cursor:"grab",opacity:isThisDragging?(t._instance?0.28:0.4):(t._instance?0.7:1),transition:"opacity .15s, filter .12s",...(t._instance?{borderLeft:"2px dashed "+p.color}:{})}}>
                       <div style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}><span style={{fontSize:8,fontWeight:700,opacity:.9}}>{tl} </span>{t.task}</div>
-                      {t.who&&<div style={{fontSize:7,opacity:.75,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>👤 {t.who}</div>}
+                      {t.who&&<div style={{fontSize:7,opacity:.75,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,display:"flex",alignItems:"center",gap:1}}><UserIcon style={{width:8,height:8,flexShrink:0}}/> {t.who}</div>}
                     </div>);})}
                 </div>;})}
             </div>;})}
@@ -360,7 +371,7 @@ export function CalendarView(props: CalendarViewProps) {
       </div>;
     })()}
 
-    {calView==="month"&&<MultiMonthView calY={calY} calM={calM} ftodos={ftodosExpanded} todayStr={todayStr} gPr={gPr} onEvClick={openEvPop} onDayClick={(e,ds)=>openQA(e,ds,0)} onMoreClick={(e,ds,ts)=>{e.stopPropagation();const r=(e.currentTarget as HTMLElement).getBoundingClientRect();setCalDayPop({ds,todos:ts,x:Math.min(r.right+4,window.innerWidth-292),y:Math.min(r.top,window.innerHeight-370)});setCalEvPop(null);setCalQA(null);}} setCalDate={setCalDate} setCalView={setCalView} calDays={calDays} evStyle={evStyle} calDragId={calDragId} calDragOverDs={calDragOverDs} onCalDragStart={calDragStart} onCalDragEnd={calDragEnd} onCalDrop={calDropOnDate} setCalDragOverDs={setCalDragOverDs} sidebarDragId={sidebarDragId} calTodayKey={calTodayKey}/>}
+    {calView==="month"&&<MultiMonthView calY={calY} calM={calM} ftodos={ftodosExpanded} todayStr={todayStr} gPr={gPr} onEvClick={openEvPop} onDayClick={(e,ds)=>openQA(e,ds,0)} onMoreClick={(e,ds,ts)=>{e.stopPropagation();const zm=parseFloat(getComputedStyle(document.documentElement).zoom)||1;const r=(e.currentTarget as HTMLElement).getBoundingClientRect();const vw=window.innerWidth/zm;const vh=window.innerHeight/zm;setCalDayPop({ds,todos:ts,x:Math.max(8,Math.min(r.right/zm+4,vw-292)),y:Math.max(8,Math.min(r.top/zm,vh-370))});setCalEvPop(null);setCalQA(null);}} setCalDate={setCalDate} setCalView={setCalView} calDays={calDays} evStyle={evStyle} calDragId={calDragId} calDragOverDs={calDragOverDs} onCalDragStart={calDragStart} onCalDragEnd={calDragEnd} onCalDrop={calDropOnDate} setCalDragOverDs={setCalDragOverDs} sidebarDragId={sidebarDragId} calTodayKey={calTodayKey}/>}
 
     {calView==="custom"&&(()=>{
       const cDates=customDates();
@@ -371,7 +382,7 @@ export function CalendarView(props: CalendarViewProps) {
       return <div style={{background:"#fff",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 3px rgba(0,0,0,.08)",display:"flex",flexDirection:"column" as const}}>
         {/* 헤더: 요일 + 날짜 */}
         <div style={{display:"grid",gridTemplateColumns:`56px repeat(${customDays},1fr)`,borderBottom:"1px solid #e2e8f0",flexShrink:0}}>
-          <div style={{fontSize:9,color:"#94a3b8",textAlign:"center",borderRight:"1px solid #e2e8f0",display:"flex",alignItems:"center",justifyContent:"center",padding:"10px 4px",lineHeight:1.3}}>GMT<br/>+9</div>
+          <div style={{fontSize:10,color:"#94a3b8",textAlign:"center",borderRight:"1px solid #e2e8f0",display:"flex",alignItems:"center",justifyContent:"center",padding:"10px 4px",lineHeight:1.3}}>GMT<br/>+9</div>
           {cDates.map((d,i)=>{const ds=dateStr(d.getFullYear(),d.getMonth(),d.getDate());const isT=ds===todayStr;const isSun=d.getDay()===0;const isSat=d.getDay()===6;
             return <div key={i} style={{textAlign:"center",padding:"10px 4px",borderRight:i<customDays-1?"1px solid #e2e8f0":"none",background:isT?"#eff6ff":isSun?"#fff5f5":isSat?"#f0f4ff":"#fff"}}>
               <div style={{fontSize:10,fontWeight:700,color:isSun?"#dc2626":isSat?"#2563eb":"#64748b"}}>{calDays[d.getDay()]}</div>
@@ -379,14 +390,14 @@ export function CalendarView(props: CalendarViewProps) {
             </div>;})}
         </div>
         <div style={{display:"grid",gridTemplateColumns:`56px repeat(${customDays},1fr)`,borderBottom:"2px solid #e2e8f0",flexShrink:0,minHeight:36}}>
-          <div style={{fontSize:9,color:"#94a3b8",textAlign:"center",borderRight:"1px solid #e2e8f0",display:"flex",alignItems:"flex-start",justifyContent:"center",paddingTop:10}}>종일</div>
+          <div style={{fontSize:10,color:"#94a3b8",textAlign:"center",borderRight:"1px solid #e2e8f0",display:"flex",alignItems:"flex-start",justifyContent:"center",paddingTop:10}}>종일</div>
           {cDates.map((d,i)=>{const ds=dateStr(d.getFullYear(),d.getMonth(),d.getDate());const isT=ds===todayStr;const isSun=d.getDay()===0;const isSat=d.getDay()===6;
             const allDayT=ftodosExpanded.filter(t=>t.due&&t.due.split(" ")[0]===ds&&!t.due.includes(" "));
             const isDragOverAllDay=(calDragId!==null||sidebarDragId!==null)&&calDragOverDs===ds&&calDragOverH===-1;
-            return <div key={i}
+            return <div key={i} data-calcell
               style={{padding:"2px 3px",borderRight:i<customDays-1?"1px solid #e2e8f0":"none",
                 background:isDragOverAllDay?"#eff6ff":isT?"#fafcff":isSun?"#fff8f8":isSat?"#f8f9ff":"#fff",
-                outline:isDragOverAllDay?"2px solid #2563eb":"none",outlineOffset:-2,
+                outline:isDragOverAllDay?"2px solid #2563eb":"none",outlineOffset:-2,overflow:"hidden",
                 cursor:(calDragId!==null||sidebarDragId!==null)?"copy":"pointer",transition:"background .1s"}}
               onClick={e=>{if(!calDragId&&!sidebarDragId)openQA(e,ds,0);}}
               onDragOver={e=>{if(calDragId!==null||sidebarDragId!==null){e.preventDefault();setCalDragOverDs(ds);setCalDragOverH(-1);}}}
@@ -398,9 +409,11 @@ export function CalendarView(props: CalendarViewProps) {
                   onDragStart={e=>{e.stopPropagation();calDragStart(t.id);}}
                   onDragEnd={e=>{e.stopPropagation();calDragEnd();}}
                   onClick={e=>{e.stopPropagation();if(!isThisDragging)openEvPop(e,t);}}
-                  style={{...evStyle(p,t.repeat),marginBottom:1,cursor:"grab",opacity:isThisDragging?.4:1,transition:"opacity .15s"}}>
-                  <div style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>{t.repeat&&t.repeat!=="없음"?"🔁 ":""}{t.task}</div>
-                  {t.who&&<div style={{fontSize:8,opacity:.75,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>👤 {t.who}</div>}
+                  onMouseEnter={e=>{(e.currentTarget as HTMLDivElement).style.filter="brightness(.92)";}}
+                  onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.filter="none";}}
+                  style={{...evStyle(p,t.repeat),marginBottom:1,cursor:"grab",opacity:isThisDragging?(t._instance?0.28:0.4):(t._instance?0.7:1),transition:"opacity .15s, filter .12s",...(t._instance?{borderLeft:"2px dashed "+p.color}:{})}}>
+                  <div style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,display:"flex",alignItems:"center",gap:2}}>{t.repeat&&t.repeat!=="없음"&&<ArrowPathIcon style={ICON_SM}/>}{t.task}</div>
+                  {t.who&&<div style={{fontSize:8,opacity:.75,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,display:"flex",alignItems:"center",gap:2}}><UserIcon style={ICON_SM}/> {t.who}</div>}
                 </div>);})}
             </div>;})}
         </div>
@@ -409,7 +422,7 @@ export function CalendarView(props: CalendarViewProps) {
           {Array.from({length:24},(_,h)=>{
             const getH=(due:string)=>parseInt((due.split(" ")[1]||"0:0").split(":")[0])||0;
             return <div key={h} style={{display:"grid",gridTemplateColumns:`56px repeat(${customDays},1fr)`,minHeight:hourH,borderBottom:"1px solid #f1f5f9"}}>
-              <div style={{fontSize:9,color:"#94a3b8",textAlign:"right",paddingRight:8,borderRight:"1px solid #e2e8f0",paddingTop:h===0?4:0,lineHeight:1,minHeight:hourH,boxSizing:"border-box" as const}}>
+              <div style={{fontSize:10,color:"#94a3b8",textAlign:"right",paddingRight:8,borderRight:"1px solid #e2e8f0",paddingTop:h===0?4:0,lineHeight:1,minHeight:hourH,boxSizing:"border-box" as const}}>
                 {h===0?"":h<12?`오전 ${h}시`:h===12?"오후 12시":`오후 ${h-12}시`}
               </div>
               {cDates.map((d,i)=>{
@@ -417,11 +430,11 @@ export function CalendarView(props: CalendarViewProps) {
                 const isT=ds===todayStr;const isSun=d.getDay()===0;const isSat=d.getDay()===6;
                 const hTodos=ftodosExpanded.filter(t=>t.due&&t.due.split(" ")[0]===ds&&t.due.includes(" ")&&getH(t.due)===h);
                 const isDragOverCell=(calDragId!==null||sidebarDragId!==null)&&calDragOverDs===ds&&calDragOverH===h;
-                return <div key={i}
+                return <div key={i} data-calcell
                   style={{borderRight:i<customDays-1?"1px solid #f1f5f9":"none",
                     background:isDragOverCell?"#eff6ff":isT?"#fafcff":isSun?"#fff8f8":isSat?"#f8f9ff":"#fff",
                     outline:isDragOverCell?"2px solid #2563eb":"none",outlineOffset:-2,
-                    padding:hTodos.length>0?"2px 3px":0,
+                    padding:hTodos.length>0?"2px 3px":0,overflow:"hidden",
                     cursor:(calDragId!==null||sidebarDragId!==null)?"copy":"pointer",transition:"background .1s"}}
                   onClick={e=>{if(!calDragId&&!sidebarDragId)openQA(e,ds,h);}}
                   onDragOver={e=>{if(calDragId!==null||sidebarDragId!==null){e.preventDefault();setCalDragOverDs(ds);setCalDragOverH(h);}}}
@@ -433,9 +446,11 @@ export function CalendarView(props: CalendarViewProps) {
                       onDragStart={e=>{e.stopPropagation();calDragStart(t.id);}}
                       onDragEnd={e=>{e.stopPropagation();calDragEnd();}}
                       onClick={e=>{e.stopPropagation();if(!isThisDragging)openEvPop(e,t);}}
-                      style={{...evStyle(p,t.repeat),marginBottom:1,cursor:"grab",opacity:isThisDragging?.4:1,transition:"opacity .15s"}}>
+                      onMouseEnter={e=>{(e.currentTarget as HTMLDivElement).style.filter="brightness(.92)";}}
+                      onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.filter="none";}}
+                      style={{...evStyle(p,t.repeat),marginBottom:1,cursor:"grab",opacity:isThisDragging?(t._instance?0.28:0.4):(t._instance?0.7:1),transition:"opacity .15s, filter .12s",...(t._instance?{borderLeft:"2px dashed "+p.color}:{})}}>
                       <div style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}><span style={{fontSize:8,fontWeight:700,opacity:.9}}>{tl} </span>{t.task}</div>
-                      {t.who&&<div style={{fontSize:7,opacity:.75,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>👤 {t.who}</div>}
+                      {t.who&&<div style={{fontSize:7,opacity:.75,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,display:"flex",alignItems:"center",gap:1}}><UserIcon style={{width:8,height:8,flexShrink:0}}/> {t.who}</div>}
                     </div>);})}
                   </div>;})}
             </div>;})}
@@ -463,11 +478,13 @@ export function CalendarView(props: CalendarViewProps) {
               <span style={{fontSize:10,color:"#94a3b8",marginLeft:"auto"}}>{item.todos.length}건</span>
             </div>
             {item.todos.map((t: any,ii: number)=>{const p=gPr(t.pid);const od=isOD(t.due,t.st);
-              return <div key={t.id+"_"+ii} onClick={e=>openEvPop(e,t)} style={{padding:"10px 16px 10px 66px",borderBottom:"1px solid #f1f5f9",cursor:"pointer",display:"flex",alignItems:"center",gap:10}}>
+              return <div key={t.id+"_"+ii} onClick={e=>openEvPop(e,t)} style={{padding:"10px 16px 10px 66px",borderBottom:"1px solid #f1f5f9",cursor:"pointer",display:"flex",alignItems:"center",gap:10,transition:"background .12s"}}
+                onMouseEnter={e=>{(e.currentTarget as HTMLDivElement).style.background="#f8fafc";}}
+                onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.background="transparent";}}>
                 <div style={{width:4,height:28,borderRadius:2,background:p.color,flexShrink:0}}/>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontSize:13,fontWeight:600,color:"#0f172a",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:5}}>
-                    {t.task}{od&&<span style={{color:"#dc2626",fontSize:10}}>⚠️</span>}<RepeatBadge repeat={t.repeat}/>
+                    {t.task}{od&&<span style={{color:"#dc2626",display:"inline-flex"}}><ExclamationTriangleIcon style={ICON_SM}/></span>}<RepeatBadge repeat={t.repeat}/>
                   </div>
                   <div style={{fontSize:10,color:"#94a3b8",marginTop:2,display:"flex",gap:8}}>
                     <span>{p.name}</span><span>{t.who}</span><span style={S.badge(priBg[t.pri],priC[t.pri])}>{t.pri}</span><span style={S.badge(stBg[t.st],stC[t.st])}>{t.st}</span>
@@ -589,7 +606,7 @@ export function CalendarView(props: CalendarViewProps) {
               cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",
               fontSize:10,color:"#fff",padding:0,
               transition:"border-color .2s,background .2s",boxSizing:"border-box" as const}}>
-            {isDone&&"✓"}
+            {isDone&&<CheckIcon style={{width:10,height:10}}/>}
           </button>
 
           {/* 내용 */}
@@ -621,20 +638,20 @@ export function CalendarView(props: CalendarViewProps) {
                   title="이름 수정"
                   style={{background:"none",border:"none",cursor:"pointer",color:"#c7d2db",fontSize:12,padding:"1px 3px",borderRadius:3,flexShrink:0,lineHeight:1,fontFamily:"inherit"}}
                   onMouseEnter={e=>(e.currentTarget as HTMLButtonElement).style.color="#2563eb"}
-                  onMouseLeave={e=>(e.currentTarget as HTMLButtonElement).style.color="#c7d2db"}>✏</button>}
+                  onMouseLeave={e=>(e.currentTarget as HTMLButtonElement).style.color="#c7d2db"}><PencilSquareIcon style={ICON_SM}/></button>}
               </div>}
 
             {/* 비확장: 메타 (날짜 / 프로젝트 + 우선순위) */}
             {!isExp&&<div style={{display:"flex",flexDirection:"column",gap:2,marginTop:3}}>
               {dueDateStr&&<span style={{fontSize:11,color:od&&!isDone?"#e53e3e":"#94a3b8",lineHeight:"16px"}}>
-                {od&&!isDone&&"⚠ "}{dueDateStr}
+                {od&&!isDone&&<ExclamationTriangleIcon style={{...ICON_SM,display:"inline"}}/>}{dueDateStr}
               </span>}
               <div style={{display:"flex",alignItems:"center",gap:5}}>
                 <span style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:11,color:"#b0bec5"}}>
                   <span style={{width:5,height:5,borderRadius:"50%",background:p.color||"#94a3b8",display:"inline-block",flexShrink:0}}/>
                   {p.name}
                 </span>
-                {t.pri&&t.pri!=="보통"&&<span style={{...S.badge(priBg[t.pri],priC[t.pri]),fontSize:9}}>{t.pri}</span>}
+                {t.pri&&t.pri!=="보통"&&<span style={{...S.badge(priBg[t.pri],priC[t.pri]),fontSize:10}}>{t.pri}</span>}
               </div>
             </div>}
 
@@ -642,7 +659,7 @@ export function CalendarView(props: CalendarViewProps) {
             {isExp&&<div onClick={ev=>ev.stopPropagation()}>
               {/* 세부정보 */}
               <div style={{marginTop:6,display:"flex",alignItems:"flex-start",gap:6}}>
-                <span style={{fontSize:14,color:"#94a3b8",marginTop:2,flexShrink:0}}>☰</span>
+                <span style={{color:"#94a3b8",marginTop:2,flexShrink:0}}><Bars3Icon style={ICON_SM}/></span>
                 <div
                   contentEditable
                   suppressContentEditableWarning
@@ -682,7 +699,7 @@ export function CalendarView(props: CalendarViewProps) {
                     background:od&&!isDone?"#fef2f2":"#f8fafc",
                     color:od&&!isDone?"#e53e3e":"#475569",
                     cursor:"pointer",fontFamily:"inherit"}}>
-                  📅 {dueDateStr||"날짜 추가"}
+                  <CalendarIcon style={ICON_SM}/> {dueDateStr||"날짜 추가"}
                   {dueDateStr&&<span onClick={ev=>{ev.stopPropagation();updTodo(t.id,{due:""});setSidebarDateId(null);}}
                     style={{marginLeft:2,color:"#94a3b8",fontSize:12,lineHeight:1}}>×</span>}
                 </button>
@@ -710,11 +727,11 @@ export function CalendarView(props: CalendarViewProps) {
                       onMouseLeave={e=>(e.currentTarget as HTMLDivElement).style.background=pr.id===t.pid?"#eff6ff":"transparent"}>
                       <span style={{width:8,height:8,borderRadius:"50%",background:pr.color,display:"inline-block",flexShrink:0}}/>
                       {pr.name}
-                      {pr.id===t.pid&&<span style={{marginLeft:"auto",fontSize:10,color:"#2563eb"}}>✓</span>}
+                      {pr.id===t.pid&&<span style={{marginLeft:"auto",display:"inline-flex"}}><CheckIcon style={{width:12,height:12,color:"#2563eb"}}/></span>}
                     </div>)}
                   </div>}
                 </div>
-                {t.pri&&t.pri!=="보통"&&<span style={{...S.badge(priBg[t.pri],priC[t.pri]),fontSize:9}}>{t.pri}</span>}
+                {t.pri&&t.pri!=="보통"&&<span style={{...S.badge(priBg[t.pri],priC[t.pri]),fontSize:10}}>{t.pri}</span>}
               </div>
               {/* 날짜 선택 모달 */}
               {sidebarDateId===t.id&&
@@ -735,7 +752,7 @@ export function CalendarView(props: CalendarViewProps) {
                 <button onClick={ev=>{ev.stopPropagation();sidebarExpand(null);setSidebarDateId(null);}}
                   style={{fontSize:11,padding:"3px 8px",borderRadius:8,border:"1px solid #e2e8f0",
                     background:"#f8fafc",color:"#94a3b8",cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:3}}>
-                  <span style={{fontSize:9}}>▲</span> 접기
+                  <span style={{fontSize:10}}>▲</span> 접기
                 </button>
                 <button onClick={ev=>{ev.stopPropagation();if(confirm(`"${t.task}" 삭제?`)){delTodo(t.id);sidebarExpand(null);}}}
                   style={{fontSize:11,padding:"3px 10px",borderRadius:8,border:"1px solid #fecaca",
@@ -758,7 +775,7 @@ export function CalendarView(props: CalendarViewProps) {
                 transform:isStarred?"scale(1.1)":"scale(1)"}}
               onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.color=isStarred?"#d97706":"#94a3b8";}}
               onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.color=isStarred?"#f59e0b":"#d1d5db";}}>
-              {isStarred?"★":"☆"}
+              {isStarred?<StarIcon style={ICON_SM}/>:<StarOutlineIcon style={ICON_SM}/>}
             </button>}
         </div>;
       };
@@ -795,7 +812,7 @@ export function CalendarView(props: CalendarViewProps) {
                 style={{width:"100%",padding:"7px 10px",border:"1.5px solid #2563eb",borderRadius:8,fontSize:12,outline:"none",boxSizing:"border-box" as const,fontFamily:"inherit"}}/>
               <div style={{display:"flex",justifyContent:"flex-end",gap:4,marginTop:5}}>
                 <button onClick={()=>{setCalSidebarAdding(false);setCalSidebarAddTitle("");}}
-                  style={{fontSize:11,padding:"3px 9px",borderRadius:6,border:"1px solid #e2e8f0",background:"#fff",cursor:"pointer",color:"#64748b",fontFamily:"inherit"}}>취소</button>
+                  style={{fontSize:11,padding:"4px 8px",borderRadius:6,border:"1px solid #e2e8f0",background:"#fff",cursor:"pointer",color:"#64748b",fontFamily:"inherit"}}>취소</button>
                 <button onClick={()=>{if(calSidebarAddTitle.trim()){addTodo({pid:0,task:calSidebarAddTitle.trim(),who:currentUser||"",due:todayStr,pri:"보통",st:"대기",det:"",repeat:"없음"});setCalSidebarAddTitle("");setCalSidebarAdding(false);flash("업무가 등록되었습니다");}}}
                   style={{fontSize:11,padding:"3px 12px",borderRadius:6,border:"none",background:"#2563eb",cursor:"pointer",color:"#fff",fontFamily:"inherit",fontWeight:600}}>추가</button>
               </div>
@@ -820,7 +837,7 @@ export function CalendarView(props: CalendarViewProps) {
           {secLaterOpen&&secLater.map(t=>renderTodo(t))}
           {active.length===0&&animating.length===0&&
             <div style={{padding:"28px 16px 12px",textAlign:"center",color:"#cbd5e1",fontSize:12,lineHeight:1.8}}>
-              <div style={{fontSize:26,marginBottom:6}}>✅</div>
+              <div style={{marginBottom:6}}><CheckCircleIcon style={{width:26,height:26}}/></div>
               <div>할일이 없습니다</div>
               <div style={{fontSize:10,marginTop:3,color:"#d1d5db"}}>위 버튼으로 추가하세요 ↑</div>
             </div>}
@@ -837,31 +854,36 @@ export function CalendarView(props: CalendarViewProps) {
     })()}
 
     {/* ── 이벤트 상세 팝오버 ─────────────────────────────────── */}
-    {calEvPop&&(()=>{const t=calEvPop.todo;const p=gPr(t.pid);const od=isOD(t.due,t.st);return(
-      <div onClick={e=>e.stopPropagation()} style={{position:"fixed",left:calEvPop.x,top:calEvPop.y,zIndex:9100,background:"#fff",borderRadius:12,boxShadow:"0 8px 32px rgba(0,0,0,.20)",border:"1px solid #e2e8f0",width:296}}>
+    {calEvPop&&(()=>{const t=calEvPop.todo;const p=gPr(t.pid);const od=isOD(t.due,t.st);const isInst=!!t._instance;return(
+      <div onClick={e=>e.stopPropagation()} style={{position:"fixed",left:calEvPop.x,top:calEvPop.y,zIndex:9100,background:"#fff",borderRadius:12,boxShadow:"0 8px 32px rgba(0,0,0,.20)",border:`1px solid ${isInst?"#93c5fd":"#e2e8f0"}`,width:296}}>
+        {/* 반복 인스턴스 안내 배너 */}
+        {isInst&&<div style={{padding:"6px 14px",background:"#eff6ff",borderRadius:"12px 12px 0 0",fontSize:10,color:"#2563eb",fontWeight:600,display:"flex",alignItems:"center",gap:4}}>
+          <ArrowPathIcon style={{width:12,height:12}}/> 반복 일정 · 원본 날짜: {t._originDue}
+        </div>}
         <div style={{padding:"12px 14px 10px",display:"flex",alignItems:"flex-start",gap:10}}>
-          <div style={{width:4,borderRadius:2,background:p.color,flexShrink:0,minHeight:48,alignSelf:"stretch"}}/>
+          <div style={{width:4,borderRadius:2,background:p.color,flexShrink:0,minHeight:48,alignSelf:"stretch",opacity:isInst?.6:1}}/>
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontSize:14,fontWeight:700,color:"#0f172a",marginBottom:6,lineHeight:1.3}}>
-              {t.task}{od&&<span style={{color:"#dc2626",fontSize:10,marginLeft:4}}>⚠️</span>}
+              {t.task}{od&&<span style={{color:"#dc2626",marginLeft:4,display:"inline-flex"}}><ExclamationTriangleIcon style={ICON_SM}/></span>}
             </div>
             <div style={{fontSize:11,color:"#64748b",display:"flex",flexDirection:"column" as const,gap:3}}>
               <div style={{display:"flex",alignItems:"center",gap:6}}><span style={{width:8,height:8,borderRadius:"50%",background:p.color,display:"inline-block",flexShrink:0}}/><span style={{color:p.color,fontWeight:600}}>{p.name}</span></div>
-              <div>👤 {t.who||"미배정"}</div>
-              {t.due&&<div>📅 {t.due}</div>}
+              <div style={{display:"flex",alignItems:"center",gap:3}}><UserIcon style={ICON_SM}/> {t.who||"미배정"}</div>
+              {t.due&&<div style={{display:"flex",alignItems:"center",gap:3}}><CalendarIcon style={ICON_SM}/> {t.due}</div>}
             </div>
             <div style={{marginTop:8,display:"flex",gap:4,flexWrap:"wrap" as const}}>
               <span style={{...S.badge(priBg[t.pri],priC[t.pri]),fontSize:10}}>{t.pri}</span>
               <span style={{...S.badge(stBg[t.st],stC[t.st]),fontSize:10}}>{t.st}</span>
-              {t.repeat&&t.repeat!=="없음"&&<span style={{fontSize:10,padding:"1px 6px",borderRadius:99,background:"#f0fdf4",color:"#16a34a"}}>🔁 {t.repeat}</span>}
+              {t.repeat&&t.repeat!=="없음"&&<span style={{fontSize:10,padding:"1px 6px",borderRadius:99,background:"#f0fdf4",color:"#16a34a",display:"inline-flex",alignItems:"center",gap:2}}><ArrowPathIcon style={ICON_SM}/> {t.repeat}</span>}
             </div>
           </div>
-          <button onClick={()=>setCalEvPop(null)} style={{background:"none",border:"none",cursor:"pointer",color:"#94a3b8",fontSize:16,padding:"0 2px",flexShrink:0,lineHeight:1}}>✕</button>
+          <button onClick={()=>setCalEvPop(null)} style={{background:"none",border:"none",cursor:"pointer",color:"#94a3b8",padding:"0 2px",flexShrink:0,lineHeight:1,display:"flex",alignItems:"center"}}><XMarkIcon style={ICON_SM}/></button>
         </div>
         <div style={{padding:"8px 14px 12px",borderTop:"1px solid #f1f5f9",display:"flex",gap:6}}>
-          <button onClick={()=>{setEditMod(t);setCalEvPop(null);}} style={{flex:1,padding:"6px 10px",borderRadius:6,border:"1px solid #e2e8f0",background:"#fff",cursor:"pointer",fontSize:12,color:"#475569",fontWeight:500}}>✏️ 수정</button>
-          {t.st!=="완료"&&<button onClick={()=>{updTodo(t.id,{st:"완료",done:todayStr});setCalEvPop(null);flash("완료 처리되었습니다");}} style={{flex:1,padding:"6px 10px",borderRadius:6,border:"1px solid #bbf7d0",background:"#f0fdf4",cursor:"pointer",fontSize:12,color:"#16a34a",fontWeight:600}}>✓ 완료</button>}
-          <button onClick={()=>{if(confirm(`"${t.task}" 업무를 삭제하시겠습니까?`)){delTodo(t.id);setCalEvPop(null);}}} style={{padding:"6px 10px",borderRadius:6,border:"1px solid #fca5a5",background:"#fff5f5",cursor:"pointer",fontSize:12,color:"#dc2626"}}>🗑</button>
+          {/* 반복 인스턴스는 원본 수정 버튼으로 안내, 일반 업무는 직접 수정 */}
+          <button onClick={()=>{setEditMod(isInst?{...t,due:t._originDue}:t);setCalEvPop(null);}} style={{flex:1,padding:"6px 10px",borderRadius:6,border:"1px solid #e2e8f0",background:"#fff",cursor:"pointer",fontSize:12,color:"#475569",fontWeight:500,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:3}}><PencilSquareIcon style={ICON_SM}/> {isInst?"원본 수정":"수정"}</button>
+          {t.st!=="완료"&&!isInst&&<button onClick={()=>{updTodo(t.id,{st:"완료",done:todayStr});setCalEvPop(null);flash("완료 처리되었습니다");}} style={{flex:1,padding:"6px 10px",borderRadius:6,border:"1px solid #bbf7d0",background:"#f0fdf4",cursor:"pointer",fontSize:12,color:"#16a34a",fontWeight:600,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:3}}><CheckIcon style={{width:12,height:12}}/> 완료</button>}
+          {!isInst&&<button onClick={()=>{if(confirm(`"${t.task}" 업무를 삭제하시겠습니까?`)){delTodo(t.id);setCalEvPop(null);}}} style={{padding:"6px 10px",borderRadius:6,border:"1px solid #fca5a5",background:"#fff5f5",cursor:"pointer",fontSize:12,color:"#dc2626",display:"inline-flex",alignItems:"center"}}><TrashIcon style={ICON_SM}/></button>}
         </div>
       </div>
     );})()}
@@ -880,23 +902,23 @@ export function CalendarView(props: CalendarViewProps) {
           {/* 아이콘 빠른선택 */}
           <div style={{display:"flex",gap:4,marginTop:8,flexWrap:"wrap" as const}}>
             <button style={iconBtn(!!calQADue)} onClick={()=>setCalQAPicker(calQAPicker==="date"?null:"date")}>
-              📅 {calQADue?calQADue.slice(5).replace("-","/"):"날짜"}
+              <CalendarIcon style={ICON_SM}/> {calQADue?calQADue.slice(5).replace("-","/"):"날짜"}
               {calQADue&&<span onClick={ev=>{ev.stopPropagation();setCalQADue("");setCalQAPicker(null);}} style={{marginLeft:2,color:"#94a3b8"}}>×</span>}
             </button>
             <button style={iconBtn(!!calQAPid)} onClick={()=>setCalQAPicker(calQAPicker==="proj"?null:"proj")}>
-              📁 {selProj?<><span style={{width:6,height:6,borderRadius:"50%",background:selProj.color,display:"inline-block"}}/>{selProj.name}</>:"프로젝트"}
+              <FolderIcon style={ICON_SM}/> {selProj?<><span style={{width:6,height:6,borderRadius:"50%",background:selProj.color,display:"inline-block"}}/>{selProj.name}</>:"프로젝트"}
             </button>
             <button style={iconBtn(!!calQAWho&&calQAWho!==currentUser)} onClick={()=>setCalQAPicker(calQAPicker==="who"?null:"who")}>
-              👤 {calQAWho||"담당자"}
+              <UserIcon style={ICON_SM}/> {calQAWho||"담당자"}
             </button>
             <button style={iconBtn(calQAPri!=="보통")} onClick={()=>setCalQAPicker(calQAPicker==="pri"?null:"pri")}>
-              ⚡ {calQAPri}
+              <BoltIcon style={ICON_SM}/> {calQAPri}
             </button>
           </div>
           {/* 피커 패널 */}
           {calQAPicker==="date"&&<div style={{marginTop:8,padding:"8px 10px",background:"#f8fafc",borderRadius:8,border:"1px solid #e2e8f0"}}>
             <div style={{display:"flex",gap:4,marginBottom:6,flexWrap:"wrap" as const}}>
-              <button onClick={()=>{setCalQADue(calQA.ds);setCalQAPicker(null);}} style={{fontSize:10,padding:"2px 8px",borderRadius:99,border:"1px solid #e2e8f0",background:"#fff",cursor:"pointer",color:"#334155",fontFamily:"inherit"}}>📅 {calQA.ds.slice(5).replace("-","/")}</button>
+              <button onClick={()=>{setCalQADue(calQA.ds);setCalQAPicker(null);}} style={{fontSize:10,padding:"2px 8px",borderRadius:99,border:"1px solid #e2e8f0",background:"#fff",cursor:"pointer",color:"#334155",fontFamily:"inherit",display:"inline-flex",alignItems:"center",gap:2}}><CalendarIcon style={ICON_SM}/> {calQA.ds.slice(5).replace("-","/")}</button>
               {([["오늘",0],["내일",1],["다음주",7]] as [string,number][]).map(([l,n])=>
                 <button key={l} onClick={()=>{setCalQADue(qd(n));setCalQAPicker(null);}} style={{fontSize:10,padding:"2px 8px",borderRadius:99,border:"1px solid #e2e8f0",background:"#fff",cursor:"pointer",color:"#334155",fontFamily:"inherit"}}>{l}</button>)}
             </div>
@@ -908,7 +930,7 @@ export function CalendarView(props: CalendarViewProps) {
               onMouseEnter={e=>(e.currentTarget as HTMLElement).style.background=String(pr.id)===calQAPid?"#eff6ff":"#f1f5f9"}
               onMouseLeave={e=>(e.currentTarget as HTMLElement).style.background=String(pr.id)===calQAPid?"#eff6ff":"transparent"}>
               <span style={{width:8,height:8,borderRadius:"50%",background:pr.color,display:"inline-block",flexShrink:0}}/>
-              {pr.name}{String(pr.id)===calQAPid&&<span style={{marginLeft:"auto",fontSize:10,color:"#2563eb"}}>✓</span>}
+              {pr.name}{String(pr.id)===calQAPid&&<span style={{marginLeft:"auto",display:"inline-flex"}}><CheckIcon style={{width:12,height:12,color:"#2563eb"}}/></span>}
             </div>)}
           </div>}
           {calQAPicker==="who"&&<div style={{marginTop:8,background:"#f8fafc",borderRadius:8,border:"1px solid #e2e8f0",overflow:"hidden",maxHeight:160,overflowY:"auto" as const}}>
@@ -916,7 +938,7 @@ export function CalendarView(props: CalendarViewProps) {
               style={{display:"flex",alignItems:"center",gap:6,padding:"7px 10px",cursor:"pointer",fontSize:12,color:"#334155",background:m===calQAWho?"#eff6ff":"transparent"}}
               onMouseEnter={e=>(e.currentTarget as HTMLElement).style.background=m===calQAWho?"#eff6ff":"#f1f5f9"}
               onMouseLeave={e=>(e.currentTarget as HTMLElement).style.background=m===calQAWho?"#eff6ff":"transparent"}>
-              {m}{m===calQAWho&&<span style={{marginLeft:"auto",fontSize:10,color:"#2563eb"}}>✓</span>}
+              {m}{m===calQAWho&&<span style={{marginLeft:"auto",display:"inline-flex"}}><CheckIcon style={{width:12,height:12,color:"#2563eb"}}/></span>}
             </div>)}
           </div>}
           {calQAPicker==="pri"&&<div style={{marginTop:8,display:"flex",gap:4,flexWrap:"wrap" as const}}>
@@ -936,8 +958,8 @@ export function CalendarView(props: CalendarViewProps) {
     {/* ── 월 뷰 날짜 더보기 팝오버 ──────────────────────────── */}
     {calDayPop&&<div onClick={e=>e.stopPropagation()} style={{position:"fixed",left:calDayPop.x,top:calDayPop.y,zIndex:9100,background:"#fff",borderRadius:12,boxShadow:"0 8px 32px rgba(0,0,0,.20)",border:"1px solid #e2e8f0",width:280,maxHeight:360,display:"flex",flexDirection:"column" as const}}>
       <div style={{padding:"10px 14px",borderBottom:"1px solid #f1f5f9",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
-        <div style={{fontSize:12,fontWeight:700,color:"#334155"}}>📅 {calDayPop.ds.slice(5).replace("-","/")} <span style={{color:"#94a3b8",fontWeight:400}}>({calDayPop.todos.length}건)</span></div>
-        <button onClick={()=>setCalDayPop(null)} style={{background:"none",border:"none",cursor:"pointer",color:"#94a3b8",fontSize:15,lineHeight:1}}>✕</button>
+        <div style={{fontSize:12,fontWeight:700,color:"#334155",display:"flex",alignItems:"center",gap:3}}><CalendarIcon style={ICON_SM}/> {calDayPop.ds.slice(5).replace("-","/")} <span style={{color:"#94a3b8",fontWeight:400}}>({calDayPop.todos.length}건)</span></div>
+        <button onClick={()=>setCalDayPop(null)} style={{background:"none",border:"none",cursor:"pointer",color:"#94a3b8",lineHeight:1,display:"flex",alignItems:"center"}}><XMarkIcon style={ICON_SM}/></button>
       </div>
       <div style={{overflowY:"auto",flex:1,padding:"6px 8px"}}>
         {calDayPop.todos.map((t,ii)=>{const p=gPr(t.pid);return(

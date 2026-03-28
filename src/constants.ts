@@ -1,13 +1,13 @@
 export const INIT_MEMBERS = ["김대윤","김현지","복경민","박정찬","이연수","김혜민"];
 export const INIT_PRI = ["긴급","높음","보통","낮음"];
 export const INIT_ST = ["대기","진행중","검토","완료"];
-export const INIT_PRI_C: Record<string,string> = {긴급:"#dc2626",높음:"#d97706",보통:"#2563eb",낮음:"#94a3b8"};
-export const INIT_PRI_BG: Record<string,string> = {긴급:"#fef2f2",높음:"#fff7ed",보통:"#eff6ff",낮음:"#f8fafc"};
+export const INIT_PRI_C: Record<string,string> = {긴급:"#dc2626",높음:"#d97706",보통:"#6366f1",낮음:"#94a3b8"};
+export const INIT_PRI_BG: Record<string,string> = {긴급:"#fef2f2",높음:"#fff7ed",보통:"#eef2ff",낮음:"#f8fafc"};
 export const INIT_ST_C: Record<string,string> = {대기:"#64748b",진행중:"#2563eb",검토:"#d97706",완료:"#16a34a"};
 export const INIT_ST_BG: Record<string,string> = {대기:"#f1f5f9",진행중:"#dbeafe",검토:"#fef3c7",완료:"#dcfce7"};
 export const REPEAT_OPTS = ["없음","매일","매주","매월"];
-export const PROJ_PALETTE = ["#8b5cf6","#14b8a6","#2563eb","#f59e0b","#ef4444","#10b981","#f97316","#ec4899","#6366f1","#84cc16","#06b6d4","#a855f7","#0ea5e9","#d946ef","#f43f5e","#64748b"];
-export const REPEAT_LABEL: Record<string,string> = {없음:"",매일:"🔁 매일",매주:"🔁 매주",매월:"🔁 매월"};
+export const PROJ_PALETTE = ["#8b5cf6","#14b8a6","#2563eb","#f59e0b","#f43f5e","#10b981","#f97316","#ec4899","#6366f1","#84cc16","#06b6d4","#0d9488","#0ea5e9","#d946ef","#f43f5e","#64748b"];
+export const REPEAT_LABEL: Record<string,string> = {없음:"",매일:"매일",매주:"매주",매월:"매월"};
 
 export const AVATAR_COLORS = ["#2563eb","#16a34a","#d97706","#9333ea","#dc2626","#0d9488","#db2777","#ea580c"];
 

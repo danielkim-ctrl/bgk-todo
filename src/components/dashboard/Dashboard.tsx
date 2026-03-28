@@ -2,6 +2,7 @@ import { useState } from "react";
 import { S } from "../../styles";
 import { isOD, stripHtml } from "../../utils";
 import { Project, DeletedTodo } from "../../types";
+import { CheckCircleIcon, ExclamationTriangleIcon, UserIcon, FolderIcon, CalendarIcon, ListBulletIcon, CheckIcon, BoltIcon, ICON_SM } from "../ui/Icons";
 
 export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,deletedLog=[],onNavigate}: {
   todos: any[];
@@ -41,8 +42,9 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
   const inProg=baseTodos.filter(t=>t.st==="진행중"||t.st==="검토").length;
   const delayed=baseTodos.filter(t=>isOD(t.due,t.st)).length;
 
-  const stColors: Record<string,string>={대기:"#94a3b8",진행중:"#2563eb",검토:"#d97706",완료:"#16a34a"};
-  const stBgs: Record<string,string>={대기:"#f1f5f9",진행중:"#dbeafe",검토:"#fef3c7",완료:"#dcfce7"};
+  // 사용자 설정에서 커스텀한 상태 색상을 사용 (props의 stC/stBg)
+  const stColors = stC;
+  const stBgs = stBg;
 
   const memberData=members.map(n=>{
     const mt=todos.filter(t=>t.who===n);
@@ -135,18 +137,18 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
   };
 
   // KPI 카드 클릭 시 전달할 상태 필터 — 각 카드가 어떤 상태 목록으로 이동하는지 정의
-  const kpiCards: [string,string,number,string,string[]][] = [
-    ["#2563eb","📋",total,"전 체 업 무",[]],
-    ["#d97706","⚡",inProg,"진행 중",["진행중","검토"]],
-    ["#16a34a","✅",done,"완 료",["완료"]],
-    ["#dc2626","⚠️",delayed,"지 연",[]],
+  const kpiCards: [string,React.ReactNode,number,string,string[]][] = [
+    ["#2563eb",<ListBulletIcon style={{width:22,height:22}}/>,total,"전체 업무",[]],
+    ["#d97706",<BoltIcon style={{width:22,height:22}}/>,inProg,"진행중",["진행중","검토"]],
+    ["#16a34a",<CheckCircleIcon style={{width:22,height:22}}/>,done,"완료",["완료"]],
+    ["#dc2626",<ExclamationTriangleIcon style={{width:22,height:22,color:"#dc2626"}}/>,delayed,"지연",["__overdue__"]],
   ];
 
   return <div>
     {/* 기간 필터 버튼 — 마감기한 기준으로 KPI 숫자 범위 조정 */}
     <div style={{display:"flex",gap:6,marginBottom:14,justifyContent:"flex-end"}}>
       {(["all","week","month"] as const).map((p,i)=>{
-        const labels=["전 체","이번 주","이번 달"];
+        const labels=["전체","이번 주","이번 달"];
         const active=period===p;
         return <button key={p} onClick={()=>setPeriod(p)}
           style={{padding:"5px 14px",borderRadius:20,border:`1.5px solid ${active?"#2563eb":"#e2e8f0"}`,
@@ -162,9 +164,9 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
         // KPI 카드 클릭 시 리스트 뷰로 이동하며 해당 상태 필터 자동 적용
         <div key={l} onClick={()=>onNavigate?.(stF)}
           style={{...S.card,borderTop:`3px solid ${c}`,display:"flex",alignItems:"center",gap:12,
-            cursor:onNavigate?"pointer":"default",transition:"box-shadow .15s"}}
-          onMouseEnter={e=>{if(onNavigate)(e.currentTarget as HTMLDivElement).style.boxShadow="0 4px 16px rgba(0,0,0,.12)";}}
-          onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.boxShadow="0 1px 3px rgba(0,0,0,.07)";}}>
+            cursor:onNavigate?"pointer":"default",transition:"all .2s ease"}}
+          onMouseEnter={e=>{const el=e.currentTarget as HTMLDivElement;el.style.boxShadow="0 6px 20px rgba(0,0,0,.13)";el.style.transform="translateY(-2px)";}}
+          onMouseLeave={e=>{const el=e.currentTarget as HTMLDivElement;el.style.boxShadow="0 1px 3px rgba(0,0,0,.07)";el.style.transform="none";}}>
           <div style={{fontSize:22}}>{ic}</div>
           <div><div style={{fontSize:26,fontWeight:800,color:c,lineHeight:1}}>{v}</div><div style={{fontSize:11,color:"#64748b",marginTop:2}}>{l}</div></div>
         </div>)}
@@ -188,22 +190,23 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
 
     <div style={{...S.card,padding:0,overflow:"hidden"}}>
       <div style={{display:"flex",borderBottom:"2px solid #e2e8f0"}}>
-        <button style={tS(tab==="member")} onClick={()=>setTab("member")}>👤 인원별 업무 현황</button>
-        <button style={tS(tab==="project")} onClick={()=>setTab("project")}>📁 프로젝트별 업무 현황</button>
-        <button style={tS(tab==="daily")} onClick={()=>setTab("daily")}>📅 데일리 활동</button>
+        <button style={{...tS(tab==="member"),display:"flex",alignItems:"center",gap:4}} onClick={()=>setTab("member")}><UserIcon style={ICON_SM}/> 인원별 업무 현황</button>
+        <button style={{...tS(tab==="project"),display:"flex",alignItems:"center",gap:4}} onClick={()=>setTab("project")}><FolderIcon style={ICON_SM}/> 프로젝트별 업무 현황</button>
+        <button style={{...tS(tab==="daily"),display:"flex",alignItems:"center",gap:4}} onClick={()=>setTab("daily")}><CalendarIcon style={ICON_SM}/> 데일리 활동</button>
       </div>
 
       {tab==="member"&&<div style={{padding:16}}>
+        {memberData.length===0?<div style={{textAlign:"center",padding:"32px 16px",color:"#94a3b8",fontSize:12}}>표시할 인원별 데이터가 없습니다</div>:<>
         <div style={{display:"grid",gridTemplateColumns:"120px repeat("+aProj.length+",1fr)",gap:4,marginBottom:8,alignItems:"center"}}>
           <div style={{fontSize:10,color:"#94a3b8"}}></div>
-          {aProj.map(p=><div key={p.id} style={{fontSize:9,fontWeight:700,color:p.color,textAlign:"center",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</div>)}
+          {aProj.map(p=><div key={p.id} title={p.name} style={{fontSize:10,fontWeight:700,color:p.color,textAlign:"center",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</div>)}
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:3,marginBottom:20}}>
           {memberData.map(m=><div key={m.name} style={{display:"grid",gridTemplateColumns:"120px repeat("+aProj.length+",1fr)",gap:4,alignItems:"center"}}>
             <div style={{display:"flex",alignItems:"center",gap:6}}>
               <MemberAvatar name={m.name} size={22}/>
               <span style={{fontSize:11,fontWeight:600,color:"#1a2332"}}>{m.name}</span>
-              {m.hasDelayed&&<span title="지연 업무 있음" style={{fontSize:9,color:"#dc2626"}}>⚠️</span>}
+              {m.hasDelayed&&<span title="지연 업무 있음" style={{display:"inline-flex",color:"#dc2626"}}><ExclamationTriangleIcon style={{width:12,height:12}}/></span>}
             </div>
             {aProj.map(p=>{
               const cnt=m.byProj.find(x=>x.proj.id===p.id)?.cnt||0;
@@ -211,7 +214,10 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
               return <div key={p.id} title={`${m.name} × ${p.name}: ${cnt}건`}
                 style={{height:28,borderRadius:6,background:cnt===0?"#f8fafc":`${p.color}${Math.round(intensity*200+30).toString(16).padStart(2,"0")}`,
                   display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,
-                  color:cnt===0?"#e2e8f0":cnt>=3?"#fff":p.color,border:`1px solid ${cnt===0?"#f1f5f9":p.color+"44"}`}}>
+                  color:cnt===0?"#e2e8f0":cnt>=3?"#fff":p.color,border:`1px solid ${cnt===0?"#f1f5f9":p.color+"44"}`,
+                  transition:"transform .12s, box-shadow .12s",cursor:cnt>0?"pointer":"default"}}
+                onMouseEnter={e=>{if(cnt>0){(e.currentTarget as HTMLDivElement).style.transform="scale(1.1)";(e.currentTarget as HTMLDivElement).style.boxShadow="0 2px 8px rgba(0,0,0,.15)";}}}
+                onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.transform="none";(e.currentTarget as HTMLDivElement).style.boxShadow="none";}}>
                 {cnt>0?cnt:""}
               </div>})}
           </div>)}
@@ -219,13 +225,15 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
 
         <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:10}}>담당자 상세</div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:10}}>
-          {memberData.map(m=><div key={m.name} style={{border:"1.5px solid #e2e8f0",borderRadius:10,padding:12,background:"#fafafa"}}>
+          {memberData.map(m=><div key={m.name} style={{border:"1.5px solid #e2e8f0",borderRadius:10,padding:12,background:"#fafafa",transition:"box-shadow .15s, transform .15s",cursor:"default"}}
+            onMouseEnter={e=>{(e.currentTarget as HTMLDivElement).style.boxShadow="0 4px 14px rgba(0,0,0,.1)";(e.currentTarget as HTMLDivElement).style.transform="translateY(-2px)";}}
+            onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.boxShadow="none";(e.currentTarget as HTMLDivElement).style.transform="none";}}>
             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
               <MemberAvatar name={m.name}/>
               <div style={{flex:1}}>
                 <div style={{display:"flex",alignItems:"center",gap:6}}>
                   <span style={{fontWeight:700,fontSize:13}}>{m.name}</span>
-                  {m.hasDelayed&&<span style={{fontSize:9,padding:"1px 5px",borderRadius:99,background:"#fee2e2",color:"#dc2626",fontWeight:600}}>⚠️ 지연</span>}
+                  {m.hasDelayed&&<span style={{fontSize:10,padding:"1px 5px",borderRadius:99,background:"#fee2e2",color:"#dc2626",fontWeight:600,display:"inline-flex",alignItems:"center",gap:2}}><ExclamationTriangleIcon style={{width:10,height:10}}/> 지연</span>}
                 </div>
                 <div style={{fontSize:10,color:"#64748b",marginTop:1}}>총 {m.total}건 · 완료 {m.done}건</div>
               </div>
@@ -233,13 +241,14 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
             <StatBar bySt={m.bySt} total={m.total}/>
             <div style={{display:"flex",gap:3,flexWrap:"wrap" as const,marginTop:8}}>
               {["대기","진행중","검토","완료"].map(s=>m.bySt[s]>0&&
-                <span key={s} style={{fontSize:9,padding:"2px 6px",borderRadius:99,background:stBgs[s],color:stColors[s],fontWeight:600}}>{s} {m.bySt[s]}</span>)}
+                <span key={s} style={{fontSize:10,padding:"2px 6px",borderRadius:99,background:stBgs[s],color:stColors[s],fontWeight:600}}>{s} {m.bySt[s]}</span>)}
             </div>
             <div style={{marginTop:8,display:"flex",gap:3,flexWrap:"wrap" as const}}>
-              {m.byProj.map(({proj,cnt})=><span key={proj.id} style={{fontSize:9,padding:"2px 6px",borderRadius:99,background:proj.color+"18",color:proj.color,fontWeight:600,border:`1px solid ${proj.color}33`}}>{proj.name} {cnt}</span>)}
+              {m.byProj.map(({proj,cnt})=><span key={proj.id} style={{fontSize:10,padding:"2px 6px",borderRadius:99,background:proj.color+"18",color:proj.color,fontWeight:600,border:`1px solid ${proj.color}33`}}>{proj.name} {cnt}</span>)}
             </div>
           </div>)}
         </div>
+      </>}
       </div>}
 
       {tab==="daily"&&<div style={{padding:16}}>
@@ -283,7 +292,7 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
                 {/* 날짜별 요약 배지 */}
                 <div style={{display:"flex",gap:4}}>
                   {totalAdded>0&&<span style={{fontSize:10,padding:"2px 7px",borderRadius:99,background:"#eff6ff",color:"#2563eb",fontWeight:600}}>+{totalAdded} 추가</span>}
-                  {totalCompleted>0&&<span style={{fontSize:10,padding:"2px 7px",borderRadius:99,background:"#dcfce7",color:"#16a34a",fontWeight:600}}>✓{totalCompleted} 완료</span>}
+                  {totalCompleted>0&&<span style={{fontSize:10,padding:"2px 7px",borderRadius:99,background:"#dcfce7",color:"#16a34a",fontWeight:600,display:"inline-flex",alignItems:"center",gap:2}}><CheckIcon style={{width:10,height:10}}/>{totalCompleted} 완료</span>}
                   {totalDeleted>0&&<span style={{fontSize:10,padding:"2px 7px",borderRadius:99,background:"#fee2e2",color:"#dc2626",fontWeight:600}}>−{totalDeleted} 삭제</span>}
                 </div>
               </div>
@@ -291,14 +300,16 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
               {/* 인원별 카드 */}
               <div style={{display:"flex",flexDirection:"column",gap:6,paddingLeft:8,borderLeft:"2px solid #e2e8f0"}}>
                 {perMember.map(({name,added,completed,deleted})=>(
-                  <div key={name} style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}>
+                  <div key={name} style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden",transition:"box-shadow .15s, transform .15s"}}
+                    onMouseEnter={e=>{(e.currentTarget as HTMLDivElement).style.boxShadow="0 4px 14px rgba(0,0,0,.1)";(e.currentTarget as HTMLDivElement).style.transform="translateY(-1px)";}}
+                    onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.boxShadow="none";(e.currentTarget as HTMLDivElement).style.transform="none";}}>
                     {/* 인원 헤더 */}
                     <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:"#fafafa",borderBottom:"1px solid #f1f5f9"}}>
                       <MemberAvatar name={name} size={22}/>
                       <span style={{fontWeight:700,fontSize:12,color:"#1a2332"}}>{name}</span>
                       <div style={{display:"flex",gap:4,marginLeft:"auto"}}>
                         {added.length>0&&<span style={{fontSize:10,padding:"1px 7px",borderRadius:99,background:"#eff6ff",color:"#2563eb",fontWeight:700}}>+{added.length}</span>}
-                        {completed.length>0&&<span style={{fontSize:10,padding:"1px 7px",borderRadius:99,background:"#dcfce7",color:"#16a34a",fontWeight:700}}>✓{completed.length}</span>}
+                        {completed.length>0&&<span style={{fontSize:10,padding:"1px 7px",borderRadius:99,background:"#dcfce7",color:"#16a34a",fontWeight:700,display:"inline-flex",alignItems:"center",gap:2}}><CheckIcon style={{width:10,height:10}}/>{completed.length}</span>}
                         {deleted.length>0&&<span style={{fontSize:10,padding:"1px 7px",borderRadius:99,background:"#fee2e2",color:"#dc2626",fontWeight:700}}>−{deleted.length}</span>}
                       </div>
                     </div>
@@ -306,12 +317,12 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
                     {/* 컬럼 헤더 — 8컬럼 고정 레이아웃: 아이콘·업무명·프로젝트·우선순위·상태·반복·진행률·마감 */}
                     <div style={{display:"grid",gridTemplateColumns:"16px 1fr 78px 40px 44px 36px 38px",gap:0,padding:"3px 12px",borderBottom:"1px solid #f1f5f9",alignItems:"center"}}>
                       <div/>
-                      <div style={{fontSize:9,color:"#94a3b8",fontWeight:600}}>업무명</div>
-                      <div style={{fontSize:9,color:"#94a3b8",fontWeight:600,textAlign:"center" as const}}>프로젝트</div>
-                      <div style={{fontSize:9,color:"#94a3b8",fontWeight:600,textAlign:"center" as const}}>우선순위</div>
-                      <div style={{fontSize:9,color:"#94a3b8",fontWeight:600,textAlign:"center" as const}}>상태</div>
-                      <div style={{fontSize:9,color:"#94a3b8",fontWeight:600,textAlign:"center" as const}}>반복</div>
-                      <div style={{fontSize:9,color:"#94a3b8",fontWeight:600,textAlign:"right" as const}}>마감</div>
+                      <div style={{fontSize:10,color:"#94a3b8",fontWeight:600}}>업무명</div>
+                      <div style={{fontSize:10,color:"#94a3b8",fontWeight:600,textAlign:"center" as const}}>프로젝트</div>
+                      <div style={{fontSize:10,color:"#94a3b8",fontWeight:600,textAlign:"center" as const}}>우선순위</div>
+                      <div style={{fontSize:10,color:"#94a3b8",fontWeight:600,textAlign:"center" as const}}>상태</div>
+                      <div style={{fontSize:10,color:"#94a3b8",fontWeight:600,textAlign:"center" as const}}>반복</div>
+                      <div style={{fontSize:10,color:"#94a3b8",fontWeight:600,textAlign:"right" as const}}>마감</div>
                     </div>
 
                     {/* 업무 목록 — 모든 행이 동일한 8컬럼 grid 구조 */}
@@ -320,33 +331,35 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
                       {added.map(t=>{
                         const proj = gPr(t.pid);
                         const hasRepeat = t.repeat && t.repeat !== "없음";
-                        return <div key={"a"+t.id} style={{display:"grid",gridTemplateColumns:"16px 1fr 78px 40px 44px 36px 38px",gap:0,padding:"4px 12px",alignItems:"start"}}>
+                        return <div key={"a"+t.id} style={{display:"grid",gridTemplateColumns:"16px 1fr 78px 40px 44px 36px 38px",gap:0,padding:"4px 12px",alignItems:"start",borderRadius:6,transition:"background .12s",cursor:"default"}}
+                          onMouseEnter={e=>{(e.currentTarget as HTMLDivElement).style.background="#f8fafc";}}
+                          onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.background="transparent";}}>
                           <span style={{width:14,height:14,borderRadius:"50%",background:"#dbeafe",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:"#2563eb",fontWeight:700,alignSelf:"flex-start",marginTop:2}}>+</span>
                           {/* 업무명 + 상세내용 두 줄 */}
                           <div style={{overflow:"hidden",paddingRight:6}}>
-                            <div style={{fontSize:11,color:"#1a2332",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>{t.task}</div>
-                            {stripHtml(t.det)&&<div style={{fontSize:9,color:"#94a3b8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,marginTop:1}}>{stripHtml(t.det)}</div>}
+                            <div title={t.task} style={{fontSize:11,color:"#1a2332",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>{t.task}</div>
+                            {stripHtml(t.det)&&<div style={{fontSize:10,color:"#94a3b8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,marginTop:1}}>{stripHtml(t.det)}</div>}
                           </div>
                           {/* 프로젝트 */}
                           {proj.id!==0
-                            ? <span style={{fontSize:9,padding:"1px 4px",borderRadius:99,background:proj.color+"18",color:proj.color,fontWeight:600,textAlign:"center" as const,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>{proj.name}</span>
-                            : <span style={{fontSize:9,color:"#cbd5e1",textAlign:"center" as const}}>미배정</span>}
+                            ? <span title={proj.name} style={{fontSize:10,padding:"1px 4px",borderRadius:99,background:proj.color+"18",color:proj.color,fontWeight:600,textAlign:"center" as const,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>{proj.name}</span>
+                            : <span style={{fontSize:10,color:"#cbd5e1",textAlign:"center" as const}}>미배정</span>}
                           {/* 우선순위 */}
                           {t.pri
-                            ? <span style={{fontSize:9,padding:"1px 4px",borderRadius:99,background:priBg[t.pri]||"#f1f5f9",color:priC[t.pri]||"#64748b",fontWeight:600,textAlign:"center" as const}}>{t.pri}</span>
-                            : <span style={{fontSize:9,color:"#cbd5e1",textAlign:"center" as const}}>—</span>}
+                            ? <span style={{fontSize:10,padding:"1px 4px",borderRadius:99,background:priBg[t.pri]||"#f1f5f9",color:priC[t.pri]||"#64748b",fontWeight:600,textAlign:"center" as const}}>{t.pri}</span>
+                            : <span style={{fontSize:10,color:"#cbd5e1",textAlign:"center" as const}}>—</span>}
                           {/* 상태 */}
                           {t.st
-                            ? <span style={{fontSize:9,padding:"1px 4px",borderRadius:99,background:stBg[t.st]||"#f1f5f9",color:stC[t.st]||"#64748b",fontWeight:600,textAlign:"center" as const}}>{t.st}</span>
-                            : <span style={{fontSize:9,color:"#cbd5e1",textAlign:"center" as const}}>—</span>}
+                            ? <span style={{fontSize:10,padding:"1px 4px",borderRadius:99,background:stBg[t.st]||"#f1f5f9",color:stC[t.st]||"#64748b",fontWeight:600,textAlign:"center" as const}}>{t.st}</span>
+                            : <span style={{fontSize:10,color:"#cbd5e1",textAlign:"center" as const}}>—</span>}
                           {/* 반복 — "없음"이면 — */}
                           {hasRepeat
-                            ? <span style={{fontSize:9,color:"#7c3aed",textAlign:"center" as const,fontWeight:600}}>{t.repeat.replace("매","")}</span>
-                            : <span style={{fontSize:9,color:"#cbd5e1",textAlign:"center" as const}}>—</span>}
+                            ? <span style={{fontSize:10,color:"#7c3aed",textAlign:"center" as const,fontWeight:600}}>{t.repeat.replace("매","")}</span>
+                            : <span style={{fontSize:10,color:"#cbd5e1",textAlign:"center" as const}}>—</span>}
                           {/* 마감기한 */}
                           {t.due
-                            ? <span style={{fontSize:9,color:"#64748b",textAlign:"right" as const}}>{t.due.slice(5).replace("-","/")}</span>
-                            : <span style={{fontSize:9,color:"#cbd5e1",textAlign:"right" as const}}>—</span>}
+                            ? <span style={{fontSize:10,color:"#64748b",textAlign:"right" as const}}>{t.due.slice(5).replace("-","/")}</span>
+                            : <span style={{fontSize:10,color:"#cbd5e1",textAlign:"right" as const}}>—</span>}
                         </div>;
                       })}
 
@@ -354,27 +367,29 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
                       {completed.map(t=>{
                         const proj = gPr(t.pid);
                         const hasRepeat = t.repeat && t.repeat !== "없음";
-                        return <div key={"c"+t.id} style={{display:"grid",gridTemplateColumns:"16px 1fr 78px 40px 44px 36px 38px",gap:0,padding:"4px 12px",alignItems:"start"}}>
-                          <span style={{width:14,height:14,borderRadius:"50%",background:"#dcfce7",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:"#16a34a",fontWeight:700,alignSelf:"flex-start",marginTop:2}}>✓</span>
+                        return <div key={"c"+t.id} style={{display:"grid",gridTemplateColumns:"16px 1fr 78px 40px 44px 36px 38px",gap:0,padding:"4px 12px",alignItems:"start",borderRadius:6,transition:"background .12s",cursor:"default"}}
+                          onMouseEnter={e=>{(e.currentTarget as HTMLDivElement).style.background="#f8fafc";}}
+                          onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.background="transparent";}}>
+                          <span style={{width:14,height:14,borderRadius:"50%",background:"#dcfce7",display:"flex",alignItems:"center",justifyContent:"center",color:"#16a34a",alignSelf:"flex-start",marginTop:2}}><CheckIcon style={{width:10,height:10}}/></span>
                           <div style={{overflow:"hidden",paddingRight:6}}>
-                            <div style={{fontSize:11,color:"#94a3b8",textDecoration:"line-through",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>{t.task}</div>
-                            {stripHtml(t.det)&&<div style={{fontSize:9,color:"#cbd5e1",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,marginTop:1}}>{stripHtml(t.det)}</div>}
+                            <div title={t.task} style={{fontSize:11,color:"#94a3b8",textDecoration:"line-through",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>{t.task}</div>
+                            {stripHtml(t.det)&&<div style={{fontSize:10,color:"#cbd5e1",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,marginTop:1}}>{stripHtml(t.det)}</div>}
                           </div>
                           {proj.id!==0
-                            ? <span style={{fontSize:9,padding:"1px 4px",borderRadius:99,background:proj.color+"18",color:proj.color,fontWeight:600,textAlign:"center" as const,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>{proj.name}</span>
-                            : <span style={{fontSize:9,color:"#cbd5e1",textAlign:"center" as const}}>미배정</span>}
+                            ? <span title={proj.name} style={{fontSize:10,padding:"1px 4px",borderRadius:99,background:proj.color+"18",color:proj.color,fontWeight:600,textAlign:"center" as const,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>{proj.name}</span>
+                            : <span style={{fontSize:10,color:"#cbd5e1",textAlign:"center" as const}}>미배정</span>}
                           {t.pri
-                            ? <span style={{fontSize:9,padding:"1px 4px",borderRadius:99,background:priBg[t.pri]||"#f1f5f9",color:priC[t.pri]||"#64748b",fontWeight:600,textAlign:"center" as const}}>{t.pri}</span>
-                            : <span style={{fontSize:9,color:"#cbd5e1",textAlign:"center" as const}}>—</span>}
+                            ? <span style={{fontSize:10,padding:"1px 4px",borderRadius:99,background:priBg[t.pri]||"#f1f5f9",color:priC[t.pri]||"#64748b",fontWeight:600,textAlign:"center" as const}}>{t.pri}</span>
+                            : <span style={{fontSize:10,color:"#cbd5e1",textAlign:"center" as const}}>—</span>}
                           {t.st
-                            ? <span style={{fontSize:9,padding:"1px 4px",borderRadius:99,background:stBg[t.st]||"#f1f5f9",color:stC[t.st]||"#64748b",fontWeight:600,textAlign:"center" as const}}>{t.st}</span>
-                            : <span style={{fontSize:9,color:"#cbd5e1",textAlign:"center" as const}}>—</span>}
+                            ? <span style={{fontSize:10,padding:"1px 4px",borderRadius:99,background:stBg[t.st]||"#f1f5f9",color:stC[t.st]||"#64748b",fontWeight:600,textAlign:"center" as const}}>{t.st}</span>
+                            : <span style={{fontSize:10,color:"#cbd5e1",textAlign:"center" as const}}>—</span>}
                           {hasRepeat
-                            ? <span style={{fontSize:9,color:"#7c3aed",textAlign:"center" as const,fontWeight:600}}>{t.repeat.replace("매","")}</span>
-                            : <span style={{fontSize:9,color:"#cbd5e1",textAlign:"center" as const}}>—</span>}
+                            ? <span style={{fontSize:10,color:"#7c3aed",textAlign:"center" as const,fontWeight:600}}>{t.repeat.replace("매","")}</span>
+                            : <span style={{fontSize:10,color:"#cbd5e1",textAlign:"center" as const}}>—</span>}
                           {t.due
-                            ? <span style={{fontSize:9,color:"#94a3b8",textAlign:"right" as const}}>{t.due.slice(5).replace("-","/")}</span>
-                            : <span style={{fontSize:9,color:"#cbd5e1",textAlign:"right" as const}}>—</span>}
+                            ? <span style={{fontSize:10,color:"#94a3b8",textAlign:"right" as const}}>{t.due.slice(5).replace("-","/")}</span>
+                            : <span style={{fontSize:10,color:"#cbd5e1",textAlign:"right" as const}}>—</span>}
                         </div>;
                       })}
 
@@ -382,26 +397,28 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
                       {deleted.map(d=>{
                         const proj = gPr(d.pid);
                         const hasRepeat = d.repeat && d.repeat !== "없음";
-                        return <div key={"d"+d.id} style={{display:"grid",gridTemplateColumns:"16px 1fr 78px 40px 44px 36px 38px",gap:0,padding:"4px 12px",alignItems:"start",opacity:.65}}>
+                        return <div key={"d"+d.id} style={{display:"grid",gridTemplateColumns:"16px 1fr 78px 40px 44px 36px 38px",gap:0,padding:"4px 12px",alignItems:"start",opacity:.65,borderRadius:6,transition:"background .12s",cursor:"default"}}
+                          onMouseEnter={e=>{(e.currentTarget as HTMLDivElement).style.background="#f8fafc";}}
+                          onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.background="transparent";}}>
                           <span style={{width:14,height:14,borderRadius:"50%",background:"#fee2e2",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:"#dc2626",fontWeight:700,alignSelf:"flex-start",marginTop:2}}>−</span>
                           <div style={{overflow:"hidden",paddingRight:6}}>
-                            <div style={{fontSize:11,color:"#94a3b8",textDecoration:"line-through",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>{d.task}</div>
-                            {stripHtml(d.det)&&<div style={{fontSize:9,color:"#cbd5e1",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,marginTop:1}}>{stripHtml(d.det)}</div>}
+                            <div title={d.task} style={{fontSize:11,color:"#94a3b8",textDecoration:"line-through",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>{d.task}</div>
+                            {stripHtml(d.det)&&<div style={{fontSize:10,color:"#cbd5e1",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,marginTop:1}}>{stripHtml(d.det)}</div>}
                           </div>
                           {proj.id!==0
-                            ? <span style={{fontSize:9,padding:"1px 4px",borderRadius:99,background:proj.color+"18",color:proj.color,fontWeight:600,textAlign:"center" as const,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>{proj.name}</span>
-                            : <span style={{fontSize:9,color:"#cbd5e1",textAlign:"center" as const}}>미배정</span>}
+                            ? <span title={proj.name} style={{fontSize:10,padding:"1px 4px",borderRadius:99,background:proj.color+"18",color:proj.color,fontWeight:600,textAlign:"center" as const,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>{proj.name}</span>
+                            : <span style={{fontSize:10,color:"#cbd5e1",textAlign:"center" as const}}>미배정</span>}
                           {d.pri
-                            ? <span style={{fontSize:9,padding:"1px 4px",borderRadius:99,background:priBg[d.pri]||"#f1f5f9",color:priC[d.pri]||"#64748b",fontWeight:600,textAlign:"center" as const}}>{d.pri}</span>
-                            : <span style={{fontSize:9,color:"#cbd5e1",textAlign:"center" as const}}>—</span>}
+                            ? <span style={{fontSize:10,padding:"1px 4px",borderRadius:99,background:priBg[d.pri]||"#f1f5f9",color:priC[d.pri]||"#64748b",fontWeight:600,textAlign:"center" as const}}>{d.pri}</span>
+                            : <span style={{fontSize:10,color:"#cbd5e1",textAlign:"center" as const}}>—</span>}
                           {d.st
-                            ? <span style={{fontSize:9,padding:"1px 4px",borderRadius:99,background:stBg[d.st]||"#f1f5f9",color:stC[d.st]||"#64748b",fontWeight:600,textAlign:"center" as const}}>{d.st}</span>
-                            : <span style={{fontSize:9,color:"#cbd5e1",textAlign:"center" as const}}>—</span>}
+                            ? <span style={{fontSize:10,padding:"1px 4px",borderRadius:99,background:stBg[d.st]||"#f1f5f9",color:stC[d.st]||"#64748b",fontWeight:600,textAlign:"center" as const}}>{d.st}</span>
+                            : <span style={{fontSize:10,color:"#cbd5e1",textAlign:"center" as const}}>—</span>}
                           {hasRepeat
-                            ? <span style={{fontSize:9,color:"#7c3aed",textAlign:"center" as const,fontWeight:600}}>{d.repeat.replace("매","")}</span>
-                            : <span style={{fontSize:9,color:"#cbd5e1",textAlign:"center" as const}}>—</span>}
+                            ? <span style={{fontSize:10,color:"#7c3aed",textAlign:"center" as const,fontWeight:600}}>{d.repeat.replace("매","")}</span>
+                            : <span style={{fontSize:10,color:"#cbd5e1",textAlign:"center" as const}}>—</span>}
                           {/* 삭제된 업무는 마감기한 미보관 */}
-                          <span style={{fontSize:9,color:"#cbd5e1",textAlign:"right" as const}}>—</span>
+                          <span style={{fontSize:10,color:"#cbd5e1",textAlign:"right" as const}}>—</span>
                         </div>;
                       })}
                     </div>
@@ -414,6 +431,7 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
       </div>}
 
       {tab==="project"&&<div style={{padding:16}}>
+        {projData.length===0?<div style={{textAlign:"center",padding:"32px 16px",color:"#94a3b8",fontSize:12}}>표시할 프로젝트별 데이터가 없습니다</div>:<>
         <div style={{display:"grid",gridTemplateColumns:"140px repeat("+memberData.length+",1fr)",gap:4,marginBottom:8,alignItems:"center"}}>
           <div/>
           {memberData.map(m=><div key={m.name} style={{textAlign:"center"}}>
@@ -424,7 +442,7 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
           {projData.map(({proj,byMember,total:pt})=><div key={proj.id} style={{display:"grid",gridTemplateColumns:"140px repeat("+memberData.length+",1fr)",gap:4,alignItems:"center"}}>
             <div style={{display:"flex",alignItems:"center",gap:5}}>
               <span style={{width:8,height:8,borderRadius:"50%",background:proj.color,flexShrink:0,display:"inline-block"}}/>
-              <span style={{fontSize:10,fontWeight:700,color:proj.color,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{proj.name}</span>
+              <span title={proj.name} style={{fontSize:10,fontWeight:700,color:proj.color,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{proj.name}</span>
             </div>
             {memberData.map(m=>{
               const cnt=byMember.find(x=>x.name===m.name)?.cnt||0;
@@ -432,7 +450,10 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
               return <div key={m.name} title={`${proj.name} × ${m.name}: ${cnt}건`}
                 style={{height:28,borderRadius:6,background:cnt===0?"#f8fafc":`${proj.color}${Math.round(intensity*200+30).toString(16).padStart(2,"0")}`,
                   display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,
-                  color:cnt===0?"#e2e8f0":cnt>=3?"#fff":proj.color,border:`1px solid ${cnt===0?"#f1f5f9":proj.color+"44"}`}}>
+                  color:cnt===0?"#e2e8f0":cnt>=3?"#fff":proj.color,border:`1px solid ${cnt===0?"#f1f5f9":proj.color+"44"}`,
+                  transition:"transform .12s, box-shadow .12s",cursor:cnt>0?"pointer":"default"}}
+                onMouseEnter={e=>{if(cnt>0){(e.currentTarget as HTMLDivElement).style.transform="scale(1.1)";(e.currentTarget as HTMLDivElement).style.boxShadow="0 2px 8px rgba(0,0,0,.15)";}}}
+                onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.transform="none";(e.currentTarget as HTMLDivElement).style.boxShadow="none";}}>
                 {cnt>0?cnt:""}
               </div>})}
           </div>)}
@@ -441,12 +462,14 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
         <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:10}}>프로젝트 상세</div>
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           {projData.map(({proj,total:pt,done,bySt,byMember,delayed})=><div key={proj.id}
-            style={{border:`1.5px solid ${proj.color}44`,borderLeft:`4px solid ${proj.color}`,borderRadius:10,padding:14,background:"#fafafa"}}>
+            style={{border:`1.5px solid ${proj.color}44`,borderLeft:`4px solid ${proj.color}`,borderRadius:10,padding:14,background:"#fafafa",transition:"box-shadow .15s, transform .15s",cursor:"default"}}
+            onMouseEnter={e=>{(e.currentTarget as HTMLDivElement).style.boxShadow="0 4px 14px rgba(0,0,0,.1)";(e.currentTarget as HTMLDivElement).style.transform="translateY(-2px)";}}
+            onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.boxShadow="none";(e.currentTarget as HTMLDivElement).style.transform="none";}}>
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
               <div style={{flex:1}}>
                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}>
                   <span style={{fontWeight:700,fontSize:14,color:proj.color}}>{proj.name}</span>
-                  {delayed>0&&<span style={{fontSize:9,padding:"1px 6px",borderRadius:99,background:"#fee2e2",color:"#dc2626",fontWeight:600}}>⚠️ 지연 {delayed}건</span>}
+                  {delayed>0&&<span style={{fontSize:10,padding:"1px 6px",borderRadius:99,background:"#fee2e2",color:"#dc2626",fontWeight:600,display:"inline-flex",alignItems:"center",gap:2}}><ExclamationTriangleIcon style={{width:10,height:10}}/> 지연 {delayed}건</span>}
                 </div>
                 <div style={{fontSize:10,color:"#64748b"}}>총 {pt}건 · 완료 {done}건</div>
               </div>
@@ -454,15 +477,16 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
             <StatBar bySt={bySt} total={pt}/>
             <div style={{display:"flex",gap:4,flexWrap:"wrap" as const,marginTop:8,alignItems:"center"}}>
               {["대기","진행중","검토","완료"].map(s=>bySt[s]>0&&
-                <span key={s} style={{fontSize:9,padding:"2px 6px",borderRadius:99,background:stBgs[s],color:stColors[s],fontWeight:600}}>{s} {bySt[s]}</span>)}
+                <span key={s} style={{fontSize:10,padding:"2px 6px",borderRadius:99,background:stBgs[s],color:stColors[s],fontWeight:600}}>{s} {bySt[s]}</span>)}
               <div style={{marginLeft:"auto",display:"flex",gap:4}}>
-                {byMember.map(({name,cnt})=><div key={name} title={`${name}: ${cnt}건`} style={{display:"flex",alignItems:"center",gap:3,fontSize:9,color:"#64748b"}}>
+                {byMember.map(({name,cnt})=><div key={name} title={`${name}: ${cnt}건`} style={{display:"flex",alignItems:"center",gap:3,fontSize:10,color:"#64748b"}}>
                   <MemberAvatar name={name} size={18}/><span>{cnt}</span>
                 </div>)}
               </div>
             </div>
           </div>)}
         </div>
+      </>}
       </div>}
     </div>
   </div>;

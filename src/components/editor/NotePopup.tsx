@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState } from "react";
+import { XMarkIcon } from "../ui/Icons";
 
 export function NotePopup({todo, x, y, onSave, onClose}: {
   todo: any;
@@ -66,11 +67,11 @@ export function NotePopup({todo, x, y, onSave, onClose}: {
       <span style={{width:8,height:8,borderRadius:"50%",background:"#2563eb",flexShrink:0,display:"inline-block"}}/>
       <span style={{fontSize:12,fontWeight:700,color:"#1e3a8a",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{todo.task}</span>
       <button onMouseDown={e=>{e.preventDefault();onClose();}}
-        style={{width:22,height:22,borderRadius:"50%",border:"none",background:"#e2e8f0",cursor:"pointer",fontSize:11,color:"#64748b",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,lineHeight:1}}>✕</button>
+        style={{width:22,height:22,borderRadius:"50%",border:"none",background:"#e2e8f0",cursor:"pointer",fontSize:11,color:"#64748b",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,lineHeight:1}}><XMarkIcon style={{width:12,height:12}}/></button>
     </div>
     <div style={{display:"flex",gap:2,padding:"6px 10px",borderBottom:"1px solid #f1f5f9",alignItems:"center",background:"#fff",flexShrink:0}}>
       {tools.map(t=><button key={t.c} title={t.title} onMouseDown={e=>{e.preventDefault();cmd(t.c);}}
-        style={{padding:"3px 9px",border:"1px solid #e2e8f0",background:"#f8fafc",cursor:"pointer",
+        style={{padding:"4px 8px",border:"1px solid #e2e8f0",background:"#f8fafc",cursor:"pointer",
           fontSize:11,borderRadius:6,fontFamily:"inherit",color:"#334155",transition:"all .12s",...(t.s||{})}}
         onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.background="#eff6ff";(e.currentTarget as HTMLButtonElement).style.borderColor="#93c5fd";}}
         onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.background="#f8fafc";(e.currentTarget as HTMLButtonElement).style.borderColor="#e2e8f0";}}

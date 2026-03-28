@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { fmt2, dateStr } from "../../utils";
 import { DatePopState } from "../../types";
+import { CheckIcon, XMarkIcon } from "../ui/Icons";
 
 export function DateTimePicker({datePop,onSave,onClose}: {
   datePop: DatePopState | null;
@@ -41,9 +42,13 @@ export function DateTimePicker({datePop,onSave,onClose}: {
   const save=(day=selDay,t=timeStr)=>{if(!day)return;onSave(datePop.id,t?`${day} ${t}`:day);};
   const {rect}=datePop;
   const W=252;
-  let left=rect.left,top2=rect.bottom+6;
-  if(left+W>window.innerWidth-8)left=window.innerWidth-W-8;
-  if(top2+370>window.innerHeight)top2=rect.top-374;
+  // 브라우저 줌 보정 — getBoundingClientRect()는 줌 적용된 값이지만 position:fixed는 CSS 픽셀 기준
+  const zoom=parseFloat(getComputedStyle(document.documentElement).zoom)||1;
+  const rr={top:rect.top/zoom,left:rect.left/zoom,bottom:rect.bottom/zoom,right:rect.right/zoom};
+  const vw=window.innerWidth/zoom, vh=window.innerHeight/zoom;
+  let left=Math.max(8, Math.min(rr.left, vw-W-8));
+  let top2=rr.bottom+4;
+  if(top2+370>vh)top2=Math.max(8, rr.top-374);
   const firstDow=new Date(navY,navM,1).getDay();
   const startOff=(firstDow+6)%7;
   const dim=new Date(navY,navM+1,0).getDate();
@@ -62,20 +67,20 @@ export function DateTimePicker({datePop,onSave,onClose}: {
       <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 14px 8px",borderBottom:"1px solid #f1f5f9"}}>
         {selDay
           ?<div style={{display:"flex",alignItems:"center",gap:6,flex:1}}>
-              <span style={{color:"#16a34a",fontSize:14,fontWeight:700}}>✓</span>
+              <CheckIcon style={{width:14,height:14,color:"#16a34a"}}/>
               <span style={{fontSize:13,fontWeight:700,color:"#1e293b"}}>{selDay.slice(5).replace("-","/")} {timeStr&&<span style={{fontSize:11,color:"#64748b",fontWeight:400}}>{timeStr}</span>}</span>
             </div>
           :<span style={{fontSize:12,color:"#94a3b8",flex:1}}>날짜를 선택하세요</span>}
-        <button onClick={()=>setShowTime(p=>!p)} title="시간" style={{background:showTime?"#eff6ff":"none",border:"none",cursor:"pointer",color:showTime?"#2563eb":"#94a3b8",fontSize:13,padding:"3px 5px",borderRadius:5,flexShrink:0}}>⏱</button>
-        {selDay&&<button onClick={()=>{onSave(datePop.id,"");onClose();}} title="삭제" style={{background:"none",border:"none",cursor:"pointer",color:"#dc2626",fontSize:13,padding:"3px 5px",borderRadius:5,flexShrink:0}}>✕</button>}
+        <button onClick={()=>setShowTime(p=>!p)} title="시간" style={{background:showTime?"#eff6ff":"none",border:"none",cursor:"pointer",color:showTime?"#2563eb":"#94a3b8",fontSize:13,padding:"3px 5px",borderRadius:6,flexShrink:0}}>⏱</button>
+        {selDay&&<button onClick={()=>{onSave(datePop.id,"");onClose();}} title="삭제" style={{background:"none",border:"none",cursor:"pointer",color:"#dc2626",fontSize:13,padding:"3px 5px",borderRadius:6,flexShrink:0,display:"inline-flex",alignItems:"center"}}><XMarkIcon style={{width:13,height:13}}/></button>}
       </div>
       <div style={{display:"flex",gap:4,padding:"8px 10px",borderBottom:"1px solid #f1f5f9"}}>
         {quickDates.map(({label,ds})=>{const isSel=ds===selDay;return <button key={label} onClick={()=>pickQuick(ds)} style={{flex:1,fontSize:10,fontWeight:isSel?700:500,padding:"5px 2px",borderRadius:6,border:`1px solid ${isSel?"#2563eb":"#e2e8f0"}`,background:isSel?"#eff6ff":"#f8fafc",color:isSel?"#2563eb":"#64748b",cursor:"pointer",whiteSpace:"nowrap" as const}}>{label}</button>;})}
       </div>
       <div style={{display:"flex",alignItems:"center",padding:"8px 10px 4px"}}>
-        <button onClick={prevM} style={{background:"none",border:"none",cursor:"pointer",color:"#475569",fontSize:17,lineHeight:1,padding:"3px 6px",borderRadius:5}}>‹</button>
+        <button onClick={prevM} style={{background:"none",border:"none",cursor:"pointer",color:"#475569",fontSize:17,lineHeight:1,padding:"3px 6px",borderRadius:6}}>‹</button>
         <span style={{flex:1,textAlign:"center",fontSize:13,fontWeight:700,color:"#1e293b"}}>{navY}년 {navM+1}월</span>
-        <button onClick={nextM} style={{background:"none",border:"none",cursor:"pointer",color:"#475569",fontSize:17,lineHeight:1,padding:"3px 6px",borderRadius:5}}>›</button>
+        <button onClick={nextM} style={{background:"none",border:"none",cursor:"pointer",color:"#475569",fontSize:17,lineHeight:1,padding:"3px 6px",borderRadius:6}}>›</button>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",padding:"0 8px 2px"}}>
         {["월","화","수","목","금","토","일"].map((d,i)=><div key={d} style={{textAlign:"center",fontSize:10,fontWeight:700,color:i===5?"#60a5fa":i===6?"#f87171":"#94a3b8",padding:"2px 0"}}>{d}</div>)}

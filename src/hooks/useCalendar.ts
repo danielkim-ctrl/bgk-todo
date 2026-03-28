@@ -8,8 +8,9 @@ interface UseCalendarOptions {
 
 export function useCalendar({ todos }: UseCalendarOptions) {
   // ── 상태 ─────────────────────────────────────────────────────────────────
-  const [calF, setCalF] = useState("");
-  const [calFWho, setCalFWho] = useState("");
+  // 캘린더 필터 — 다중 선택 방식 (칸반과 동일하게 배열 토글)
+  const [calF, setCalF] = useState<string[]>([]);
+  const [calFWho, setCalFWho] = useState<string[]>([]);
   const [calY, setCalY] = useState(new Date().getFullYear());
   const [calM, setCalM] = useState(new Date().getMonth());
   const [calD, setCalD] = useState(new Date().getDate());
@@ -57,7 +58,7 @@ export function useCalendar({ todos }: UseCalendarOptions) {
 
   // ── 캘린더용 할일 필터링 + 반복 일정 전개 ────────────────────────────────
   const ftodosBase = useMemo(
-    () => todos.filter(t => (!calF || String(t.pid) === calF) && (!calFWho || t.who === calFWho)),
+    () => todos.filter(t => (calF.length===0 || calF.includes(String(t.pid))) && (calFWho.length===0 || calFWho.includes(t.who))),
     [todos, calF, calFWho]
   );
   const ftodosExpanded = useMemo(

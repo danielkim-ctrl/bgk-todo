@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { S } from "../../styles";
+import { UserIcon, BoltIcon, CheckCircleIcon, Cog6ToothIcon, CheckIcon, PencilSquareIcon, TrashIcon, ICON_SM } from "../ui/Icons";
 
 export function SettingsMgr({members,setMembers,pris,setPris,stats,setStats,priC,setPriC,priBg,setPriBg,stC,setStC,stBg,setStBg,todos,flash,apiKey,setApiKey}: {
   members: string[];
@@ -47,10 +48,10 @@ export function SettingsMgr({members,setMembers,pris,setPris,stats,setStats,priC
   const chgColor=(v: string,c: string)=>{if(tab==="pris"){setPriC((p: any)=>({...p,[v]:c}));setPriBg((p: any)=>({...p,[v]:c+"18"}));}else{setStC((p: any)=>({...p,[v]:c}));setStBg((p: any)=>({...p,[v]:c+"18"}));}};
   return <div>
     <div style={{display:"flex",borderBottom:"1px solid #e2e8f0",marginBottom:14,flexWrap:"wrap" as const}}>
-      <button style={tS(tab==="members")} onClick={()=>setTab("members")}>👤 담당자 ({members.length})</button>
-      <button style={tS(tab==="pris")} onClick={()=>setTab("pris")}>🔥 우선순위 ({pris.length})</button>
-      <button style={tS(tab==="stats")} onClick={()=>setTab("stats")}>📋 상태 ({stats.length})</button>
-      <button style={tS(tab==="apikey")} onClick={()=>setTab("apikey")}>🔑 API 키</button>
+      <button style={{...tS(tab==="members"),display:"inline-flex",alignItems:"center",gap:4}} onClick={()=>setTab("members")}><UserIcon style={ICON_SM}/> 담당자 ({members.length})</button>
+      <button style={{...tS(tab==="pris"),display:"inline-flex",alignItems:"center",gap:4}} onClick={()=>setTab("pris")}><BoltIcon style={ICON_SM}/> 우선순위 ({pris.length})</button>
+      <button style={{...tS(tab==="stats"),display:"inline-flex",alignItems:"center",gap:4}} onClick={()=>setTab("stats")}><CheckCircleIcon style={ICON_SM}/> 상태 ({stats.length})</button>
+      <button style={{...tS(tab==="apikey"),display:"inline-flex",alignItems:"center",gap:4}} onClick={()=>setTab("apikey")}><Cog6ToothIcon style={ICON_SM}/> API 키</button>
     </div>
     {tab==="apikey"&&<div>
       <div style={{fontSize:12,color:"#64748b",marginBottom:10}}>Anthropic API 키를 입력하세요. 브라우저 로컬에 저장됩니다.</div>
@@ -60,16 +61,16 @@ export function SettingsMgr({members,setMembers,pris,setPris,stats,setStats,priC
         <button onClick={()=>{const k=keyDraft.trim();localStorage.setItem("team-todo-apikey",k);setApiKey(k);flash("API 키가 저장되었습니다");}}
           style={{padding:"8px 14px",background:"linear-gradient(135deg,#2563eb,#1d4ed8)",color:"#fff",border:"none",borderRadius:7,fontSize:12,fontWeight:700,cursor:"pointer"}}>저장</button>
       </div>
-      {apiKey&&<div style={{fontSize:11,color:"#16a34a",fontWeight:600}}>✅ API 키 설정됨</div>}
+      {apiKey&&<div style={{fontSize:11,color:"#16a34a",fontWeight:600,display:"flex",alignItems:"center",gap:3}}><CheckIcon style={ICON_SM}/> API 키 설정됨</div>}
     </div>}
     <div style={{marginBottom:14,maxHeight:300,overflowY:"auto"}}>
       {items.map(v=>{const cnt=tab==="members"?todos.filter((t:any)=>t.who===v).length:tab==="pris"?todos.filter((t:any)=>t.pri===v).length:todos.filter((t:any)=>t.st===v).length;
         const color=tab==="members"?undefined:tab==="pris"?(priC[v]||"#94a3b8"):(stC[v]||"#94a3b8");
         return <div key={v} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:"#f8fafc",borderRadius:7,border:"1px solid #e2e8f0",fontSize:12,marginBottom:4}}>
-          {color!==undefined?<input type="color" value={color} onChange={e=>chgColor(v,e.target.value)} style={{width:20,height:20,padding:0,border:"1px solid #e2e8f0",borderRadius:4,cursor:"pointer"}}/>:<span style={{width:20,height:20,borderRadius:"50%",background:"linear-gradient(135deg,#60a5fa,#818cf8)",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700}}>{v[0]}</span>}
+          {color!==undefined?<input type="color" value={color} onChange={e=>chgColor(v,e.target.value)} style={{width:20,height:20,padding:0,border:"1px solid #e2e8f0",borderRadius:4,cursor:"pointer"}}/>:<span style={{width:20,height:20,borderRadius:"50%",background:"linear-gradient(135deg,#60a5fa,#818cf8)",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700}}>{v[0]}</span>}
           <span style={{flex:1,fontWeight:600}}>{v}</span><span style={{fontSize:10,color:"#94a3b8"}}>{cnt}건</span>
-          <button onClick={()=>edit(v)} style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:"#94a3b8"}}>✏️</button>
-          <button onClick={()=>tryDel(v)} style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:"#94a3b8"}}>🗑️</button>
+          <button onClick={()=>edit(v)} style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:"#94a3b8",display:"inline-flex",alignItems:"center"}}><PencilSquareIcon style={ICON_SM}/></button>
+          <button onClick={()=>tryDel(v)} style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:"#94a3b8",display:"inline-flex",alignItems:"center"}}><TrashIcon style={ICON_SM}/></button>
         </div>})}
     </div>
     {delConfirm&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,padding:12,marginBottom:12,display:"flex",alignItems:"center",justifyContent:"space-between"}}>

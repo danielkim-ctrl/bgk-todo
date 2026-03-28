@@ -13,7 +13,7 @@ export function ProgressBar({value=0, onChange}: {value?: number, onChange: (v: 
             border:`1px solid ${pct>=step?boxColor(step)+"99":"#d1d5db"}`,
             transition:"background .12s"}}/>
       ))}
-      <span style={{fontSize:9,minWidth:22,textAlign:"right" as const,fontWeight:pct>0?600:400,color:textColor,flexShrink:0}}>
+      <span style={{fontSize:10,minWidth:22,textAlign:"right" as const,fontWeight:pct>0?600:400,color:textColor,flexShrink:0}}>
         {pct}%
       </span>
     </div>
