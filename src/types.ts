@@ -72,6 +72,40 @@ export interface NotePopupState {
   _newRow?: number;
 }
 
+// ─── 권한 시스템 ─────────────────────────────────────────────────────────────
+
+/** 사용자 역할 */
+export type Role = "admin" | "manager" | "member" | "viewer";
+
+/** 세분화된 권한 목록 */
+export type Permission =
+  | "todo.create"
+  | "todo.edit.own"    // 본인 할일만 수정
+  | "todo.edit.all"    // 모든 할일 수정
+  | "todo.delete.own"
+  | "todo.delete.all"
+  | "project.manage"
+  | "member.manage"
+  | "priority.manage"
+  | "settings.edit"
+  | "ai.use";
+
+/** 역할별 기본 권한 매핑 (나중에 커스터마이징 가능하도록 Record 형태) */
+export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
+  admin:   ["todo.create","todo.edit.all","todo.delete.all","project.manage","member.manage","priority.manage","settings.edit","ai.use"],
+  manager: ["todo.create","todo.edit.all","todo.delete.own","project.manage","settings.edit","ai.use"],
+  member:  ["todo.create","todo.edit.own","todo.delete.own","ai.use"],
+  viewer:  [],
+};
+
+/** 사용자별 역할 정보 (나중에 Firestore에서 관리 예정) */
+export interface UserRole {
+  name: string;  // members 배열의 이름과 동일
+  role: Role;
+}
+
+// ─── 삭제된 업무 기록 ──────────────────────────────────────────────────────────
+
 // 삭제된 업무 기록 (localStorage에 보관, 데일리 활동 로그에서 사용)
 export interface DeletedTodo {
   id: number;

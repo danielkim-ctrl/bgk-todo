@@ -3,10 +3,13 @@ import { doc, onSnapshot, setDoc, getDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import {
   INIT_MEMBERS, INIT_PRI, INIT_ST, INIT_PRI_C, INIT_PRI_BG, INIT_ST_C, INIT_ST_BG,
-  PROJ_PALETTE, initTodos, initProj
+  initTodos, initProj
 } from "../constants";
-import { td, gP, expandRepeats, dateStr, fmt2, stripHtml } from "../utils";
+import { td, gP, stripHtml } from "../utils";
 import { Filters, NewRow, AiParsed, DatePopState, NotePopupState, Project, Todo, DeletedTodo } from "../types";
+import { useAI } from "./useAI";
+import { useCalendar } from "./useCalendar";
+import { useUserSettings } from "./useUserSettings";
 
 export function useTodoApp() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -20,10 +23,22 @@ export function useTodoApp() {
   const FS_DOC = useMemo(() => doc(db, "todos_db", "team"), []);
   const detHoverTimerRef = useRef<any>(null);
   const noteLeaveTimerRef = useRef<any>(null);
-  const confirmingAI = useRef(false);
   const savingNRs = useRef(false);
   const lastKnownUpdatedAt = useRef(0);
   const fsBootstrapped = useRef(false);
+
+  // ── 사용자 설정 (useUserSettings로 분리) ────────────────────────────────────
+  const userSets = useUserSettings();
+  const {
+    currentUser, setCurrentUser,
+    filters, setFilters,
+    sortCol, setSortCol, sortDir, setSortDir,
+    expandMode, setExpandMode,
+    todoView, setTodoView, memoCols, setMemoCols, showDone, setShowDone,
+    favSidebar, togFavSidebar,
+    userFavs, isFav, toggleFav,
+    userSettings, setUserSettings,
+  } = userSets;
 
   const guard = () => { pendingWrite.current = true; };
 
@@ -77,37 +92,14 @@ export function useTodoApp() {
 
   const [view, setView] = useState("list");
   const [toast, setToast] = useState({ m: "", t: "" });
-  const _u0 = localStorage.getItem("todo-current-user");
-  const _s0 = (() => { try { return JSON.parse(localStorage.getItem(`todo-view-settings-${_u0}`) || "null"); } catch { return null; } })();
-  const [filters, setFilters] = useState<Filters>(_s0?.filters || { proj: [], who: [], pri: [], st: [], repeat: [], fav: "" });
-  const [favSidebar, setFavSidebar] = useState<{ [k: string]: string[] }>(() => {
-    const u = localStorage.getItem("todo-current-user");
-    if (!u) return {};
-    try { return JSON.parse(localStorage.getItem(`todo-sidebar-favs-${u}`) || "{}"); } catch { return {}; }
-  });
-  const togFavSidebar = (key: string, val: string) => setFavSidebar(prev => {
-    const cur = prev[key] || [];
-    const next = cur.includes(val) ? cur.filter(v => v !== val) : [...cur, val];
-    const s = { ...prev, [key]: next };
-    if (currentUser) localStorage.setItem(`todo-sidebar-favs-${currentUser}`, JSON.stringify(s));
-    return s;
-  });
   const [search, setSearch] = useState("");
   const [editCell, setEditCell] = useState<{ id: number, field: string } | null>(null);
-  const [sortCol, setSortCol] = useState<string | null>(_s0?.sortCol ?? null);
-  const [sortDir, setSortDir] = useState<string>(_s0?.sortDir ?? "asc");
   const [newRows, setNewRows] = useState<NewRow[]>([]);
   const [kbF, setKbF] = useState<string[]>([]);
   const [kbFWho, setKbFWho] = useState<string[]>([]);
   const [dragId, setDragId] = useState<number | null>(null);
   const [dragOver, setDragOver] = useState<string | null>(null);
-  const [calF, setCalF] = useState("");
-  const [calFWho, setCalFWho] = useState("");
-  const [calY, setCalY] = useState(new Date().getFullYear());
-  const [calM, setCalM] = useState(new Date().getMonth());
-  const [calD, setCalD] = useState(new Date().getDate());
-  const [calView, setCalView] = useState("month");
-  const [customDays, setCustomDays] = useState(4);
+  // 캘린더/AI/사용자설정 관련 상태·로직은 각 훅으로 분리됨
   const [editMod, setEditMod] = useState<any>(null);
   const [detMod, setDetMod] = useState<any>(null);
   const [projMod, setProjMod] = useState(false);
@@ -115,48 +107,11 @@ export function useTodoApp() {
   const [chipAdd, setChipAdd] = useState<string | null>(null);
   const [chipVal, setChipVal] = useState("");
   const [chipColor, setChipColor] = useState("#8b5cf6");
-  const [aiText, setAiText] = useState("");
-  const [aiFiles, setAiFiles] = useState<{name:string,type:string,data:string,textContent?:string}[]>([]);
-  const [aiLoad, setAiLoad] = useState(false);
-  const [aiSt, setAiSt] = useState("");
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem("team-todo-apikey") || "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");
-  const [aiParsed, setAiParsed] = useState<AiParsed[]>([]);
-  const [addTab, setAddTab] = useState("manual");
   const [detPopup, setDetPopup] = useState<any>(null);
   const [notePopup, setNotePopup] = useState<NotePopupState | null>(null);
   const [datePop, setDatePop] = useState<DatePopState | null>(null);
   const [nrDatePop, setNrDatePop] = useState<DatePopState | null>(null);
   const [hoverRow, setHoverRow] = useState<number | null>(null);
-  const [currentUser, setCurrentUser] = useState<string | null>(() => localStorage.getItem("todo-current-user"));
-  const [userFavs, setUserFavs] = useState<{ [u: string]: number[] }>(() => {
-    try { return JSON.parse(localStorage.getItem("todo-user-favs") || "{}"); } catch { return {}; }
-  });
-  // 사용자별 UI 순서/설정 — Firestore 동기화로 기기 무관하게 사람 기준 유지
-  const [userSettings, setUserSettings] = useState<Record<string, {
-    kanbanOrder: number[];
-    sidebarOrder: number[];
-    starredIds: number[];
-    hiddenProjects: number[];
-    hiddenMembers: string[];
-  }>>({});
-  const isFav = (id: number) => currentUser ? (userFavs[currentUser] || []).includes(id) : false;
-  const toggleFav = (id: number) => {
-    if (!currentUser) return;
-    setUserFavs(prev => {
-      const cur = prev[currentUser] || [];
-      const next = cur.includes(id) ? cur.filter(v => v !== id) : [...cur, id];
-      return { ...prev, [currentUser]: next };
-    });
-  };
-  const loadUserViewSettings = (user: string | null) => {
-    if (!user) return { todoView: "list" as const, memoCols: 3, sortCol: null as string | null, sortDir: "asc" as const, expandMode: false, filters: { proj: [], who: [], pri: [], st: [], repeat: [], fav: "" } };
-    try { return JSON.parse(localStorage.getItem(`todo-view-settings-${user}`) || "null") || { todoView: "list", memoCols: 3, sortCol: null, sortDir: "asc", expandMode: false, filters: { proj: [], who: [], pri: [], st: [], repeat: [], fav: "" } }; } catch { return { todoView: "list", memoCols: 3, sortCol: null, sortDir: "asc", expandMode: false, filters: { proj: [], who: [], pri: [], st: [], repeat: [], fav: "" } }; }
-  };
-  const _initSettings = loadUserViewSettings(localStorage.getItem("todo-current-user"));
-  const [expandMode, setExpandMode] = useState<boolean>(_initSettings.expandMode);
-  const [todoView, setTodoView] = useState<"list"|"memo">(_initSettings.todoView);
-  const [memoCols, setMemoCols] = useState<number>(_initSettings.memoCols);
-  const [showDone, setShowDone] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const lastSelRef = useRef<number | null>(null);
   const addSecRef = useRef<HTMLDivElement>(null);
@@ -299,46 +254,13 @@ export function useTodoApp() {
     return () => unsub();
   }, []);
 
-  const prevUserRef = useRef<string | null>(null);
-
+  // 유저 전환 시 CRUD 상태 초기화 (설정 저장/복원은 useUserSettings에서 담당)
   useEffect(() => {
-    const prev = prevUserRef.current;
-    // 이전 유저 설정 저장
-    if (prev) {
-      localStorage.setItem(`todo-view-settings-${prev}`, JSON.stringify({ todoView, memoCols, sortCol, sortDir, expandMode, filters }));
-    }
-    prevUserRef.current = currentUser;
-
     setNewRows([]);
     historyRef.current = [];
     redoRef.current = [];
-    if (currentUser) {
-      localStorage.setItem("todo-current-user", currentUser);
-      // 새 유저 설정 복원
-      const s = loadUserViewSettings(currentUser);
-      setTodoView(s.todoView);
-      setMemoCols(s.memoCols);
-      setSortCol(s.sortCol);
-      setSortDir(s.sortDir);
-      setExpandMode(s.expandMode);
-      setFilters(s.filters);
-    } else {
-      localStorage.removeItem("todo-current-user");
-    }
   }, [currentUser]);
 
-  // 뷰 설정 변경 시 현재 유저에 자동 저장
-  useEffect(() => {
-    if (!currentUser) return;
-    localStorage.setItem(`todo-view-settings-${currentUser}`, JSON.stringify({ todoView, memoCols, sortCol, sortDir, expandMode, filters }));
-  }, [todoView, memoCols, sortCol, sortDir, expandMode, filters, currentUser]);
-
-  useEffect(() => {
-    if (!currentUser) { setFavSidebar({}); return; }
-    try { setFavSidebar(JSON.parse(localStorage.getItem(`todo-sidebar-favs-${currentUser}`) || "{}")); } catch { setFavSidebar({}); }
-  }, [currentUser]);
-
-  useEffect(() => { localStorage.setItem("todo-user-favs", JSON.stringify(userFavs)); }, [userFavs]);
 
   useEffect(() => {
     if (!loaded) return;
@@ -432,6 +354,38 @@ export function useTodoApp() {
 
   const aProj = projects.filter(p => p.status === "활성");
   const gPr = (id: number) => gP(projects, id);
+
+  // ── useAI: AI 파싱 관련 상태·로직 (useAI.ts로 분리) ──────────────────────
+  const ai = useAI({
+    currentUser,
+    aProj,
+    members,
+    onAddTodos: (checked: AiParsed[]) => {
+      const startId = nIdRef.current;
+      nIdRef.current += checked.length;
+      setNId(nIdRef.current);
+      setTodosWithHistory((prev: Todo[]) => [
+        ...prev,
+        ...checked.map((t, i) => {
+          const mp = aProj.find(p => t.project && p.name.includes(t.project));
+          return {
+            pid: mp ? mp.id : 0,
+            task: t.task || "",
+            who: t.assignee || "미배정",
+            due: t.due || "",
+            pri: t.priority || "보통",
+            st: "대기",
+            det: t.detail || "",
+            repeat: t.repeat || "없음",
+            id: startId + i,
+            cre: td(),
+            done: null,
+          };
+        }),
+      ]);
+    },
+    flash,
+  });
 
   const updTodo = (id: number, u: any) => setTodosWithHistory((p: Todo[]) => p.map(t => {
     if (t.id !== id) return t;
@@ -530,47 +484,10 @@ export function useTodoApp() {
     setFilters(f => { const arr = f[k as keyof Filters] as string[]; return { ...f, [k]: arr.includes(v) ? arr.filter(x => x !== v) : [...arr, v] }; });
   };
 
-  const calDate = () => new Date(calY, calM, calD);
-  const setCalDate = (d: Date) => { setCalY(d.getFullYear()); setCalM(d.getMonth()); setCalD(d.getDate()); };
-  const calToday = () => setCalDate(new Date());
-
-  const calRangeDs = useMemo(() => {
-    const base = new Date(calY, calM, calD);
-    let s: string, e: string;
-    if (calView === "week") { const ws = new Date(base); ws.setDate(ws.getDate() - ws.getDay()); const we = new Date(ws); we.setDate(we.getDate() + 6); s = dateStr(ws.getFullYear(), ws.getMonth(), ws.getDate()); e = dateStr(we.getFullYear(), we.getMonth(), we.getDate()); }
-    else if (calView === "month") { s = `${calY}-01-01`; e = `${calY}-12-31`; }
-    else if (calView === "agenda") { s = dateStr(calY, calM, calD); const ae = new Date(base); ae.setDate(ae.getDate() + 89); e = dateStr(ae.getFullYear(), ae.getMonth(), ae.getDate()); }
-    else if (calView === "custom") { const ce = new Date(base); ce.setDate(ce.getDate() + customDays - 1); s = dateStr(base.getFullYear(), base.getMonth(), base.getDate()); e = dateStr(ce.getFullYear(), ce.getMonth(), ce.getDate()); }
-    s = s! || dateStr(calY, calM, calD); e = e! || dateStr(calY, calM, calD);
-    return { s, e };
-  }, [calView, calY, calM, calD, customDays]);
-
-  const ftodosBase = useMemo(() => todos.filter(t => (!calF || String(t.pid) === calF) && (!calFWho || t.who === calFWho)), [todos, calF, calFWho]);
-  const ftodosExpanded = useMemo(() => expandRepeats(ftodosBase, calRangeDs.s, calRangeDs.e), [ftodosBase, calRangeDs]);
-
-  const calNav = (dir: number) => {
-    const d = calDate();
-    if (calView === "day") d.setDate(d.getDate() + dir);
-    else if (calView === "week") d.setDate(d.getDate() + dir * 7);
-    else if (calView === "month") { d.setFullYear(d.getFullYear() + dir); d.setDate(1); }
-    else if (calView === "custom") d.setDate(d.getDate() + dir * customDays);
-    else if (calView === "agenda") d.setDate(d.getDate() + dir * 14);
-    setCalDate(d);
-  };
-  const calDays = ["일", "월", "화", "수", "목", "금", "토"];
-  const calTitle = () => {
-    const d = calDate();
-    if (calView === "day") return `${calY}년 ${calM + 1}월 ${calD}일 (${calDays[d.getDay()]})`;
-    if (calView === "week") { const s = new Date(d); s.setDate(s.getDate() - s.getDay()); const e = new Date(s); e.setDate(e.getDate() + 6); return `${s.getMonth() + 1}/${s.getDate()} — ${e.getMonth() + 1}/${e.getDate()}, ${s.getFullYear()}`; }
-    if (calView === "month") return `${calY}년 전체`;
-    if (calView === "custom") return `${customDays}일 뷰`;
-    return "일정 목록";
-  };
   const todayStr = td();
-  const weekDates = () => { const d = calDate(); const s = new Date(d); s.setDate(s.getDate() - s.getDay()); return Array.from({ length: 7 }, (_, i) => { const x = new Date(s); x.setDate(x.getDate() + i); return x; }); };
-  const customDates = () => { const d = calDate(); return Array.from({ length: customDays }, (_, i) => { const x = new Date(d); x.setDate(x.getDate() + i); return x; }); };
-  const agendaItems = () => { const d = calDate(); const items: any[] = []; for (let i = 0; i < 90; i++) { const x = new Date(d); x.setDate(x.getDate() + i); const ds = dateStr(x.getFullYear(), x.getMonth(), x.getDate()); const dayTodos = ftodosExpanded.filter(t => t.due && t.due.split(" ")[0] === ds); if (dayTodos.length) items.push({ date: x, ds, todos: dayTodos }); } return items; };
-  const evStyle = (p: Project, repeat: string) => ({ fontSize: 10, padding: "2px 6px", borderRadius: 4, marginBottom: 1, cursor: "pointer", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", borderLeft: `3px solid ${p.color}`, background: repeat && repeat !== "없음" ? `${p.color}22` : `${p.color}15`, color: p.color, borderLeftStyle: repeat && repeat !== "없음" ? "dashed" : "solid" } as React.CSSProperties);
+
+  // ── useCalendar: 캘린더 상태·로직 분리 ────────────────────────────────────
+  const cal = useCalendar({ todos });
 
   const saveMod = (f: any) => {
     if (!f.task || !f.who) { alert("업무명과 담당자는 필수 항목입니다."); return; }
@@ -583,74 +500,6 @@ export function useTodoApp() {
   const saveOneNR = (i: number) => { const r = newRows[i]; if (!r.task?.trim()) { flash("업무명을 입력해주세요", "err"); return; } addTodo({ pid: r.pid ? parseInt(r.pid) : 0, task: r.task.trim(), who: r.who || currentUser || "미배정", due: r.due || "", pri: r.pri || "보통", st: "대기", det: r.det || "", repeat: r.repeat || "없음" }); setNewRows(p => p.filter((_, j) => j !== i)); flash("업무가 등록되었습니다"); };
   const saveNRs = () => { if (savingNRs.current) return; const empty = newRows.filter(r => !r.task?.trim()); if (empty.length) { flash(`업무명이 비어 있는 항목이 ${empty.length}건 있습니다`, "err"); return; } const v = newRows.filter(r => r.task?.trim()); if (!v.length) { setNewRows([]); return; } savingNRs.current = true; v.forEach(r => addTodo({ pid: r.pid ? parseInt(r.pid) : 0, task: r.task.trim(), who: r.who || currentUser || "미배정", due: r.due || "", pri: r.pri || "보통", st: "대기", det: r.det || "", repeat: r.repeat || "없음" })); setNewRows([]); flash(`${v.length}건이 등록되었습니다`); setTimeout(() => { savingNRs.current = false; }, 300); };
 
-  const parseAI = async () => {
-    if (!apiKey) { setAiSt("API 키가 설정되지 않았습니다. 설정에서 먼저 저장해 주세요."); return; }
-    if (!aiText.trim() && !aiFiles.length) return;
-    setAiLoad(true); setAiSt("AI가 업무를 분석하고 있습니다...");
-    try {
-      const sysPrompt = `Task parser. Return ONLY a JSON array. Each item: {"task":string,"assignee":string or null,"due":"YYYY-MM-DD" or null,"priority":"보통"|"긴급"|"높음"|"낮음","project":string or null,"detail":string or null,"repeat":"없음"|"매일"|"매주"|"매월"}. @name=assignee. today=${td()}. projects:${aProj.map(p => p.name).join(",")}. members:${members.join(",")}.`;
-      const contentParts: any[] = [];
-      for (const f of aiFiles) {
-        if (f.type.startsWith("image/")) {
-          contentParts.push({ type: "image", source: { type: "base64", media_type: f.type, data: f.data } });
-        } else if (f.type === "application/pdf") {
-          contentParts.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data: f.data } });
-        } else if (f.textContent) {
-          contentParts.push({ type: "text", text: `[첨부파일: ${f.name}]\n${f.textContent}` });
-        }
-      }
-      contentParts.push({ type: "text", text: aiText.trim() ? `TODO추출:\n${aiText}` : "위 첨부파일에서 TODO 업무를 추출해주세요." });
-      const r = await fetch("https://api.anthropic.com/v1/messages", { method: "POST", headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" }, body: JSON.stringify({ model: "claude-haiku-4-5-20251001", max_tokens: 4096, stream: true, system: sysPrompt, messages: [{ role: "user", content: contentParts }] }) });
-      if (!r.ok) { const err = await r.json().catch(() => ({})); throw new Error(`API ${r.status}: ${(err as any).error?.message || ""}`); }
-      const reader = r.body!.getReader();
-      const decoder = new TextDecoder();
-      let raw = "";
-      let stopReason = "";
-      let taskCount = 0;
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        for (const line of decoder.decode(value, { stream: true }).split("\n")) {
-          if (!line.startsWith("data: ")) continue;
-          const data = line.slice(6).trim();
-          if (!data) continue;
-          try {
-            const ev = JSON.parse(data);
-            if (ev.type === "content_block_delta" && ev.delta?.type === "text_delta") {
-              raw += ev.delta.text;
-              const cnt = (raw.match(/\{/g) || []).length;
-              if (cnt !== taskCount) { taskCount = cnt; setAiSt(`AI 분석 중... (${taskCount}건 발견)`); }
-            } else if (ev.type === "message_delta") {
-              stopReason = ev.delta?.stop_reason || "";
-            }
-          } catch {}
-        }
-      }
-      if (stopReason === "max_tokens") throw new Error("응답이 너무 길어 잘렸습니다. 파일을 나눠서 업로드해 보세요.");
-      const jsonMatch = raw.replace(/```json|```/g, "").trim().match(/\[[\s\S]*\]/);
-      if (!jsonMatch) throw new Error("JSON 배열을 찾을 수 없습니다");
-      const parsed = JSON.parse(jsonMatch[0]); setAiParsed(parsed.map((t: any, i: number) => ({ ...t, _chk: true, _i: i }))); setAiSt(`ok:${parsed.length}건의 업무가 추출되었습니다`);
-    } catch (e: any) { setAiSt(`err:분석 중 오류가 발생하였습니다: ${e.message}`); }
-    setAiLoad(false);
-  };
-
-  // Reset guard when aiParsed clears (after confirmAI state flush)
-  useEffect(() => { if (!aiParsed.length) confirmingAI.current = false; }, [aiParsed]);
-
-  const confirmAI = () => {
-    if (confirmingAI.current) return;
-    const checked = aiParsed.filter(t => t._chk);
-    if (!checked.length) return;
-    confirmingAI.current = true;
-    const startId = nIdRef.current;
-    nIdRef.current += checked.length; setNId(nIdRef.current);
-    setTodosWithHistory((prev: Todo[]) => [...prev, ...checked.map((t, i) => {
-      const mp = aProj.find(p => t.project && p.name.includes(t.project));
-      return { pid: mp ? mp.id : 0, task: t.task || "", who: t.assignee || "미배정", due: t.due || "", pri: t.priority || "보통", st: "대기", det: t.detail || "", repeat: t.repeat || "없음", id: startId + i, cre: td(), done: null };
-    })]);
-    setAiParsed([]); setAiText(""); setAiSt("");
-    flash(`${checked.length}건이 AI를 통해 등록되었습니다`);
-  };
 
   const addChip = () => {
     if (!chipVal.trim()) return; const v = chipVal.trim();
@@ -679,7 +528,7 @@ export function useTodoApp() {
     const handler = (e: KeyboardEvent) => {
       if (view !== "calendar") return;
       if ((e.target as HTMLElement).tagName === "INPUT" || (e.target as HTMLElement).tagName === "TEXTAREA" || (e.target as HTMLElement).tagName === "SELECT" || (e.target as HTMLElement).isContentEditable) return;
-      if (e.key === "1") setCalView("day"); else if (e.key === "2") setCalView("week"); else if (e.key === "3") setCalView("month"); else if (e.key === "4") setCalView("custom"); else if (e.key === "5") setCalView("agenda");
+      if (e.key === "1") cal.setCalView("day"); else if (e.key === "2") cal.setCalView("week"); else if (e.key === "3") cal.setCalView("month"); else if (e.key === "4") cal.setCalView("custom"); else if (e.key === "5") cal.setCalView("agenda");
     };
     window.addEventListener("keydown", handler); return () => window.removeEventListener("keydown", handler);
   }, [view]);
@@ -689,34 +538,30 @@ export function useTodoApp() {
     projects, setProjects: setProjectsGuarded, todos, setTodos: setTodosWithHistory, nId, setNId, pNId, setPNId, loaded,
     members, setMembers: setMembersGuarded, pris, setPris: setPrisGuarded, stats, setStats: setStatsGuarded,
     priC, setPriC: setPriCGuarded, priBg, setPriBg: setPriBgGuarded, stC, setStC: setStCGuarded, stBg, setStBg: setStBgGuarded,
-    view, setView, toast, filters, setFilters, favSidebar, togFavSidebar,
-    search, setSearch, editCell, setEditCell, sortCol, sortDir,
+    view, setView, toast,
+    search, setSearch, editCell, setEditCell,
     newRows, setNewRows, kbF, setKbF, kbFWho, setKbFWho,
     dragId, setDragId, dragOver, setDragOver,
-    calF, setCalF, calFWho, setCalFWho, calY, calM, calD,
-    calView, setCalView, customDays, setCustomDays,
+    ...cal,
     editMod, setEditMod, detMod, setDetMod, projMod, setProjMod, settMod, setSettMod,
     chipAdd, setChipAdd, chipVal, setChipVal, chipColor, setChipColor,
-    aiText, setAiText, aiFiles, setAiFiles, aiLoad, aiSt, setAiSt, apiKey, setApiKey,
-    aiParsed, setAiParsed, addTab, setAddTab,
+    ...ai,
     detPopup, setDetPopup, notePopup, setNotePopup,
     datePop, setDatePop, nrDatePop, setNrDatePop,
-    hoverRow, setHoverRow, currentUser, setCurrentUser,
-    userFavs, isFav, toggleFav, userSettings, setUserSettings,
-    expandMode, setExpandMode, todoView, setTodoView, showDone, setShowDone, memoCols, setMemoCols,
+    hoverRow, setHoverRow,
+    ...userSets,
     selectedIds, lastSelRef, addSecRef, tblDivRef,
     clrSel, selAll, movePop, setMovePop, bulkPop, setBulkPop,
     historyRef, redoRef,
     // computed
     aProj, gPr, filtered, sorted, sortIcon,
     visibleTodoIds, allVisibleSelected, someVisibleSelected,
-    ftodosExpanded, calRangeDs, todayStr, calDays,
+    todayStr,
     // handlers
     deletedLog,
     undo, redo, flash, forceFirestoreSync, updTodo, addTodo, delTodo,
     toggleSort, togF, handleCheck, toggleSelectAll,
-    calDate, setCalDate, calToday, calNav, calTitle, weekDates, customDates, agendaItems, evStyle,
     saveMod, addNR, isNREmpty, saveOneNR, saveNRs,
-    parseAI, confirmAI, addChip,
+    addChip,
   };
 }

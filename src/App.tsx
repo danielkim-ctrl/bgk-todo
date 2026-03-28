@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState } from "react";
 import { useTodoApp } from "./hooks/useTodoApp";
+import { PermissionProvider } from "./auth/PermissionContext";
 import { S } from "./styles";
 import { isOD, dDay, fD, fDow, fmt2, stripHtml, dateStr } from "./utils";
 import { REPEAT_OPTS, AVATAR_COLORS } from "./constants";
@@ -144,6 +145,8 @@ export default function App() {
   const [calQAPicker, setCalQAPicker] = useState<string|null>(null);
   const [calDayPop, setCalDayPop] = useState<{ds:string,todos:any[],x:number,y:number}|null>(null);
   const [calSidebarOpen, setCalSidebarOpen] = useState(true); // 캘린더 우측 사이드바 열림 여부
+  const [calSidebarAdding, setCalSidebarAdding] = useState(false); // 사이드바 인라인 업무추가
+  const [calSidebarAddTitle, setCalSidebarAddTitle] = useState("");
   // 칸반 삽입 위치 (beforeId: 해당 카드 앞에 삽입, null = 컬럼 맨 끝)
   const [kbInsert, setKbInsert] = useState<{beforeId:number|null,st:string}|null>(null);
   // 칸반 카드 순서 — userSettings 기반 (Firestore 동기화)
@@ -228,6 +231,7 @@ export default function App() {
   const gridScrolled = useRef(false);
   const [hoverRowRect, setHoverRowRect] = useState<{top:number,height:number}|null>(null);
   const hoverLeaveTimer = useRef<any>(null);
+  const justOpenedPopup = useRef(false); // 팝업 열림 직후 window click 핸들러 skip용
 
   useEffect(() => {
     gridScrolled.current = false;
@@ -235,7 +239,10 @@ export default function App() {
   }, [calView, calY, calM, calD]);
 
   useEffect(() => {
-    const close = () => { setCalEvPop(null); setCalQA(null); setCalDayPop(null); setSidebarProjId(null); setSidebarDateId(null); };
+    const close = () => {
+      if (justOpenedPopup.current) { justOpenedPopup.current = false; return; }
+      setCalEvPop(null); setCalQA(null); setCalDayPop(null); setSidebarProjId(null); setSidebarDateId(null);
+    };
     window.addEventListener("click", close);
     return () => window.removeEventListener("click", close);
   }, []);
@@ -251,6 +258,7 @@ export default function App() {
 
   const openEvPop = (e: React.MouseEvent, t: any) => {
     e.stopPropagation();
+    justOpenedPopup.current = true;
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const x = Math.min(r.right + 8, window.innerWidth - 308);
     const y = Math.min(r.top, window.innerHeight - 290);
@@ -260,9 +268,14 @@ export default function App() {
 
   const openQA = (e: React.MouseEvent, ds: string, h: number) => {
     e.stopPropagation();
+    justOpenedPopup.current = true; // window click 핸들러가 즉시 닫지 못하게 차단
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const x = Math.min(r.left + 8, window.innerWidth - 292);
-    const y = Math.min(r.top, window.innerHeight - 180);
+    const popW = 300;
+    // 오른쪽 오버플로우 시 팝업을 왼쪽으로 배치
+    const x = r.left + 8 + popW > window.innerWidth
+      ? Math.max(8, r.right - popW)
+      : r.left + 8;
+    const y = Math.min(r.bottom + 4, window.innerHeight - 200);
     setCalQA({ds, h, x, y}); setCalQATitle(""); setCalQADue(""); setCalQAPid(""); setCalQAWho(currentUser||""); setCalQAPri("보통"); setCalQAPicker(null);
     setCalEvPop(null); setCalDayPop(null);
   };
@@ -306,7 +319,11 @@ export default function App() {
     }
   };
 
-  if (!currentUser) return <LoginScreen members={members} onLogin={name => setCurrentUser(name)}/>;
+  if (!currentUser) return (
+    <PermissionProvider currentUser={null}>
+      <LoginScreen members={members} onLogin={name => setCurrentUser(name)}/>
+    </PermissionProvider>
+  );
 
   const CellEdit = ({todo, field, children}: {todo: any, field: string, children: React.ReactNode}) => {
     const isE = editCell?.id === todo.id && editCell?.field === field;
@@ -324,7 +341,7 @@ export default function App() {
     return <td style={S.tdc}>{children}</td>;
   };
 
-  return <div style={S.wrap}>
+  const content = <div style={S.wrap}>
     <header style={S.hdr}>
       <div style={{display:"flex",alignItems:"center",gap:12}}>
         <img src="/bgk_logo_white.png" alt="Bridging Group" onClick={()=>window.location.reload()} style={{height:32,width:"auto",display:"block",flexShrink:0,cursor:"pointer"}}/>
@@ -1181,16 +1198,25 @@ export default function App() {
                     onClick={ev=>ev.stopPropagation()}
                     style={{width:"100%",border:"none",borderBottom:"1.5px solid #2563eb",outline:"none",fontSize:13,fontWeight:500,color:"#0f172a",background:"transparent",padding:"0 0 2px",fontFamily:"inherit"}}
                   />
-                  :<div
-                    onClick={ev=>{ev.stopPropagation();if(!isDoneSec){if(isExp){setSidebarEditId(t.id);setSidebarEditVal(t.task);}else{sidebarExpand(t.id);setSidebarDateId(null);}}}}
-                    style={{fontSize:13,fontWeight:isDone?400:500,
-                      color:isDone?"#b0bec5":od&&!isDone?"#c0392b":"#1e293b",
-                      textDecoration:isDone?"line-through":"none",
-                      overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,
-                      cursor:isDoneSec?"default":"pointer",
-                      display:"flex",alignItems:"center",gap:4,lineHeight:"1.4"}}>
-                    {t.repeat&&t.repeat!=="없음"&&<RepeatBadge repeat={t.repeat}/>}
-                    {t.task}
+                  :<div style={{display:"flex",alignItems:"center",gap:4}}>
+                    <div
+                      onClick={ev=>{ev.stopPropagation();if(!isDoneSec){sidebarExpand(isExp?null:t.id);setSidebarDateId(null);}}}
+                      title={isExp?"접기 (클릭)":"펼치기"}
+                      style={{fontSize:13,fontWeight:isDone?400:500,flex:1,minWidth:0,
+                        color:isDone?"#b0bec5":od&&!isDone?"#c0392b":"#1e293b",
+                        textDecoration:isDone?"line-through":"none",
+                        overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,
+                        cursor:isDoneSec?"default":"pointer",
+                        display:"flex",alignItems:"center",gap:4,lineHeight:"1.4"}}>
+                      {t.repeat&&t.repeat!=="없음"&&<RepeatBadge repeat={t.repeat}/>}
+                      {t.task}
+                    </div>
+                    {isExp&&!isDoneSec&&<button
+                      onClick={ev=>{ev.stopPropagation();setSidebarEditId(t.id);setSidebarEditVal(t.task);}}
+                      title="이름 수정"
+                      style={{background:"none",border:"none",cursor:"pointer",color:"#c7d2db",fontSize:12,padding:"1px 3px",borderRadius:3,flexShrink:0,lineHeight:1,fontFamily:"inherit"}}
+                      onMouseEnter={e=>(e.currentTarget as HTMLButtonElement).style.color="#2563eb"}
+                      onMouseLeave={e=>(e.currentTarget as HTMLButtonElement).style.color="#c7d2db"}>✏</button>}
                   </div>}
 
                 {/* 비확장: 메타 (날짜 / 프로젝트 + 우선순위) */}
@@ -1299,8 +1325,13 @@ export default function App() {
                         style={{width:"100%",fontSize:11,padding:"3px 6px",border:"1px solid #e2e8f0",borderRadius:8,outline:"none",fontFamily:"inherit",boxSizing:"border-box" as const,background:"#fff"}}
                       />
                     </div>}
-                  {/* 삭제 */}
-                  <div style={{marginTop:10,display:"flex",justifyContent:"flex-end"}}>
+                  {/* 접기 + 삭제 */}
+                  <div style={{marginTop:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <button onClick={ev=>{ev.stopPropagation();sidebarExpand(null);setSidebarDateId(null);}}
+                      style={{fontSize:11,padding:"3px 8px",borderRadius:8,border:"1px solid #e2e8f0",
+                        background:"#f8fafc",color:"#94a3b8",cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:3}}>
+                      <span style={{fontSize:9}}>▲</span> 접기
+                    </button>
                     <button onClick={ev=>{ev.stopPropagation();if(confirm(`"${t.task}" 삭제?`)){delTodo(t.id);sidebarExpand(null);}}}
                       style={{fontSize:11,padding:"3px 10px",borderRadius:8,border:"1px solid #fecaca",
                         background:"#fef2f2",color:"#ef4444",cursor:"pointer",fontFamily:"inherit"}}>
@@ -1342,14 +1373,34 @@ export default function App() {
                 <div style={{height:"100%",width:`${pct}%`,background:pct===100?"#22c55e":"#2563eb",borderRadius:99,transition:"width .4s"}}/>
               </div>}
             </div>
-            {/* 업무 추가 버튼 — 헤더 바로 아래 고정 */}
+            {/* 업무 추가 — 인라인 입력 */}
             <div style={{padding:"8px 12px",borderBottom:"1px solid #f1f5f9",flexShrink:0}}>
-              <button onClick={e=>{e.stopPropagation();openQA(e,todayStr,0);}}
-                style={{width:"100%",padding:"8px",border:"1.5px dashed #e2e8f0",borderRadius:8,background:"#f8fafc",cursor:"pointer",fontSize:12,color:"#94a3b8",display:"flex",alignItems:"center",justifyContent:"center",gap:4,fontFamily:"inherit",transition:"all .2s"}}
-                onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.borderColor="#93c5fd";(e.currentTarget as HTMLButtonElement).style.color="#2563eb";(e.currentTarget as HTMLButtonElement).style.background="#eff6ff";}}
-                onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.borderColor="#e2e8f0";(e.currentTarget as HTMLButtonElement).style.color="#94a3b8";(e.currentTarget as HTMLButtonElement).style.background="#f8fafc";}}>
-                + 업무 추가
-              </button>
+              {calSidebarAdding
+                ?<div onClick={e=>e.stopPropagation()}>
+                  <input autoFocus value={calSidebarAddTitle}
+                    onChange={e=>setCalSidebarAddTitle(e.target.value)}
+                    onKeyDown={e=>{
+                      if(e.key==="Enter"&&calSidebarAddTitle.trim()){
+                        addTodo({pid:0,task:calSidebarAddTitle.trim(),who:currentUser||"",due:todayStr,pri:"보통",st:"대기",det:"",repeat:"없음"});
+                        setCalSidebarAddTitle("");setCalSidebarAdding(false);flash("업무가 등록되었습니다");
+                      }
+                      if(e.key==="Escape"){setCalSidebarAdding(false);setCalSidebarAddTitle("");}
+                    }}
+                    placeholder="업무 제목 입력 후 Enter..."
+                    style={{width:"100%",padding:"7px 10px",border:"1.5px solid #2563eb",borderRadius:8,fontSize:12,outline:"none",boxSizing:"border-box" as const,fontFamily:"inherit"}}/>
+                  <div style={{display:"flex",justifyContent:"flex-end",gap:4,marginTop:5}}>
+                    <button onClick={()=>{setCalSidebarAdding(false);setCalSidebarAddTitle("");}}
+                      style={{fontSize:11,padding:"3px 9px",borderRadius:6,border:"1px solid #e2e8f0",background:"#fff",cursor:"pointer",color:"#64748b",fontFamily:"inherit"}}>취소</button>
+                    <button onClick={()=>{if(calSidebarAddTitle.trim()){addTodo({pid:0,task:calSidebarAddTitle.trim(),who:currentUser||"",due:todayStr,pri:"보통",st:"대기",det:"",repeat:"없음"});setCalSidebarAddTitle("");setCalSidebarAdding(false);flash("업무가 등록되었습니다");}}}
+                      style={{fontSize:11,padding:"3px 12px",borderRadius:6,border:"none",background:"#2563eb",cursor:"pointer",color:"#fff",fontFamily:"inherit",fontWeight:600}}>추가</button>
+                  </div>
+                </div>
+                :<button onClick={()=>setCalSidebarAdding(true)}
+                  style={{width:"100%",padding:"8px",border:"1.5px dashed #e2e8f0",borderRadius:8,background:"#f8fafc",cursor:"pointer",fontSize:12,color:"#94a3b8",display:"flex",alignItems:"center",justifyContent:"center",gap:4,fontFamily:"inherit",transition:"all .2s"}}
+                  onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.borderColor="#93c5fd";(e.currentTarget as HTMLButtonElement).style.color="#2563eb";(e.currentTarget as HTMLButtonElement).style.background="#eff6ff";}}
+                  onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.borderColor="#e2e8f0";(e.currentTarget as HTMLButtonElement).style.color="#94a3b8";(e.currentTarget as HTMLButtonElement).style.background="#f8fafc";}}>
+                  + 업무 추가
+                </button>}
             </div>
             {/* 목록 — flex:1 + overflowY:auto 로 남은 높이 채움 */}
             <div style={{flex:1,overflowY:"auto"}}>
@@ -1637,4 +1688,10 @@ export default function App() {
       onClose={()=>setDetPopup(null)}
     />}
   </div>;
+
+  return (
+    <PermissionProvider currentUser={currentUser}>
+      {content}
+    </PermissionProvider>
+  );
 }
