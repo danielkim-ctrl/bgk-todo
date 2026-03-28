@@ -1,0 +1,1830 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - img "Bridging Group" [ref=e6] [cursor=pointer]
+      - generic [ref=e8]: 팀 TODO 통합관리
+    - generic [ref=e9]:
+      - button "📁 프로젝트" [ref=e10] [cursor=pointer]
+      - button "⚙️ 설정" [ref=e11] [cursor=pointer]
+      - button "↩️ 되돌리기" [ref=e12] [cursor=pointer]
+      - button "↪️ 다시 실행" [ref=e13] [cursor=pointer]
+      - generic [ref=e14]: 62건
+      - generic [ref=e16]:
+        - generic [ref=e17]: 김
+        - generic [ref=e18]: 김대윤
+        - button "로그아웃" [ref=e19] [cursor=pointer]
+  - navigation [ref=e20]:
+    - button "📊 대시보드" [ref=e21] [cursor=pointer]
+    - button "📌 칸반" [ref=e22] [cursor=pointer]
+    - button "📋 리스트" [active] [ref=e23] [cursor=pointer]
+    - button "📅 캘린더" [ref=e24] [cursor=pointer]
+  - main [ref=e25]:
+    - generic [ref=e26]:
+      - generic [ref=e27]:
+        - generic [ref=e28]:
+          - generic [ref=e30]:
+            - generic: 🔍
+            - textbox "검색..." [ref=e31]
+          - generic [ref=e33] [cursor=pointer]:
+            - generic [ref=e34]: ☆
+            - generic [ref=e35]: 즐겨찾기
+            - generic [ref=e36]: "0"
+          - generic [ref=e37]:
+            - generic [ref=e38]: 프로젝트
+            - generic [ref=e39] [cursor=pointer]:
+              - generic [ref=e40]: 전체
+              - generic [ref=e41]: "55"
+            - generic [ref=e42] [cursor=pointer]:
+              - generic [ref=e43]: 미배정
+              - generic [ref=e44]: "0"
+            - generic [ref=e45] [cursor=pointer]:
+              - button "☆" [ref=e46]
+              - generic [ref=e48]: 만화웹툰2026아시아
+              - generic [ref=e49]: "5"
+            - generic [ref=e50] [cursor=pointer]:
+              - button "☆" [ref=e51]
+              - generic [ref=e53]: 유녹2026아시아
+              - generic [ref=e54]: "5"
+            - generic [ref=e55] [cursor=pointer]:
+              - button "☆" [ref=e56]
+              - generic [ref=e58]: WATER2026구매
+              - generic [ref=e59]: "3"
+            - generic [ref=e60] [cursor=pointer]:
+              - button "☆" [ref=e61]
+              - generic [ref=e63]: WATER2026수출
+              - generic [ref=e64]: "5"
+            - generic [ref=e65] [cursor=pointer]:
+              - button "☆" [ref=e66]
+              - generic [ref=e68]: 2026 롯데백화점 동행 워크숍
+              - generic [ref=e69]: "37"
+            - button "+ 추가" [ref=e71] [cursor=pointer]
+          - generic [ref=e72]:
+            - generic [ref=e73]: 담당자
+            - generic [ref=e74] [cursor=pointer]:
+              - generic [ref=e75]: 전체
+              - generic [ref=e76]: "55"
+            - generic [ref=e77] [cursor=pointer]:
+              - generic [ref=e78]: 미배정
+              - generic [ref=e79]: "0"
+            - generic [ref=e80] [cursor=pointer]:
+              - button "☆" [ref=e81]
+              - generic [ref=e82]: 김현지
+              - generic [ref=e83]: "3"
+            - generic [ref=e84] [cursor=pointer]:
+              - button "☆" [ref=e85]
+              - generic [ref=e86]: 김대윤
+              - generic [ref=e87]: "41"
+            - generic [ref=e88] [cursor=pointer]:
+              - button "☆" [ref=e89]
+              - generic [ref=e90]: 복경민
+              - generic [ref=e91]: "3"
+            - generic [ref=e92] [cursor=pointer]:
+              - button "☆" [ref=e93]
+              - generic [ref=e94]: 김혜민
+              - generic [ref=e95]: "3"
+            - generic [ref=e96] [cursor=pointer]:
+              - button "☆" [ref=e97]
+              - generic [ref=e98]: 이연수
+              - generic [ref=e99]: "2"
+            - generic [ref=e100] [cursor=pointer]:
+              - button "☆" [ref=e101]
+              - generic [ref=e102]: 박정찬
+              - generic [ref=e103]: "3"
+            - button "+ 추가" [ref=e105] [cursor=pointer]
+          - generic [ref=e106]:
+            - generic [ref=e107]: 우선순위
+            - generic [ref=e108] [cursor=pointer]:
+              - generic [ref=e109]: 전체
+              - generic [ref=e110]: "55"
+            - generic [ref=e111] [cursor=pointer]:
+              - generic [ref=e112]: 미배정
+              - generic [ref=e113]: "0"
+            - generic [ref=e114] [cursor=pointer]:
+              - button "☆" [ref=e115]
+              - generic [ref=e117]: 긴급
+              - generic [ref=e118]: "21"
+            - generic [ref=e119] [cursor=pointer]:
+              - button "☆" [ref=e120]
+              - generic [ref=e122]: 높음
+              - generic [ref=e123]: "15"
+            - generic [ref=e124] [cursor=pointer]:
+              - button "☆" [ref=e125]
+              - generic [ref=e127]: 보통
+              - generic [ref=e128]: "8"
+            - generic [ref=e129] [cursor=pointer]:
+              - button "☆" [ref=e130]
+              - generic [ref=e132]: 낮음
+              - generic [ref=e133]: "11"
+          - generic [ref=e134]:
+            - generic [ref=e135]: 상태
+            - generic [ref=e136] [cursor=pointer]:
+              - generic [ref=e137]: 전체
+              - generic [ref=e138]: "62"
+            - generic [ref=e139] [cursor=pointer]:
+              - generic [ref=e140]: 미배정
+              - generic [ref=e141]: "0"
+            - generic [ref=e142] [cursor=pointer]:
+              - button "☆" [ref=e143]
+              - generic [ref=e145]: 대기
+              - generic [ref=e146]: "32"
+            - generic [ref=e147] [cursor=pointer]:
+              - button "☆" [ref=e148]
+              - generic [ref=e150]: 진행중
+              - generic [ref=e151]: "21"
+            - generic [ref=e152] [cursor=pointer]:
+              - button "☆" [ref=e153]
+              - generic [ref=e155]: 검토
+              - generic [ref=e156]: "2"
+            - generic [ref=e157] [cursor=pointer]:
+              - button "☆" [ref=e158]
+              - generic [ref=e160]: 완료
+              - generic [ref=e161]: "7"
+        - button "✕ 필터 초기화" [ref=e163] [cursor=pointer]
+      - generic [ref=e164]:
+        - generic [ref=e166]:
+          - generic [ref=e167]:
+            - generic [ref=e168]: "01"
+            - generic [ref=e169]: 업무 추가
+            - generic [ref=e170]: 직접 입력 또는 AI 자동 생성
+          - generic [ref=e172]:
+            - generic [ref=e173]:
+              - button "＋ 직접 입력" [ref=e174] [cursor=pointer]
+              - button "🤖 AI 자동 입력" [ref=e175] [cursor=pointer]
+            - button "＋ 행 추가" [ref=e178] [cursor=pointer]:
+              - generic [ref=e179]: ＋
+              - text: 행 추가
+        - generic [ref=e181]:
+          - generic [ref=e182]: "02"
+          - generic [ref=e183]: 업무 리스트
+          - generic [ref=e184]: 총 62건
+          - generic [ref=e188]:
+            - button "☰ 리스트" [ref=e189] [cursor=pointer]
+            - button "📋 메모" [ref=e190] [cursor=pointer]
+        - generic [ref=e191]:
+          - generic [ref=e192]:
+            - generic [ref=e193]: 55건 미완료
+            - text: ·
+            - generic [ref=e194]: 7건 완료
+          - generic [ref=e195]:
+            - button "마감순" [ref=e196] [cursor=pointer]
+            - button "우선순위순" [ref=e197] [cursor=pointer]
+            - button "기본" [ref=e198] [cursor=pointer]
+            - button "상세 펼치기" [ref=e200] [cursor=pointer]:
+              - img [ref=e201]
+              - text: 상세 펼치기
+        - table [ref=e207]:
+          - rowgroup [ref=e216]:
+            - row "업무내용 ⇅ 상세내용 ⇅ 담당자 ⇅ 마감기한 ⇅ 우선순위 ⇅ 상태 ⇅ 전체 선택" [ref=e217]:
+              - columnheader "업무내용 ⇅" [ref=e218] [cursor=pointer]:
+                - generic [ref=e219]:
+                  - text: 업무내용
+                  - generic [ref=e220]: ⇅
+              - columnheader "상세내용 ⇅" [ref=e221] [cursor=pointer]:
+                - generic [ref=e222]:
+                  - text: 상세내용
+                  - generic [ref=e223]: ⇅
+              - columnheader "담당자 ⇅" [ref=e224] [cursor=pointer]:
+                - generic [ref=e225]:
+                  - text: 담당자
+                  - generic [ref=e226]: ⇅
+              - columnheader "마감기한 ⇅" [ref=e227] [cursor=pointer]:
+                - generic [ref=e228]:
+                  - text: 마감기한
+                  - generic [ref=e229]: ⇅
+              - columnheader "우선순위 ⇅" [ref=e230] [cursor=pointer]:
+                - generic [ref=e231]:
+                  - text: 우선순위
+                  - generic [ref=e232]: ⇅
+              - columnheader "상태 ⇅" [ref=e233] [cursor=pointer]:
+                - generic [ref=e234]:
+                  - text: 상태
+                  - generic [ref=e235]: ⇅
+              - columnheader "전체 선택" [ref=e236]:
+                - checkbox "전체 선택" [ref=e237] [cursor=pointer]
+          - rowgroup [ref=e238]:
+            - row "중국 시안 디자인 확인 만화웹툰2026아시아 착수보고 전까지 완료 필요 현지 김현지 2026-04-02(목) D-5 ● 긴급 ▾ 진행중 ▾" [ref=e239]:
+              - cell "중국 시안 디자인 확인 만화웹툰2026아시아" [ref=e240]:
+                - generic [ref=e241]:
+                  - button [ref=e242] [cursor=pointer]:
+                    - img
+                  - generic [ref=e243]:
+                    - generic [ref=e245] [cursor=pointer]: 중국 시안 디자인 확인
+                    - generic [ref=e246]: 만화웹툰2026아시아
+              - cell "착수보고 전까지 완료 필요" [ref=e247]:
+                - generic [ref=e248]: 착수보고 전까지 완료 필요
+              - cell "현지 김현지" [ref=e249]:
+                - generic [ref=e250]:
+                  - generic "김현지" [ref=e251]: 현지
+                  - generic [ref=e252]: 김현지
+              - cell "2026-04-02(목) D-5" [ref=e253]:
+                - generic [ref=e254]:
+                  - generic [ref=e255]: 2026-04-02(목)
+                  - generic [ref=e256]: D-5
+              - cell "● 긴급 ▾" [ref=e257]:
+                - generic [ref=e258] [cursor=pointer]:
+                  - generic [ref=e259]: ●
+                  - text: 긴급
+                  - generic [ref=e260]: ▾
+              - cell "진행중 ▾" [ref=e261]:
+                - generic [ref=e262] [cursor=pointer]:
+                  - text: 진행중
+                  - generic [ref=e263]: ▾
+              - cell [ref=e264]:
+                - checkbox [ref=e265] [cursor=pointer]
+            - row "참가기업 배포 메일 작성 만화웹툰2026아시아 강하나 차장에게 전달 대윤 김대윤 2026-04-07(화) D-10 ● 높음 ▾ 대기 ▾" [ref=e266]:
+              - cell "참가기업 배포 메일 작성 만화웹툰2026아시아" [ref=e267]:
+                - generic [ref=e268]:
+                  - button [ref=e269] [cursor=pointer]:
+                    - img
+                  - generic [ref=e270]:
+                    - generic [ref=e272] [cursor=pointer]: 참가기업 배포 메일 작성
+                    - generic [ref=e273]: 만화웹툰2026아시아
+              - cell "강하나 차장에게 전달" [ref=e274]:
+                - generic [ref=e275]: 강하나 차장에게 전달
+              - cell "대윤 김대윤" [ref=e276]:
+                - generic [ref=e277]:
+                  - generic "김대윤" [ref=e278]: 대윤
+                  - generic [ref=e279]: 김대윤
+              - cell "2026-04-07(화) D-10" [ref=e280]:
+                - generic [ref=e281]:
+                  - generic [ref=e282]: 2026-04-07(화)
+                  - generic [ref=e283]: D-10
+              - cell "● 높음 ▾" [ref=e284]:
+                - generic [ref=e285] [cursor=pointer]:
+                  - generic [ref=e286]: ●
+                  - text: 높음
+                  - generic [ref=e287]: ▾
+              - cell "대기 ▾" [ref=e288]:
+                - generic [ref=e289] [cursor=pointer]:
+                  - text: 대기
+                  - generic [ref=e290]: ▾
+              - cell [ref=e291]:
+                - checkbox [ref=e292] [cursor=pointer]
+            - row "중국 샘플북 인쇄 발주 만화웹툰2026아시아 기업별 3권씩 별도 제작 경민 복경민 2026-04-14(화) D-17 ● 보통 ▾ 대기 ▾" [ref=e293]:
+              - cell "중국 샘플북 인쇄 발주 만화웹툰2026아시아" [ref=e294]:
+                - generic [ref=e295]:
+                  - button [ref=e296] [cursor=pointer]:
+                    - img
+                  - generic [ref=e297]:
+                    - generic [ref=e299] [cursor=pointer]: 중국 샘플북 인쇄 발주
+                    - generic [ref=e300]: 만화웹툰2026아시아
+              - cell "기업별 3권씩 별도 제작" [ref=e301]:
+                - generic [ref=e302]: 기업별 3권씩 별도 제작
+              - cell "경민 복경민" [ref=e303]:
+                - generic [ref=e304]:
+                  - generic "복경민" [ref=e305]: 경민
+                  - generic [ref=e306]: 복경민
+              - cell "2026-04-14(화) D-17" [ref=e307]:
+                - generic [ref=e308]:
+                  - generic [ref=e309]: 2026-04-14(화)
+                  - generic [ref=e310]: D-17
+              - cell "● 보통 ▾" [ref=e311]:
+                - generic [ref=e312] [cursor=pointer]:
+                  - generic [ref=e313]: ●
+                  - text: 보통
+                  - generic [ref=e314]: ▾
+              - cell "대기 ▾" [ref=e315]:
+                - generic [ref=e316] [cursor=pointer]:
+                  - text: 대기
+                  - generic [ref=e317]: ▾
+              - cell [ref=e318]:
+                - checkbox [ref=e319] [cursor=pointer]
+            - row "니카이 컨퍼런스 장소 컨펌 유녹2026아시아 CKL도쿄 대관 가능 여부 확인 혜민 김혜민 2026-03-30(월) D-2 ● 긴급 ▾ 검토 ▾" [ref=e320]:
+              - cell "니카이 컨퍼런스 장소 컨펌 유녹2026아시아" [ref=e321]:
+                - generic [ref=e322]:
+                  - button [ref=e323] [cursor=pointer]:
+                    - img
+                  - generic [ref=e324]:
+                    - generic [ref=e326] [cursor=pointer]: 니카이 컨퍼런스 장소 컨펌
+                    - generic [ref=e327]: 유녹2026아시아
+              - cell "CKL도쿄 대관 가능 여부 확인" [ref=e328]:
+                - generic [ref=e329]: CKL도쿄 대관 가능 여부 확인
+              - cell "혜민 김혜민" [ref=e330]:
+                - generic [ref=e331]:
+                  - generic "김혜민" [ref=e332]: 혜민
+                  - generic [ref=e333]: 김혜민
+              - cell "2026-03-30(월) D-2" [ref=e334]:
+                - generic [ref=e335]:
+                  - generic [ref=e336]: 2026-03-30(월)
+                  - generic [ref=e337]: D-2
+              - cell "● 긴급 ▾" [ref=e338]:
+                - generic [ref=e339] [cursor=pointer]:
+                  - generic [ref=e340]: ●
+                  - text: 긴급
+                  - generic [ref=e341]: ▾
+              - cell "검토 ▾" [ref=e342]:
+                - generic [ref=e343] [cursor=pointer]:
+                  - text: 검토
+                  - generic [ref=e344]: ▾
+              - cell [ref=e345]:
+                - checkbox [ref=e346] [cursor=pointer]
+            - row "일본 사전간담회 자료 준비 유녹2026아시아 4월 21일 역삼 간담회용 현지 김현지 2026-04-17(금) D-20 ● 높음 ▾ 대기 ▾" [ref=e347]:
+              - cell "일본 사전간담회 자료 준비 유녹2026아시아" [ref=e348]:
+                - generic [ref=e349]:
+                  - button [ref=e350] [cursor=pointer]:
+                    - img
+                  - generic [ref=e351]:
+                    - generic [ref=e353] [cursor=pointer]: 일본 사전간담회 자료 준비
+                    - generic [ref=e354]: 유녹2026아시아
+              - cell "4월 21일 역삼 간담회용" [ref=e355]:
+                - generic [ref=e356]: 4월 21일 역삼 간담회용
+              - cell "현지 김현지" [ref=e357]:
+                - generic [ref=e358]:
+                  - generic "김현지" [ref=e359]: 현지
+                  - generic [ref=e360]: 김현지
+              - cell "2026-04-17(금) D-20" [ref=e361]:
+                - generic [ref=e362]:
+                  - generic [ref=e363]: 2026-04-17(금)
+                  - generic [ref=e364]: D-20
+              - cell "● 높음 ▾" [ref=e365]:
+                - generic [ref=e366] [cursor=pointer]:
+                  - generic [ref=e367]: ●
+                  - text: 높음
+                  - generic [ref=e368]: ▾
+              - cell "대기 ▾" [ref=e369]:
+                - generic [ref=e370] [cursor=pointer]:
+                  - text: 대기
+                  - generic [ref=e371]: ▾
+              - cell [ref=e372]:
+                - checkbox [ref=e373] [cursor=pointer]
+            - row "일본 자료제작 방향 정리 유녹2026아시아 내부 논의 후 결정 연수 이연수 2026-04-10(금) D-13 ● 보통 ▾ 진행중 ▾" [ref=e374]:
+              - cell "일본 자료제작 방향 정리 유녹2026아시아" [ref=e375]:
+                - generic [ref=e376]:
+                  - button [ref=e377] [cursor=pointer]:
+                    - img
+                  - generic [ref=e378]:
+                    - generic [ref=e380] [cursor=pointer]: 일본 자료제작 방향 정리
+                    - generic [ref=e381]: 유녹2026아시아
+              - cell "내부 논의 후 결정" [ref=e382]:
+                - generic [ref=e383]: 내부 논의 후 결정
+              - cell "연수 이연수" [ref=e384]:
+                - generic [ref=e385]:
+                  - generic "이연수" [ref=e386]: 연수
+                  - generic [ref=e387]: 이연수
+              - cell "2026-04-10(금) D-13" [ref=e388]:
+                - generic [ref=e389]:
+                  - generic [ref=e390]: 2026-04-10(금)
+                  - generic [ref=e391]: D-13
+              - cell "● 보통 ▾" [ref=e392]:
+                - generic [ref=e393] [cursor=pointer]:
+                  - generic [ref=e394]: ●
+                  - text: 보통
+                  - generic [ref=e395]: ▾
+              - cell "진행중 ▾" [ref=e396]:
+                - generic [ref=e397] [cursor=pointer]:
+                  - text: 진행중
+                  - generic [ref=e398]: ▾
+              - cell [ref=e399]:
+                - checkbox [ref=e400] [cursor=pointer]
+            - row "해외 바이어 리스트 정리 WATER2026구매 아시아 지역 우선 정찬 박정찬 2026-04-05(일) D-8 ● 높음 ▾ 진행중 ▾" [ref=e401]:
+              - cell "해외 바이어 리스트 정리 WATER2026구매" [ref=e402]:
+                - generic [ref=e403]:
+                  - button [ref=e404] [cursor=pointer]:
+                    - img
+                  - generic [ref=e405]:
+                    - generic [ref=e407] [cursor=pointer]: 해외 바이어 리스트 정리
+                    - generic [ref=e408]: WATER2026구매
+              - cell "아시아 지역 우선" [ref=e409]:
+                - generic [ref=e410]: 아시아 지역 우선
+              - cell "정찬 박정찬" [ref=e411]:
+                - generic [ref=e412]:
+                  - generic "박정찬" [ref=e413]: 정찬
+                  - generic [ref=e414]: 박정찬
+              - cell "2026-04-05(일) D-8" [ref=e415]:
+                - generic [ref=e416]:
+                  - generic [ref=e417]: 2026-04-05(일)
+                  - generic [ref=e418]: D-8
+              - cell "● 높음 ▾" [ref=e419]:
+                - generic [ref=e420] [cursor=pointer]:
+                  - generic [ref=e421]: ●
+                  - text: 높음
+                  - generic [ref=e422]: ▾
+              - cell "진행중 ▾" [ref=e423]:
+                - generic [ref=e424] [cursor=pointer]:
+                  - text: 진행중
+                  - generic [ref=e425]: ▾
+              - cell [ref=e426]:
+                - checkbox [ref=e427] [cursor=pointer]
+            - row "구매상담회 부스 배치안 작성 WATER2026구매 메모 추가... 대윤 김대윤 2026-04-12(일) D-15 ● 보통 ▾ 대기 ▾" [ref=e428]:
+              - cell "구매상담회 부스 배치안 작성 WATER2026구매" [ref=e429]:
+                - generic [ref=e430]:
+                  - button [ref=e431] [cursor=pointer]:
+                    - img
+                  - generic [ref=e432]:
+                    - generic [ref=e434] [cursor=pointer]: 구매상담회 부스 배치안 작성
+                    - generic [ref=e435]: WATER2026구매
+              - cell "메모 추가..." [ref=e436]:
+                - generic [ref=e437]: 메모 추가...
+              - cell "대윤 김대윤" [ref=e438]:
+                - generic [ref=e439]:
+                  - generic "김대윤" [ref=e440]: 대윤
+                  - generic [ref=e441]: 김대윤
+              - cell "2026-04-12(일) D-15" [ref=e442]:
+                - generic [ref=e443]:
+                  - generic [ref=e444]: 2026-04-12(일)
+                  - generic [ref=e445]: D-15
+              - cell "● 보통 ▾" [ref=e446]:
+                - generic [ref=e447] [cursor=pointer]:
+                  - generic [ref=e448]: ●
+                  - text: 보통
+                  - generic [ref=e449]: ▾
+              - cell "대기 ▾" [ref=e450]:
+                - generic [ref=e451] [cursor=pointer]:
+                  - text: 대기
+                  - generic [ref=e452]: ▾
+              - cell [ref=e453]:
+                - checkbox [ref=e454] [cursor=pointer]
+            - row "수출 상담 매칭 시스템 점검 WATER2026수출 매칭 알고리즘 테스트 경민 복경민 2026-04-03(금) D-6 ● 긴급 ▾ 진행중 ▾" [ref=e455]:
+              - cell "수출 상담 매칭 시스템 점검 WATER2026수출" [ref=e456]:
+                - generic [ref=e457]:
+                  - button [ref=e458] [cursor=pointer]:
+                    - img
+                  - generic [ref=e459]:
+                    - generic [ref=e461] [cursor=pointer]: 수출 상담 매칭 시스템 점검
+                    - generic [ref=e462]: WATER2026수출
+              - cell "매칭 알고리즘 테스트" [ref=e463]:
+                - generic [ref=e464]: 매칭 알고리즘 테스트
+              - cell "경민 복경민" [ref=e465]:
+                - generic [ref=e466]:
+                  - generic "복경민" [ref=e467]: 경민
+                  - generic [ref=e468]: 복경민
+              - cell "2026-04-03(금) D-6" [ref=e469]:
+                - generic [ref=e470]:
+                  - generic [ref=e471]: 2026-04-03(금)
+                  - generic [ref=e472]: D-6
+              - cell "● 긴급 ▾" [ref=e473]:
+                - generic [ref=e474] [cursor=pointer]:
+                  - generic [ref=e475]: ●
+                  - text: 긴급
+                  - generic [ref=e476]: ▾
+              - cell "진행중 ▾" [ref=e477]:
+                - generic [ref=e478] [cursor=pointer]:
+                  - text: 진행중
+                  - generic [ref=e479]: ▾
+              - cell [ref=e480]:
+                - checkbox [ref=e481] [cursor=pointer]
+            - row "참가기업 홍보물 제작 지원 WATER2026수출 굿즈 vs 자체 프로모션 결정 필요 정찬 박정찬 2026-04-18(토) D-21 ● 보통 ▾ 대기 ▾" [ref=e482]:
+              - cell "참가기업 홍보물 제작 지원 WATER2026수출" [ref=e483]:
+                - generic [ref=e484]:
+                  - button [ref=e485] [cursor=pointer]:
+                    - img
+                  - generic [ref=e486]:
+                    - generic [ref=e488] [cursor=pointer]: 참가기업 홍보물 제작 지원
+                    - generic [ref=e489]: WATER2026수출
+              - cell "굿즈 vs 자체 프로모션 결정 필요" [ref=e490]:
+                - generic [ref=e491]: 굿즈 vs 자체 프로모션 결정 필요
+              - cell "정찬 박정찬" [ref=e492]:
+                - generic [ref=e493]:
+                  - generic "박정찬" [ref=e494]: 정찬
+                  - generic [ref=e495]: 박정찬
+              - cell "2026-04-18(토) D-21" [ref=e496]:
+                - generic [ref=e497]:
+                  - generic [ref=e498]: 2026-04-18(토)
+                  - generic [ref=e499]: D-21
+              - cell "● 보통 ▾" [ref=e500]:
+                - generic [ref=e501] [cursor=pointer]:
+                  - generic [ref=e502]: ●
+                  - text: 보통
+                  - generic [ref=e503]: ▾
+              - cell "대기 ▾" [ref=e504]:
+                - generic [ref=e505] [cursor=pointer]:
+                  - text: 대기
+                  - generic [ref=e506]: ▾
+              - cell [ref=e507]:
+                - checkbox [ref=e508] [cursor=pointer]
+            - row "수출 성과보고서 양식 작성 WATER2026수출 전년도 양식 기반 업데이트 혜민 김혜민 2026-04-22(수) D-25 ● 낮음 ▾ 대기 ▾" [ref=e509]:
+              - cell "수출 성과보고서 양식 작성 WATER2026수출" [ref=e510]:
+                - generic [ref=e511]:
+                  - button [ref=e512] [cursor=pointer]:
+                    - img
+                  - generic [ref=e513]:
+                    - generic [ref=e515] [cursor=pointer]: 수출 성과보고서 양식 작성
+                    - generic [ref=e516]: WATER2026수출
+              - cell "전년도 양식 기반 업데이트" [ref=e517]:
+                - generic [ref=e518]: 전년도 양식 기반 업데이트
+              - cell "혜민 김혜민" [ref=e519]:
+                - generic [ref=e520]:
+                  - generic "김혜민" [ref=e521]: 혜민
+                  - generic [ref=e522]: 김혜민
+              - cell "2026-04-22(수) D-25" [ref=e523]:
+                - generic [ref=e524]:
+                  - generic [ref=e525]: 2026-04-22(수)
+                  - generic [ref=e526]: D-25
+              - cell "● 낮음 ▾" [ref=e527]:
+                - generic [ref=e528] [cursor=pointer]:
+                  - generic [ref=e529]: ●
+                  - text: 낮음
+                  - generic [ref=e530]: ▾
+              - cell "대기 ▾" [ref=e531]:
+                - generic [ref=e532] [cursor=pointer]:
+                  - text: 대기
+                  - generic [ref=e533]: ▾
+              - cell [ref=e534]:
+                - checkbox [ref=e535] [cursor=pointer]
+            - row "토/일 프로그램 기획안 만화웹툰2026아시아 주말 프로그램 구성 고민 대윤 김대윤 2026-04-09(목) D-12 ● 높음 ▾ 대기 ▾" [ref=e536]:
+              - cell "토/일 프로그램 기획안 만화웹툰2026아시아" [ref=e537]:
+                - generic [ref=e538]:
+                  - button [ref=e539] [cursor=pointer]:
+                    - img
+                  - generic [ref=e540]:
+                    - generic [ref=e542] [cursor=pointer]: 토/일 프로그램 기획안
+                    - generic [ref=e543]: 만화웹툰2026아시아
+              - cell "주말 프로그램 구성 고민" [ref=e544]:
+                - generic [ref=e545]: 주말 프로그램 구성 고민
+              - cell "대윤 김대윤" [ref=e546]:
+                - generic [ref=e547]:
+                  - generic "김대윤" [ref=e548]: 대윤
+                  - generic [ref=e549]: 김대윤
+              - cell "2026-04-09(목) D-12" [ref=e550]:
+                - generic [ref=e551]:
+                  - generic [ref=e552]: 2026-04-09(목)
+                  - generic [ref=e553]: D-12
+              - cell "● 높음 ▾" [ref=e554]:
+                - generic [ref=e555] [cursor=pointer]:
+                  - generic [ref=e556]: ●
+                  - text: 높음
+                  - generic [ref=e557]: ▾
+              - cell "대기 ▾" [ref=e558]:
+                - generic [ref=e559] [cursor=pointer]:
+                  - text: 대기
+                  - generic [ref=e560]: ▾
+              - cell [ref=e561]:
+                - checkbox [ref=e562] [cursor=pointer]
+            - row "CKL 착수보고 자료 준비 유녹2026아시아 4월 10일 금요일 보고 경민 복경민 2026-04-10(금) D-13 ● 긴급 ▾ 대기 ▾" [ref=e563]:
+              - cell "CKL 착수보고 자료 준비 유녹2026아시아" [ref=e564]:
+                - generic [ref=e565]:
+                  - button [ref=e566] [cursor=pointer]:
+                    - img
+                  - generic [ref=e567]:
+                    - generic [ref=e569] [cursor=pointer]: CKL 착수보고 자료 준비
+                    - generic [ref=e570]: 유녹2026아시아
+              - cell "4월 10일 금요일 보고" [ref=e571]:
+                - generic [ref=e572]: 4월 10일 금요일 보고
+              - cell "경민 복경민" [ref=e573]:
+                - generic [ref=e574]:
+                  - generic "복경민" [ref=e575]: 경민
+                  - generic [ref=e576]: 복경민
+              - cell "2026-04-10(금) D-13" [ref=e577]:
+                - generic [ref=e578]:
+                  - generic [ref=e579]: 2026-04-10(금)
+                  - generic [ref=e580]: D-13
+              - cell "● 긴급 ▾" [ref=e581]:
+                - generic [ref=e582] [cursor=pointer]:
+                  - generic [ref=e583]: ●
+                  - text: 긴급
+                  - generic [ref=e584]: ▾
+              - cell "대기 ▾" [ref=e585]:
+                - generic [ref=e586] [cursor=pointer]:
+                  - text: 대기
+                  - generic [ref=e587]: ▾
+              - cell [ref=e588]:
+                - checkbox [ref=e589] [cursor=pointer]
+            - row "북경센터 컨택포인트 연락 WATER2026수출 153㎡ 변경건 소통 연수 이연수 2026-03-28(토) D-day ● 긴급 ▾ 검토 ▾" [ref=e590]:
+              - cell "북경센터 컨택포인트 연락 WATER2026수출" [ref=e591]:
+                - generic [ref=e592]:
+                  - button [ref=e593] [cursor=pointer]:
+                    - img
+                  - generic [ref=e594]:
+                    - generic [ref=e596] [cursor=pointer]: 북경센터 컨택포인트 연락
+                    - generic [ref=e597]: WATER2026수출
+              - cell "153㎡ 변경건 소통" [ref=e598]:
+                - generic [ref=e599]: 153㎡ 변경건 소통
+              - cell "연수 이연수" [ref=e600]:
+                - generic [ref=e601]:
+                  - generic "이연수" [ref=e602]: 연수
+                  - generic [ref=e603]: 이연수
+              - cell "2026-03-28(토) D-day" [ref=e604]:
+                - generic [ref=e605]:
+                  - generic [ref=e606]: 2026-03-28(토)
+                  - generic [ref=e607]: D-day
+              - cell "● 긴급 ▾" [ref=e608]:
+                - generic [ref=e609] [cursor=pointer]:
+                  - generic [ref=e610]: ●
+                  - text: 긴급
+                  - generic [ref=e611]: ▾
+              - cell "검토 ▾" [ref=e612]:
+                - generic [ref=e613] [cursor=pointer]:
+                  - text: 검토
+                  - generic [ref=e614]: ▾
+              - cell [ref=e615]:
+                - checkbox [ref=e616] [cursor=pointer]
+            - row "가예약 장소 기한 확인 유녹2026아시아 니카이 + 대체장소 혜민 김혜민 2026-03-29(일) D-1 ● 높음 ▾ 진행중 ▾" [ref=e617]:
+              - cell "가예약 장소 기한 확인 유녹2026아시아" [ref=e618]:
+                - generic [ref=e619]:
+                  - button [ref=e620] [cursor=pointer]:
+                    - img
+                  - generic [ref=e621]:
+                    - generic [ref=e623] [cursor=pointer]: 가예약 장소 기한 확인
+                    - generic [ref=e624]: 유녹2026아시아
+              - cell "니카이 + 대체장소" [ref=e625]:
+                - generic [ref=e626]: 니카이 + 대체장소
+              - cell "혜민 김혜민" [ref=e627]:
+                - generic [ref=e628]:
+                  - generic "김혜민" [ref=e629]: 혜민
+                  - generic [ref=e630]: 김혜민
+              - cell "2026-03-29(일) D-1" [ref=e631]:
+                - generic [ref=e632]:
+                  - generic [ref=e633]: 2026-03-29(일)
+                  - generic [ref=e634]: D-1
+              - cell "● 높음 ▾" [ref=e635]:
+                - generic [ref=e636] [cursor=pointer]:
+                  - generic [ref=e637]: ●
+                  - text: 높음
+                  - generic [ref=e638]: ▾
+              - cell "진행중 ▾" [ref=e639]:
+                - generic [ref=e640] [cursor=pointer]:
+                  - text: 진행중
+                  - generic [ref=e641]: ▾
+              - cell [ref=e642]:
+                - checkbox [ref=e643] [cursor=pointer]
+            - row "전시장 브로셔 컨택 정리 WATER2026수출 브릿징 통해 직접 연락 현지 김현지 2026-04-01(수) D-4 ● 보통 ▾ 대기 ▾" [ref=e644]:
+              - cell "전시장 브로셔 컨택 정리 WATER2026수출" [ref=e645]:
+                - generic [ref=e646]:
+                  - button [ref=e647] [cursor=pointer]:
+                    - img
+                  - generic [ref=e648]:
+                    - generic [ref=e650] [cursor=pointer]: 전시장 브로셔 컨택 정리
+                    - generic [ref=e651]: WATER2026수출
+              - cell "브릿징 통해 직접 연락" [ref=e652]:
+                - generic [ref=e653]: 브릿징 통해 직접 연락
+              - cell "현지 김현지" [ref=e654]:
+                - generic [ref=e655]:
+                  - generic "김현지" [ref=e656]: 현지
+                  - generic [ref=e657]: 김현지
+              - cell "2026-04-01(수) D-4" [ref=e658]:
+                - generic [ref=e659]:
+                  - generic [ref=e660]: 2026-04-01(수)
+                  - generic [ref=e661]: D-4
+              - cell "● 보통 ▾" [ref=e662]:
+                - generic [ref=e663] [cursor=pointer]:
+                  - generic [ref=e664]: ●
+                  - text: 보통
+                  - generic [ref=e665]: ▾
+              - cell "대기 ▾" [ref=e666]:
+                - generic [ref=e667] [cursor=pointer]:
+                  - text: 대기
+                  - generic [ref=e668]: ▾
+              - cell [ref=e669]:
+                - checkbox [ref=e670] [cursor=pointer]
+            - row "주간 진행상황 팀 공유 🔁 매주 만화웹툰2026아시아 매주 월요일 슬랙 보고 대윤 김대윤 2026-03-31(화) D-3 ● 보통 ▾ 대기 ▾" [ref=e671]:
+              - cell "주간 진행상황 팀 공유 🔁 매주 만화웹툰2026아시아" [ref=e672]:
+                - generic [ref=e673]:
+                  - button [ref=e674] [cursor=pointer]:
+                    - img
+                  - generic [ref=e675]:
+                    - generic [ref=e676]:
+                      - generic [ref=e677] [cursor=pointer]: 주간 진행상황 팀 공유
+                      - generic [ref=e678]: 🔁 매주
+                    - generic [ref=e679]: 만화웹툰2026아시아
+              - cell "매주 월요일 슬랙 보고" [ref=e680]:
+                - generic [ref=e681]: 매주 월요일 슬랙 보고
+              - cell "대윤 김대윤" [ref=e682]:
+                - generic [ref=e683]:
+                  - generic "김대윤" [ref=e684]: 대윤
+                  - generic [ref=e685]: 김대윤
+              - cell "2026-03-31(화) D-3" [ref=e686]:
+                - generic [ref=e687]:
+                  - generic [ref=e688]: 2026-03-31(화)
+                  - generic [ref=e689]: D-3
+              - cell "● 보통 ▾" [ref=e690]:
+                - generic [ref=e691] [cursor=pointer]:
+                  - generic [ref=e692]: ●
+                  - text: 보통
+                  - generic [ref=e693]: ▾
+              - cell "대기 ▾" [ref=e694]:
+                - generic [ref=e695] [cursor=pointer]:
+                  - text: 대기
+                  - generic [ref=e696]: ▾
+              - cell [ref=e697]:
+                - checkbox [ref=e698] [cursor=pointer]
+            - row "일일 바이어 문의 확인 🔁 매일 ⚠️ WATER2026구매 이메일 및 메신저 확인 정찬 박정찬 2026-03-26(목) D+2 ● 높음 ▾ 대기 ▾" [ref=e699]:
+              - cell "일일 바이어 문의 확인 🔁 매일 ⚠️ WATER2026구매" [ref=e700]:
+                - generic [ref=e701]:
+                  - button [ref=e702] [cursor=pointer]:
+                    - img
+                  - generic [ref=e703]:
+                    - generic [ref=e704]:
+                      - generic [ref=e705] [cursor=pointer]: 일일 바이어 문의 확인
+                      - generic [ref=e706]: 🔁 매일
+                      - generic [ref=e707]: ⚠️
+                    - generic [ref=e708]: WATER2026구매
+              - cell "이메일 및 메신저 확인" [ref=e709]:
+                - generic [ref=e710]: 이메일 및 메신저 확인
+              - cell "정찬 박정찬" [ref=e711]:
+                - generic [ref=e712]:
+                  - generic "박정찬" [ref=e713]: 정찬
+                  - generic [ref=e714]: 박정찬
+              - cell "2026-03-26(목) D+2" [ref=e715]:
+                - generic [ref=e716]:
+                  - generic [ref=e717]: 2026-03-26(목)
+                  - generic [ref=e718]: D+2
+              - cell "● 높음 ▾" [ref=e719]:
+                - generic [ref=e720] [cursor=pointer]:
+                  - generic [ref=e721]: ●
+                  - text: 높음
+                  - generic [ref=e722]: ▾
+              - cell "대기 ▾" [ref=e723]:
+                - generic [ref=e724] [cursor=pointer]:
+                  - text: 대기
+                  - generic [ref=e725]: ▾
+              - cell [ref=e726]:
+                - checkbox [ref=e727] [cursor=pointer]
+            - row "참가사 선발 및 선발 공지 ⚠️ 2026 롯데백화점 동행 워크숍 최종 참가인원 체크 필수 대윤 김대윤 2026-03-06(금) D+22 ● 긴급 ▾ 진행중 ▾" [ref=e728]:
+              - cell "참가사 선발 및 선발 공지 ⚠️ 2026 롯데백화점 동행 워크숍" [ref=e729]:
+                - generic [ref=e730]:
+                  - button [ref=e731] [cursor=pointer]:
+                    - img
+                  - generic [ref=e732]:
+                    - generic [ref=e733]:
+                      - generic [ref=e734] [cursor=pointer]: 참가사 선발 및 선발 공지
+                      - generic [ref=e735]: ⚠️
+                    - generic [ref=e736]: 2026 롯데백화점 동행 워크숍
+              - cell "최종 참가인원 체크 필수" [ref=e737]:
+                - generic [ref=e738]: 최종 참가인원 체크 필수
+              - cell "대윤 김대윤" [ref=e739]:
+                - generic [ref=e740]:
+                  - generic "김대윤" [ref=e741]: 대윤
+                  - generic [ref=e742]: 김대윤
+              - cell "2026-03-06(금) D+22" [ref=e743]:
+                - generic [ref=e744]:
+                  - generic [ref=e745]: 2026-03-06(금)
+                  - generic [ref=e746]: D+22
+              - cell "● 긴급 ▾" [ref=e747]:
+                - generic [ref=e748] [cursor=pointer]:
+                  - generic [ref=e749]: ●
+                  - text: 긴급
+                  - generic [ref=e750]: ▾
+              - cell "진행중 ▾" [ref=e751]:
+                - generic [ref=e752] [cursor=pointer]:
+                  - text: 진행중
+                  - generic [ref=e753]: ▾
+              - cell [ref=e754]:
+                - checkbox [ref=e755] [cursor=pointer]
+            - 'row "롯데 호텔 추가 숙박 확보 ⚠️ 2026 롯데백화점 동행 워크숍 최종 객실: 80/61 대윤 김대윤 2026-03-06(금) D+22 ● 긴급 ▾ 진행중 ▾" [ref=e756]':
+              - cell "롯데 호텔 추가 숙박 확보 ⚠️ 2026 롯데백화점 동행 워크숍" [ref=e757]:
+                - generic [ref=e758]:
+                  - button [ref=e759] [cursor=pointer]:
+                    - img
+                  - generic [ref=e760]:
+                    - generic [ref=e761]:
+                      - generic [ref=e762] [cursor=pointer]: 롯데 호텔 추가 숙박 확보
+                      - generic [ref=e763]: ⚠️
+                    - generic [ref=e764]: 2026 롯데백화점 동행 워크숍
+              - 'cell "최종 객실: 80/61" [ref=e765]':
+                - generic [ref=e766]: "최종 객실: 80/61"
+              - cell "대윤 김대윤" [ref=e767]:
+                - generic [ref=e768]:
+                  - generic "김대윤" [ref=e769]: 대윤
+                  - generic [ref=e770]: 김대윤
+              - cell "2026-03-06(금) D+22" [ref=e771]:
+                - generic [ref=e772]:
+                  - generic [ref=e773]: 2026-03-06(금)
+                  - generic [ref=e774]: D+22
+              - cell "● 긴급 ▾" [ref=e775]:
+                - generic [ref=e776] [cursor=pointer]:
+                  - generic [ref=e777]: ●
+                  - text: 긴급
+                  - generic [ref=e778]: ▾
+              - cell "진행중 ▾" [ref=e779]:
+                - generic [ref=e780] [cursor=pointer]:
+                  - text: 진행중
+                  - generic [ref=e781]: ▾
+              - cell [ref=e782]:
+                - checkbox [ref=e783] [cursor=pointer]
+            - row "[1차시] 직무 특강 1 연사 확정 ⚠️ 2026 롯데백화점 동행 워크숍 섭외비 확정, 숙소 및 항공 지원 대윤 김대윤 2026-03-13(금) D+15 ● 긴급 ▾ 진행중 ▾" [ref=e784]:
+              - cell "[1차시] 직무 특강 1 연사 확정 ⚠️ 2026 롯데백화점 동행 워크숍" [ref=e785]:
+                - generic [ref=e786]:
+                  - button [ref=e787] [cursor=pointer]:
+                    - img
+                  - generic [ref=e788]:
+                    - generic [ref=e789]:
+                      - generic [ref=e790] [cursor=pointer]: "[1차시] 직무 특강 1 연사 확정"
+                      - generic [ref=e791]: ⚠️
+                    - generic [ref=e792]: 2026 롯데백화점 동행 워크숍
+              - cell "섭외비 확정, 숙소 및 항공 지원" [ref=e793]:
+                - generic [ref=e794]: 섭외비 확정, 숙소 및 항공 지원
+              - cell "대윤 김대윤" [ref=e795]:
+                - generic [ref=e796]:
+                  - generic "김대윤" [ref=e797]: 대윤
+                  - generic [ref=e798]: 김대윤
+              - cell "2026-03-13(금) D+15" [ref=e799]:
+                - generic [ref=e800]:
+                  - generic [ref=e801]: 2026-03-13(금)
+                  - generic [ref=e802]: D+15
+              - cell "● 긴급 ▾" [ref=e803]:
+                - generic [ref=e804] [cursor=pointer]:
+                  - generic [ref=e805]: ●
+                  - text: 긴급
+                  - generic [ref=e806]: ▾
+              - cell "진행중 ▾" [ref=e807]:
+                - generic [ref=e808] [cursor=pointer]:
+                  - text: 진행중
+                  - generic [ref=e809]: ▾
+              - cell [ref=e810]:
+                - checkbox [ref=e811] [cursor=pointer]
+            - row "[1차시] 명사 특강 연사 확정 ⚠️ 2026 롯데백화점 동행 워크숍 조용헌 교수님 항공권 발권 완료(272,000원) 대윤 김대윤 2026-03-13(금) D+15 ● 긴급 ▾ 진행중 ▾" [ref=e812]:
+              - cell "[1차시] 명사 특강 연사 확정 ⚠️ 2026 롯데백화점 동행 워크숍" [ref=e813]:
+                - generic [ref=e814]:
+                  - button [ref=e815] [cursor=pointer]:
+                    - img
+                  - generic [ref=e816]:
+                    - generic [ref=e817]:
+                      - generic [ref=e818] [cursor=pointer]: "[1차시] 명사 특강 연사 확정"
+                      - generic [ref=e819]: ⚠️
+                    - generic [ref=e820]: 2026 롯데백화점 동행 워크숍
+              - cell "조용헌 교수님 항공권 발권 완료(272,000원)" [ref=e821]:
+                - generic [ref=e822]: 조용헌 교수님 항공권 발권 완료(272,000원)
+              - cell "대윤 김대윤" [ref=e823]:
+                - generic [ref=e824]:
+                  - generic "김대윤" [ref=e825]: 대윤
+                  - generic [ref=e826]: 김대윤
+              - cell "2026-03-13(금) D+15" [ref=e827]:
+                - generic [ref=e828]:
+                  - generic [ref=e829]: 2026-03-13(금)
+                  - generic [ref=e830]: D+15
+              - cell "● 긴급 ▾" [ref=e831]:
+                - generic [ref=e832] [cursor=pointer]:
+                  - generic [ref=e833]: ●
+                  - text: 긴급
+                  - generic [ref=e834]: ▾
+              - cell "진행중 ▾" [ref=e835]:
+                - generic [ref=e836] [cursor=pointer]:
+                  - text: 진행중
+                  - generic [ref=e837]: ▾
+              - cell [ref=e838]:
+                - checkbox [ref=e839] [cursor=pointer]
+            - row "[2차시] 직무 특강 1 연사 확정 ⚠️ 2026 롯데백화점 동행 워크숍 이윤수 강의 의뢰서 및 일정 체크 필요 대윤 김대윤 2026-03-13(금) D+15 ● 긴급 ▾ 진행중 ▾" [ref=e840]:
+              - cell "[2차시] 직무 특강 1 연사 확정 ⚠️ 2026 롯데백화점 동행 워크숍" [ref=e841]:
+                - generic [ref=e842]:
+                  - button [ref=e843] [cursor=pointer]:
+                    - img
+                  - generic [ref=e844]:
+                    - generic [ref=e845]:
+                      - generic [ref=e846] [cursor=pointer]: "[2차시] 직무 특강 1 연사 확정"
+                      - generic [ref=e847]: ⚠️
+                    - generic [ref=e848]: 2026 롯데백화점 동행 워크숍
+              - cell "이윤수 강의 의뢰서 및 일정 체크 필요" [ref=e849]:
+                - generic [ref=e850]: 이윤수 강의 의뢰서 및 일정 체크 필요
+              - cell "대윤 김대윤" [ref=e851]:
+                - generic [ref=e852]:
+                  - generic "김대윤" [ref=e853]: 대윤
+                  - generic [ref=e854]: 김대윤
+              - cell "2026-03-13(금) D+15" [ref=e855]:
+                - generic [ref=e856]:
+                  - generic [ref=e857]: 2026-03-13(금)
+                  - generic [ref=e858]: D+15
+              - cell "● 긴급 ▾" [ref=e859]:
+                - generic [ref=e860] [cursor=pointer]:
+                  - generic [ref=e861]: ●
+                  - text: 긴급
+                  - generic [ref=e862]: ▾
+              - cell "진행중 ▾" [ref=e863]:
+                - generic [ref=e864] [cursor=pointer]:
+                  - text: 진행중
+                  - generic [ref=e865]: ▾
+              - cell [ref=e866]:
+                - checkbox [ref=e867] [cursor=pointer]
+            - row "[2차시] 직무 특강 2 연사 확정 ⚠️ 2026 롯데백화점 동행 워크숍 1차시와 동일 대윤 김대윤 2026-03-13(금) D+15 ● 긴급 ▾ 진행중 ▾" [ref=e868]:
+              - cell "[2차시] 직무 특강 2 연사 확정 ⚠️ 2026 롯데백화점 동행 워크숍" [ref=e869]:
+                - generic [ref=e870]:
+                  - button [ref=e871] [cursor=pointer]:
+                    - img
+                  - generic [ref=e872]:
+                    - generic [ref=e873]:
+                      - generic [ref=e874] [cursor=pointer]: "[2차시] 직무 특강 2 연사 확정"
+                      - generic [ref=e875]: ⚠️
+                    - generic [ref=e876]: 2026 롯데백화점 동행 워크숍
+              - cell "1차시와 동일" [ref=e877]:
+                - generic [ref=e878]: 1차시와 동일
+              - cell "대윤 김대윤" [ref=e879]:
+                - generic [ref=e880]:
+                  - generic "김대윤" [ref=e881]: 대윤
+                  - generic [ref=e882]: 김대윤
+              - cell "2026-03-13(금) D+15" [ref=e883]:
+                - generic [ref=e884]:
+                  - generic [ref=e885]: 2026-03-13(금)
+                  - generic [ref=e886]: D+15
+              - cell "● 긴급 ▾" [ref=e887]:
+                - generic [ref=e888] [cursor=pointer]:
+                  - generic [ref=e889]: ●
+                  - text: 긴급
+                  - generic [ref=e890]: ▾
+              - cell "진행중 ▾" [ref=e891]:
+                - generic [ref=e892] [cursor=pointer]:
+                  - text: 진행중
+                  - generic [ref=e893]: ▾
+              - cell [ref=e894]:
+                - checkbox [ref=e895] [cursor=pointer]
+            - row "[2차시] 명사 특강 연사 확정 ⚠️ 2026 롯데백화점 동행 워크숍 1차시와 동일 대윤 김대윤 2026-03-13(금) D+15 ● 긴급 ▾ 진행중 ▾" [ref=e896]:
+              - cell "[2차시] 명사 특강 연사 확정 ⚠️ 2026 롯데백화점 동행 워크숍" [ref=e897]:
+                - generic [ref=e898]:
+                  - button [ref=e899] [cursor=pointer]:
+                    - img
+                  - generic [ref=e900]:
+                    - generic [ref=e901]:
+                      - generic [ref=e902] [cursor=pointer]: "[2차시] 명사 특강 연사 확정"
+                      - generic [ref=e903]: ⚠️
+                    - generic [ref=e904]: 2026 롯데백화점 동행 워크숍
+              - cell "1차시와 동일" [ref=e905]:
+                - generic [ref=e906]: 1차시와 동일
+              - cell "대윤 김대윤" [ref=e907]:
+                - generic [ref=e908]:
+                  - generic "김대윤" [ref=e909]: 대윤
+                  - generic [ref=e910]: 김대윤
+              - cell "2026-03-13(금) D+15" [ref=e911]:
+                - generic [ref=e912]:
+                  - generic [ref=e913]: 2026-03-13(금)
+                  - generic [ref=e914]: D+15
+              - cell "● 긴급 ▾" [ref=e915]:
+                - generic [ref=e916] [cursor=pointer]:
+                  - generic [ref=e917]: ●
+                  - text: 긴급
+                  - generic [ref=e918]: ▾
+              - cell "진행중 ▾" [ref=e919]:
+                - generic [ref=e920] [cursor=pointer]:
+                  - text: 진행중
+                  - generic [ref=e921]: ▾
+              - cell [ref=e922]:
+                - checkbox [ref=e923] [cursor=pointer]
+            - row "[전체] 예산안 확정 ⚠️ 2026 롯데백화점 동행 워크숍 메모 추가... 대윤 김대윤 2026-03-13(금) D+15 ● 긴급 ▾ 진행중 ▾" [ref=e924]:
+              - cell "[전체] 예산안 확정 ⚠️ 2026 롯데백화점 동행 워크숍" [ref=e925]:
+                - generic [ref=e926]:
+                  - button [ref=e927] [cursor=pointer]:
+                    - img
+                  - generic [ref=e928]:
+                    - generic [ref=e929]:
+                      - generic [ref=e930] [cursor=pointer]: "[전체] 예산안 확정"
+                      - generic [ref=e931]: ⚠️
+                    - generic [ref=e932]: 2026 롯데백화점 동행 워크숍
+              - cell "메모 추가..." [ref=e933]:
+                - generic [ref=e934]: 메모 추가...
+              - cell "대윤 김대윤" [ref=e935]:
+                - generic [ref=e936]:
+                  - generic "김대윤" [ref=e937]: 대윤
+                  - generic [ref=e938]: 김대윤
+              - cell "2026-03-13(금) D+15" [ref=e939]:
+                - generic [ref=e940]:
+                  - generic [ref=e941]: 2026-03-13(금)
+                  - generic [ref=e942]: D+15
+              - cell "● 긴급 ▾" [ref=e943]:
+                - generic [ref=e944] [cursor=pointer]:
+                  - generic [ref=e945]: ●
+                  - text: 긴급
+                  - generic [ref=e946]: ▾
+              - cell "진행중 ▾" [ref=e947]:
+                - generic [ref=e948] [cursor=pointer]:
+                  - text: 진행중
+                  - generic [ref=e949]: ▾
+              - cell [ref=e950]:
+                - checkbox [ref=e951] [cursor=pointer]
+            - row "[전체] 계약서 작성 및 선금 지급 ⚠️ 2026 롯데백화점 동행 워크숍 메모 추가... 대윤 김대윤 2026-03-13(금) D+15 ● 긴급 ▾ 대기 ▾" [ref=e952]:
+              - cell "[전체] 계약서 작성 및 선금 지급 ⚠️ 2026 롯데백화점 동행 워크숍" [ref=e953]:
+                - generic [ref=e954]:
+                  - button [ref=e955] [cursor=pointer]:
+                    - img
+                  - generic [ref=e956]:
+                    - generic [ref=e957]:
+                      - generic [ref=e958] [cursor=pointer]: "[전체] 계약서 작성 및 선금 지급"
+                      - generic [ref=e959]: ⚠️
+                    - generic [ref=e960]: 2026 롯데백화점 동행 워크숍
+              - cell "메모 추가..." [ref=e961]:
+                - generic [ref=e962]: 메모 추가...
+              - cell "대윤 김대윤" [ref=e963]:
+                - generic [ref=e964]:
+                  - generic "김대윤" [ref=e965]: 대윤
+                  - generic [ref=e966]: 김대윤
+              - cell "2026-03-13(금) D+15" [ref=e967]:
+                - generic [ref=e968]:
+                  - generic [ref=e969]: 2026-03-13(금)
+                  - generic [ref=e970]: D+15
+              - cell "● 긴급 ▾" [ref=e971]:
+                - generic [ref=e972] [cursor=pointer]:
+                  - generic [ref=e973]: ●
+                  - text: 긴급
+                  - generic [ref=e974]: ▾
+              - cell "대기 ▾" [ref=e975]:
+                - generic [ref=e976] [cursor=pointer]:
+                  - text: 대기
+                  - generic [ref=e977]: ▾
+              - cell [ref=e978]:
+                - checkbox [ref=e979] [cursor=pointer]
+            - row "[2차시] 항공권 전달 및 발권 ⚠️ 2026 롯데백화점 동행 워크숍 메모 추가... 대윤 김대윤 2026-03-24(화) D+4 ● 긴급 ▾ 진행중 ▾" [ref=e980]:
+              - cell "[2차시] 항공권 전달 및 발권 ⚠️ 2026 롯데백화점 동행 워크숍" [ref=e981]:
+                - generic [ref=e982]:
+                  - button [ref=e983] [cursor=pointer]:
+                    - img
+                  - generic [ref=e984]:
+                    - generic [ref=e985]:
+                      - generic [ref=e986] [cursor=pointer]: "[2차시] 항공권 전달 및 발권"
+                      - generic [ref=e987]: ⚠️
+                    - generic [ref=e988]: 2026 롯데백화점 동행 워크숍
+              - cell "메모 추가..." [ref=e989]:
+                - generic [ref=e990]: 메모 추가...
+              - cell "대윤 김대윤" [ref=e991]:
+                - generic [ref=e992]:
+                  - generic "김대윤" [ref=e993]: 대윤
+                  - generic [ref=e994]: 김대윤
+              - cell "2026-03-24(화) D+4" [ref=e995]:
+                - generic [ref=e996]:
+                  - generic [ref=e997]: 2026-03-24(화)
+                  - generic [ref=e998]: D+4
+              - cell "● 긴급 ▾" [ref=e999]:
+                - generic [ref=e1000] [cursor=pointer]:
+                  - generic [ref=e1001]: ●
+                  - text: 긴급
+                  - generic [ref=e1002]: ▾
+              - cell "진행중 ▾" [ref=e1003]:
+                - generic [ref=e1004] [cursor=pointer]:
+                  - text: 진행중
+                  - generic [ref=e1005]: ▾
+              - cell [ref=e1006]:
+                - checkbox [ref=e1007] [cursor=pointer]
+            - row "[1차시] 항공권 명단 전달 및 발권 ⚠️ 2026 롯데백화점 동행 워크숍 메모 추가... 대윤 김대윤 2026-03-25(수) D+3 ● 긴급 ▾ 진행중 ▾" [ref=e1008]:
+              - cell "[1차시] 항공권 명단 전달 및 발권 ⚠️ 2026 롯데백화점 동행 워크숍" [ref=e1009]:
+                - generic [ref=e1010]:
+                  - button [ref=e1011] [cursor=pointer]:
+                    - img
+                  - generic [ref=e1012]:
+                    - generic [ref=e1013]:
+                      - generic [ref=e1014] [cursor=pointer]: "[1차시] 항공권 명단 전달 및 발권"
+                      - generic [ref=e1015]: ⚠️
+                    - generic [ref=e1016]: 2026 롯데백화점 동행 워크숍
+              - cell "메모 추가..." [ref=e1017]:
+                - generic [ref=e1018]: 메모 추가...
+              - cell "대윤 김대윤" [ref=e1019]:
+                - generic [ref=e1020]:
+                  - generic "김대윤" [ref=e1021]: 대윤
+                  - generic [ref=e1022]: 김대윤
+              - cell "2026-03-25(수) D+3" [ref=e1023]:
+                - generic [ref=e1024]:
+                  - generic [ref=e1025]: 2026-03-25(수)
+                  - generic [ref=e1026]: D+3
+              - cell "● 긴급 ▾" [ref=e1027]:
+                - generic [ref=e1028] [cursor=pointer]:
+                  - generic [ref=e1029]: ●
+                  - text: 긴급
+                  - generic [ref=e1030]: ▾
+              - cell "진행중 ▾" [ref=e1031]:
+                - generic [ref=e1032] [cursor=pointer]:
+                  - text: 진행중
+                  - generic [ref=e1033]: ▾
+              - cell [ref=e1034]:
+                - checkbox [ref=e1035] [cursor=pointer]
+            - row "[전체] 여행자보험 가입 ⚠️ 2026 롯데백화점 동행 워크숍 메모 추가... 대윤 김대윤 2026-03-25(수) D+3 ● 긴급 ▾ 대기 ▾" [ref=e1036]:
+              - cell "[전체] 여행자보험 가입 ⚠️ 2026 롯데백화점 동행 워크숍" [ref=e1037]:
+                - generic [ref=e1038]:
+                  - button [ref=e1039] [cursor=pointer]:
+                    - img
+                  - generic [ref=e1040]:
+                    - generic [ref=e1041]:
+                      - generic [ref=e1042] [cursor=pointer]: "[전체] 여행자보험 가입"
+                      - generic [ref=e1043]: ⚠️
+                    - generic [ref=e1044]: 2026 롯데백화점 동행 워크숍
+              - cell "메모 추가..." [ref=e1045]:
+                - generic [ref=e1046]: 메모 추가...
+              - cell "대윤 김대윤" [ref=e1047]:
+                - generic [ref=e1048]:
+                  - generic "김대윤" [ref=e1049]: 대윤
+                  - generic [ref=e1050]: 김대윤
+              - cell "2026-03-25(수) D+3" [ref=e1051]:
+                - generic [ref=e1052]:
+                  - generic [ref=e1053]: 2026-03-25(수)
+                  - generic [ref=e1054]: D+3
+              - cell "● 긴급 ▾" [ref=e1055]:
+                - generic [ref=e1056] [cursor=pointer]:
+                  - generic [ref=e1057]: ●
+                  - text: 긴급
+                  - generic [ref=e1058]: ▾
+              - cell "대기 ▾" [ref=e1059]:
+                - generic [ref=e1060] [cursor=pointer]:
+                  - text: 대기
+                  - generic [ref=e1061]: ▾
+              - cell [ref=e1062]:
+                - checkbox [ref=e1063] [cursor=pointer]
+            - row "[전체] 기념품 선정 및 구매 ⚠️ 2026 롯데백화점 동행 워크숍 시시호시 제주 전통술(3만원+@) 대윤 김대윤 2026-03-27(금) D+1 ● 긴급 ▾ 진행중 ▾" [ref=e1064]:
+              - cell "[전체] 기념품 선정 및 구매 ⚠️ 2026 롯데백화점 동행 워크숍" [ref=e1065]:
+                - generic [ref=e1066]:
+                  - button [ref=e1067] [cursor=pointer]:
+                    - img
+                  - generic [ref=e1068]:
+                    - generic [ref=e1069]:
+                      - generic [ref=e1070] [cursor=pointer]: "[전체] 기념품 선정 및 구매"
+                      - generic [ref=e1071]: ⚠️
+                    - generic [ref=e1072]: 2026 롯데백화점 동행 워크숍
+              - cell "시시호시 제주 전통술(3만원+@)" [ref=e1073]:
+                - generic [ref=e1074]: 시시호시 제주 전통술(3만원+@)
+              - cell "대윤 김대윤" [ref=e1075]:
+                - generic [ref=e1076]:
+                  - generic "김대윤" [ref=e1077]: 대윤
+                  - generic [ref=e1078]: 김대윤
+              - cell "2026-03-27(금) D+1" [ref=e1079]:
+                - generic [ref=e1080]:
+                  - generic [ref=e1081]: 2026-03-27(금)
+                  - generic [ref=e1082]: D+1
+              - cell "● 긴급 ▾" [ref=e1083]:
+                - generic [ref=e1084] [cursor=pointer]:
+                  - generic [ref=e1085]: ●
+                  - text: 긴급
+                  - generic [ref=e1086]: ▾
+              - cell "진행중 ▾" [ref=e1087]:
+                - generic [ref=e1088] [cursor=pointer]:
+                  - text: 진행중
+                  - generic [ref=e1089]: ▾
+              - cell [ref=e1090]:
+                - checkbox [ref=e1091] [cursor=pointer]
+            - row "[전체] 제주도 사전 답사 및 호텔 미팅 ⚠️ 2026 롯데백화점 동행 워크숍 03.23(월) 진행 예정 대윤 김대윤 2026-03-27(금) D+1 ● 긴급 ▾ 대기 ▾" [ref=e1092]:
+              - cell "[전체] 제주도 사전 답사 및 호텔 미팅 ⚠️ 2026 롯데백화점 동행 워크숍" [ref=e1093]:
+                - generic [ref=e1094]:
+                  - button [ref=e1095] [cursor=pointer]:
+                    - img
+                  - generic [ref=e1096]:
+                    - generic [ref=e1097]:
+                      - generic [ref=e1098] [cursor=pointer]: "[전체] 제주도 사전 답사 및 호텔 미팅"
+                      - generic [ref=e1099]: ⚠️
+                    - generic [ref=e1100]: 2026 롯데백화점 동행 워크숍
+              - cell "03.23(월) 진행 예정" [ref=e1101]:
+                - generic [ref=e1102]: 03.23(월) 진행 예정
+              - cell "대윤 김대윤" [ref=e1103]:
+                - generic [ref=e1104]:
+                  - generic "김대윤" [ref=e1105]: 대윤
+                  - generic [ref=e1106]: 김대윤
+              - cell "2026-03-27(금) D+1" [ref=e1107]:
+                - generic [ref=e1108]:
+                  - generic [ref=e1109]: 2026-03-27(금)
+                  - generic [ref=e1110]: D+1
+              - cell "● 긴급 ▾" [ref=e1111]:
+                - generic [ref=e1112] [cursor=pointer]:
+                  - generic [ref=e1113]: ●
+                  - text: 긴급
+                  - generic [ref=e1114]: ▾
+              - cell "대기 ▾" [ref=e1115]:
+                - generic [ref=e1116] [cursor=pointer]:
+                  - text: 대기
+                  - generic [ref=e1117]: ▾
+              - cell [ref=e1118]:
+                - checkbox [ref=e1119] [cursor=pointer]
+            - row "[전체] ESG 플로깅 프로그램 기획/확정 ⚠️ 2026 롯데백화점 동행 워크숍 장소 섭외, 지자체 협의, 스토리텔링 기획 필요 대윤 김대윤 2026-03-27(금) D+1 ● 긴급 ▾ 진행중 ▾" [ref=e1120]:
+              - cell "[전체] ESG 플로깅 프로그램 기획/확정 ⚠️ 2026 롯데백화점 동행 워크숍" [ref=e1121]:
+                - generic [ref=e1122]:
+                  - button [ref=e1123] [cursor=pointer]:
+                    - img
+                  - generic [ref=e1124]:
+                    - generic [ref=e1125]:
+                      - generic [ref=e1126] [cursor=pointer]: "[전체] ESG 플로깅 프로그램 기획/확정"
+                      - generic [ref=e1127]: ⚠️
+                    - generic [ref=e1128]: 2026 롯데백화점 동행 워크숍
+              - cell "장소 섭외, 지자체 협의, 스토리텔링 기획 필요" [ref=e1129]:
+                - generic [ref=e1130]: 장소 섭외, 지자체 협의, 스토리텔링 기획 필요
+              - cell "대윤 김대윤" [ref=e1131]:
+                - generic [ref=e1132]:
+                  - generic "김대윤" [ref=e1133]: 대윤
+                  - generic [ref=e1134]: 김대윤
+              - cell "2026-03-27(금) D+1" [ref=e1135]:
+                - generic [ref=e1136]:
+                  - generic [ref=e1137]: 2026-03-27(금)
+                  - generic [ref=e1138]: D+1
+              - cell "● 긴급 ▾" [ref=e1139]:
+                - generic [ref=e1140] [cursor=pointer]:
+                  - generic [ref=e1141]: ●
+                  - text: 긴급
+                  - generic [ref=e1142]: ▾
+              - cell "진행중 ▾" [ref=e1143]:
+                - generic [ref=e1144] [cursor=pointer]:
+                  - text: 진행중
+                  - generic [ref=e1145]: ▾
+              - cell [ref=e1146]:
+                - checkbox [ref=e1147] [cursor=pointer]
+            - row "[전체] 해녀촌 기념품 체크 2026 롯데백화점 동행 워크숍 해녀촌 프로그램 취소, 성산일출봉/올레길로 변경 대윤 김대윤 — ● 낮음 ▾ 대기 ▾" [ref=e1148]:
+              - cell "[전체] 해녀촌 기념품 체크 2026 롯데백화점 동행 워크숍" [ref=e1149]:
+                - generic [ref=e1150]:
+                  - button [ref=e1151] [cursor=pointer]:
+                    - img
+                  - generic [ref=e1152]:
+                    - generic [ref=e1154] [cursor=pointer]: "[전체] 해녀촌 기념품 체크"
+                    - generic [ref=e1155]: 2026 롯데백화점 동행 워크숍
+              - cell "해녀촌 프로그램 취소, 성산일출봉/올레길로 변경" [ref=e1156]:
+                - generic [ref=e1157]: 해녀촌 프로그램 취소, 성산일출봉/올레길로 변경
+              - cell "대윤 김대윤" [ref=e1158]:
+                - generic [ref=e1159]:
+                  - generic "김대윤" [ref=e1160]: 대윤
+                  - generic [ref=e1161]: 김대윤
+              - cell "—" [ref=e1162]:
+                - generic [ref=e1164]: —
+              - cell "● 낮음 ▾" [ref=e1165]:
+                - generic [ref=e1166] [cursor=pointer]:
+                  - generic [ref=e1167]: ●
+                  - text: 낮음
+                  - generic [ref=e1168]: ▾
+              - cell "대기 ▾" [ref=e1169]:
+                - generic [ref=e1170] [cursor=pointer]:
+                  - text: 대기
+                  - generic [ref=e1171]: ▾
+              - cell [ref=e1172]:
+                - checkbox [ref=e1173] [cursor=pointer]
+            - row "[전체] ESG 플로깅 현지 언론사 기사 초안 2026 롯데백화점 동행 워크숍 롯데백화점 작성 대윤 김대윤 — ● 낮음 ▾ 대기 ▾" [ref=e1174]:
+              - cell "[전체] ESG 플로깅 현지 언론사 기사 초안 2026 롯데백화점 동행 워크숍" [ref=e1175]:
+                - generic [ref=e1176]:
+                  - button [ref=e1177] [cursor=pointer]:
+                    - img
+                  - generic [ref=e1178]:
+                    - generic [ref=e1180] [cursor=pointer]: "[전체] ESG 플로깅 현지 언론사 기사 초안"
+                    - generic [ref=e1181]: 2026 롯데백화점 동행 워크숍
+              - cell "롯데백화점 작성" [ref=e1182]:
+                - generic [ref=e1183]: 롯데백화점 작성
+              - cell "대윤 김대윤" [ref=e1184]:
+                - generic [ref=e1185]:
+                  - generic "김대윤" [ref=e1186]: 대윤
+                  - generic [ref=e1187]: 김대윤
+              - cell "—" [ref=e1188]:
+                - generic [ref=e1190]: —
+              - cell "● 낮음 ▾" [ref=e1191]:
+                - generic [ref=e1192] [cursor=pointer]:
+                  - generic [ref=e1193]: ●
+                  - text: 낮음
+                  - generic [ref=e1194]: ▾
+              - cell "대기 ▾" [ref=e1195]:
+                - generic [ref=e1196] [cursor=pointer]:
+                  - text: 대기
+                  - generic [ref=e1197]: ▾
+              - cell [ref=e1198]:
+                - checkbox [ref=e1199] [cursor=pointer]
+            - row "[전체] 플로깅 플랜B 수립 ⚠️ 2026 롯데백화점 동행 워크숍 우천시 선녀와나무꾼, 이너리스, 사려니 숲길 대윤 김대윤 2026-03-27(금) D+1 ● 긴급 ▾ 진행중 ▾" [ref=e1200]:
+              - cell "[전체] 플로깅 플랜B 수립 ⚠️ 2026 롯데백화점 동행 워크숍" [ref=e1201]:
+                - generic [ref=e1202]:
+                  - button [ref=e1203] [cursor=pointer]:
+                    - img
+                  - generic [ref=e1204]:
+                    - generic [ref=e1205]:
+                      - generic [ref=e1206] [cursor=pointer]: "[전체] 플로깅 플랜B 수립"
+                      - generic [ref=e1207]: ⚠️
+                    - generic [ref=e1208]: 2026 롯데백화점 동행 워크숍
+              - cell "우천시 선녀와나무꾼, 이너리스, 사려니 숲길" [ref=e1209]:
+                - generic [ref=e1210]: 우천시 선녀와나무꾼, 이너리스, 사려니 숲길
+              - cell "대윤 김대윤" [ref=e1211]:
+                - generic [ref=e1212]:
+                  - generic "김대윤" [ref=e1213]: 대윤
+                  - generic [ref=e1214]: 김대윤
+              - cell "2026-03-27(금) D+1" [ref=e1215]:
+                - generic [ref=e1216]:
+                  - generic [ref=e1217]: 2026-03-27(금)
+                  - generic [ref=e1218]: D+1
+              - cell "● 긴급 ▾" [ref=e1219]:
+                - generic [ref=e1220] [cursor=pointer]:
+                  - generic [ref=e1221]: ●
+                  - text: 긴급
+                  - generic [ref=e1222]: ▾
+              - cell "진행중 ▾" [ref=e1223]:
+                - generic [ref=e1224] [cursor=pointer]:
+                  - text: 진행중
+                  - generic [ref=e1225]: ▾
+              - cell [ref=e1226]:
+                - checkbox [ref=e1227] [cursor=pointer]
+            - row "[1차시] 참석자 특이사항 수요조사 2026 롯데백화점 동행 워크숍 식단, 알러지, 건강상태 조사 대윤 김대윤 2026-04-10(금) D-13 ● 높음 ▾ 대기 ▾" [ref=e1228]:
+              - cell "[1차시] 참석자 특이사항 수요조사 2026 롯데백화점 동행 워크숍" [ref=e1229]:
+                - generic [ref=e1230]:
+                  - button [ref=e1231] [cursor=pointer]:
+                    - img
+                  - generic [ref=e1232]:
+                    - generic [ref=e1234] [cursor=pointer]: "[1차시] 참석자 특이사항 수요조사"
+                    - generic [ref=e1235]: 2026 롯데백화점 동행 워크숍
+              - cell "식단, 알러지, 건강상태 조사" [ref=e1236]:
+                - generic [ref=e1237]: 식단, 알러지, 건강상태 조사
+              - cell "대윤 김대윤" [ref=e1238]:
+                - generic [ref=e1239]:
+                  - generic "김대윤" [ref=e1240]: 대윤
+                  - generic [ref=e1241]: 김대윤
+              - cell "2026-04-10(금) D-13" [ref=e1242]:
+                - generic [ref=e1243]:
+                  - generic [ref=e1244]: 2026-04-10(금)
+                  - generic [ref=e1245]: D-13
+              - cell "● 높음 ▾" [ref=e1246]:
+                - generic [ref=e1247] [cursor=pointer]:
+                  - generic [ref=e1248]: ●
+                  - text: 높음
+                  - generic [ref=e1249]: ▾
+              - cell "대기 ▾" [ref=e1250]:
+                - generic [ref=e1251] [cursor=pointer]:
+                  - text: 대기
+                  - generic [ref=e1252]: ▾
+              - cell [ref=e1253]:
+                - checkbox [ref=e1254] [cursor=pointer]
+            - row "[2차시] 참석자 특이사항 수요조사 2026 롯데백화점 동행 워크숍 체험 프로그램 분리 발송 대윤 김대윤 2026-04-10(금) D-13 ● 높음 ▾ 대기 ▾" [ref=e1255]:
+              - cell "[2차시] 참석자 특이사항 수요조사 2026 롯데백화점 동행 워크숍" [ref=e1256]:
+                - generic [ref=e1257]:
+                  - button [ref=e1258] [cursor=pointer]:
+                    - img
+                  - generic [ref=e1259]:
+                    - generic [ref=e1261] [cursor=pointer]: "[2차시] 참석자 특이사항 수요조사"
+                    - generic [ref=e1262]: 2026 롯데백화점 동행 워크숍
+              - cell "체험 프로그램 분리 발송" [ref=e1263]:
+                - generic [ref=e1264]: 체험 프로그램 분리 발송
+              - cell "대윤 김대윤" [ref=e1265]:
+                - generic [ref=e1266]:
+                  - generic "김대윤" [ref=e1267]: 대윤
+                  - generic [ref=e1268]: 김대윤
+              - cell "2026-04-10(금) D-13" [ref=e1269]:
+                - generic [ref=e1270]:
+                  - generic [ref=e1271]: 2026-04-10(금)
+                  - generic [ref=e1272]: D-13
+              - cell "● 높음 ▾" [ref=e1273]:
+                - generic [ref=e1274] [cursor=pointer]:
+                  - generic [ref=e1275]: ●
+                  - text: 높음
+                  - generic [ref=e1276]: ▾
+              - cell "대기 ▾" [ref=e1277]:
+                - generic [ref=e1278] [cursor=pointer]:
+                  - text: 대기
+                  - generic [ref=e1279]: ▾
+              - cell [ref=e1280]:
+                - checkbox [ref=e1281] [cursor=pointer]
+            - row "[전체] 호텔 체크인 운영 방안 확정 2026 롯데백화점 동행 워크숍 사전 체크인 후 현장 배부 예정 대윤 김대윤 2026-04-10(금) D-13 ● 높음 ▾ 대기 ▾" [ref=e1282]:
+              - cell "[전체] 호텔 체크인 운영 방안 확정 2026 롯데백화점 동행 워크숍" [ref=e1283]:
+                - generic [ref=e1284]:
+                  - button [ref=e1285] [cursor=pointer]:
+                    - img
+                  - generic [ref=e1286]:
+                    - generic [ref=e1288] [cursor=pointer]: "[전체] 호텔 체크인 운영 방안 확정"
+                    - generic [ref=e1289]: 2026 롯데백화점 동행 워크숍
+              - cell "사전 체크인 후 현장 배부 예정" [ref=e1290]:
+                - generic [ref=e1291]: 사전 체크인 후 현장 배부 예정
+              - cell "대윤 김대윤" [ref=e1292]:
+                - generic [ref=e1293]:
+                  - generic "김대윤" [ref=e1294]: 대윤
+                  - generic [ref=e1295]: 김대윤
+              - cell "2026-04-10(금) D-13" [ref=e1296]:
+                - generic [ref=e1297]:
+                  - generic [ref=e1298]: 2026-04-10(금)
+                  - generic [ref=e1299]: D-13
+              - cell "● 높음 ▾" [ref=e1300]:
+                - generic [ref=e1301] [cursor=pointer]:
+                  - generic [ref=e1302]: ●
+                  - text: 높음
+                  - generic [ref=e1303]: ▾
+              - cell "대기 ▾" [ref=e1304]:
+                - generic [ref=e1305] [cursor=pointer]:
+                  - text: 대기
+                  - generic [ref=e1306]: ▾
+              - cell [ref=e1307]:
+                - checkbox [ref=e1308] [cursor=pointer]
+            - row "[전체] 연회장 레이아웃 구성 2026 롯데백화점 동행 워크숍 크리스탈 볼룸 1,2,3 사용 / 무대 7.2M×3M 대윤 김대윤 2026-04-10(금) D-13 ● 높음 ▾ 대기 ▾" [ref=e1309]:
+              - cell "[전체] 연회장 레이아웃 구성 2026 롯데백화점 동행 워크숍" [ref=e1310]:
+                - generic [ref=e1311]:
+                  - button [ref=e1312] [cursor=pointer]:
+                    - img
+                  - generic [ref=e1313]:
+                    - generic [ref=e1315] [cursor=pointer]: "[전체] 연회장 레이아웃 구성"
+                    - generic [ref=e1316]: 2026 롯데백화점 동행 워크숍
+              - cell "크리스탈 볼룸 1,2,3 사용 / 무대 7.2M×3M" [ref=e1317]:
+                - generic [ref=e1318]: 크리스탈 볼룸 1,2,3 사용 / 무대 7.2M×3M
+              - cell "대윤 김대윤" [ref=e1319]:
+                - generic [ref=e1320]:
+                  - generic "김대윤" [ref=e1321]: 대윤
+                  - generic [ref=e1322]: 김대윤
+              - cell "2026-04-10(금) D-13" [ref=e1323]:
+                - generic [ref=e1324]:
+                  - generic [ref=e1325]: 2026-04-10(금)
+                  - generic [ref=e1326]: D-13
+              - cell "● 높음 ▾" [ref=e1327]:
+                - generic [ref=e1328] [cursor=pointer]:
+                  - generic [ref=e1329]: ●
+                  - text: 높음
+                  - generic [ref=e1330]: ▾
+              - cell "대기 ▾" [ref=e1331]:
+                - generic [ref=e1332] [cursor=pointer]:
+                  - text: 대기
+                  - generic [ref=e1333]: ▾
+              - cell [ref=e1334]:
+                - checkbox [ref=e1335] [cursor=pointer]
+            - row "[전체] 브릿징·롯데백화점 인원별 R&R 2026 롯데백화점 동행 워크숍 메모 추가... 대윤 김대윤 2026-04-10(금) D-13 ● 높음 ▾ 대기 ▾" [ref=e1336]:
+              - cell "[전체] 브릿징·롯데백화점 인원별 R&R 2026 롯데백화점 동행 워크숍" [ref=e1337]:
+                - generic [ref=e1338]:
+                  - button [ref=e1339] [cursor=pointer]:
+                    - img
+                  - generic [ref=e1340]:
+                    - generic [ref=e1342] [cursor=pointer]: "[전체] 브릿징·롯데백화점 인원별 R&R"
+                    - generic [ref=e1343]: 2026 롯데백화점 동행 워크숍
+              - cell "메모 추가..." [ref=e1344]:
+                - generic [ref=e1345]: 메모 추가...
+              - cell "대윤 김대윤" [ref=e1346]:
+                - generic [ref=e1347]:
+                  - generic "김대윤" [ref=e1348]: 대윤
+                  - generic [ref=e1349]: 김대윤
+              - cell "2026-04-10(금) D-13" [ref=e1350]:
+                - generic [ref=e1351]:
+                  - generic [ref=e1352]: 2026-04-10(금)
+                  - generic [ref=e1353]: D-13
+              - cell "● 높음 ▾" [ref=e1354]:
+                - generic [ref=e1355] [cursor=pointer]:
+                  - generic [ref=e1356]: ●
+                  - text: 높음
+                  - generic [ref=e1357]: ▾
+              - cell "대기 ▾" [ref=e1358]:
+                - generic [ref=e1359] [cursor=pointer]:
+                  - text: 대기
+                  - generic [ref=e1360]: ▾
+              - cell [ref=e1361]:
+                - checkbox [ref=e1362] [cursor=pointer]
+            - row "[전체] 홍보물·기념품 사전 물류 배송 2026 롯데백화점 동행 워크숍 행사 3~4일 전까지 호텔로 발송 대윤 김대윤 2026-04-10(금) D-13 ● 높음 ▾ 대기 ▾" [ref=e1363]:
+              - cell "[전체] 홍보물·기념품 사전 물류 배송 2026 롯데백화점 동행 워크숍" [ref=e1364]:
+                - generic [ref=e1365]:
+                  - button [ref=e1366] [cursor=pointer]:
+                    - img
+                  - generic [ref=e1367]:
+                    - generic [ref=e1369] [cursor=pointer]: "[전체] 홍보물·기념품 사전 물류 배송"
+                    - generic [ref=e1370]: 2026 롯데백화점 동행 워크숍
+              - cell "행사 3~4일 전까지 호텔로 발송" [ref=e1371]:
+                - generic [ref=e1372]: 행사 3~4일 전까지 호텔로 발송
+              - cell "대윤 김대윤" [ref=e1373]:
+                - generic [ref=e1374]:
+                  - generic "김대윤" [ref=e1375]: 대윤
+                  - generic [ref=e1376]: 김대윤
+              - cell "2026-04-10(금) D-13" [ref=e1377]:
+                - generic [ref=e1378]:
+                  - generic [ref=e1379]: 2026-04-10(금)
+                  - generic [ref=e1380]: D-13
+              - cell "● 높음 ▾" [ref=e1381]:
+                - generic [ref=e1382] [cursor=pointer]:
+                  - generic [ref=e1383]: ●
+                  - text: 높음
+                  - generic [ref=e1384]: ▾
+              - cell "대기 ▾" [ref=e1385]:
+                - generic [ref=e1386] [cursor=pointer]:
+                  - text: 대기
+                  - generic [ref=e1387]: ▾
+              - cell [ref=e1388]:
+                - checkbox [ref=e1389] [cursor=pointer]
+            - row "[전체] 플로깅 키트 수령 및 호텔 발송 2026 롯데백화점 동행 워크숍 롯데호텔 사전 협의 필요 대윤 김대윤 2026-04-10(금) D-13 ● 높음 ▾ 대기 ▾" [ref=e1390]:
+              - cell "[전체] 플로깅 키트 수령 및 호텔 발송 2026 롯데백화점 동행 워크숍" [ref=e1391]:
+                - generic [ref=e1392]:
+                  - button [ref=e1393] [cursor=pointer]:
+                    - img
+                  - generic [ref=e1394]:
+                    - generic [ref=e1396] [cursor=pointer]: "[전체] 플로깅 키트 수령 및 호텔 발송"
+                    - generic [ref=e1397]: 2026 롯데백화점 동행 워크숍
+              - cell "롯데호텔 사전 협의 필요" [ref=e1398]:
+                - generic [ref=e1399]: 롯데호텔 사전 협의 필요
+              - cell "대윤 김대윤" [ref=e1400]:
+                - generic [ref=e1401]:
+                  - generic "김대윤" [ref=e1402]: 대윤
+                  - generic [ref=e1403]: 김대윤
+              - cell "2026-04-10(금) D-13" [ref=e1404]:
+                - generic [ref=e1405]:
+                  - generic [ref=e1406]: 2026-04-10(금)
+                  - generic [ref=e1407]: D-13
+              - cell "● 높음 ▾" [ref=e1408]:
+                - generic [ref=e1409] [cursor=pointer]:
+                  - generic [ref=e1410]: ●
+                  - text: 높음
+                  - generic [ref=e1411]: ▾
+              - cell "대기 ▾" [ref=e1412]:
+                - generic [ref=e1413] [cursor=pointer]:
+                  - text: 대기
+                  - generic [ref=e1414]: ▾
+              - cell [ref=e1415]:
+                - checkbox [ref=e1416] [cursor=pointer]
+            - row "[전체] 행사 브랜딩 홍보물 기획 및 출력 2026 롯데백화점 동행 워크숍 명찰, 리플렛, 현수막, 버스 번호판 등 대윤 김대윤 2026-04-10(금) D-13 ● 높음 ▾ 대기 ▾" [ref=e1417]:
+              - cell "[전체] 행사 브랜딩 홍보물 기획 및 출력 2026 롯데백화점 동행 워크숍" [ref=e1418]:
+                - generic [ref=e1419]:
+                  - button [ref=e1420] [cursor=pointer]:
+                    - img
+                  - generic [ref=e1421]:
+                    - generic [ref=e1423] [cursor=pointer]: "[전체] 행사 브랜딩 홍보물 기획 및 출력"
+                    - generic [ref=e1424]: 2026 롯데백화점 동행 워크숍
+              - cell "명찰, 리플렛, 현수막, 버스 번호판 등" [ref=e1425]:
+                - generic [ref=e1426]: 명찰, 리플렛, 현수막, 버스 번호판 등
+              - cell "대윤 김대윤" [ref=e1427]:
+                - generic [ref=e1428]:
+                  - generic "김대윤" [ref=e1429]: 대윤
+                  - generic [ref=e1430]: 김대윤
+              - cell "2026-04-10(금) D-13" [ref=e1431]:
+                - generic [ref=e1432]:
+                  - generic [ref=e1433]: 2026-04-10(금)
+                  - generic [ref=e1434]: D-13
+              - cell "● 높음 ▾" [ref=e1435]:
+                - generic [ref=e1436] [cursor=pointer]:
+                  - generic [ref=e1437]: ●
+                  - text: 높음
+                  - generic [ref=e1438]: ▾
+              - cell "대기 ▾" [ref=e1439]:
+                - generic [ref=e1440] [cursor=pointer]:
+                  - text: 대기
+                  - generic [ref=e1441]: ▾
+              - cell [ref=e1442]:
+                - checkbox [ref=e1443] [cursor=pointer]
+            - row "[전체] 안전 대책 수립 2026 롯데백화점 동행 워크숍 병원 동선 파악, 구급약품 준비 대윤 김대윤 2026-04-10(금) D-13 ● 높음 ▾ 대기 ▾" [ref=e1444]:
+              - cell "[전체] 안전 대책 수립 2026 롯데백화점 동행 워크숍" [ref=e1445]:
+                - generic [ref=e1446]:
+                  - button [ref=e1447] [cursor=pointer]:
+                    - img
+                  - generic [ref=e1448]:
+                    - generic [ref=e1450] [cursor=pointer]: "[전체] 안전 대책 수립"
+                    - generic [ref=e1451]: 2026 롯데백화점 동행 워크숍
+              - cell "병원 동선 파악, 구급약품 준비" [ref=e1452]:
+                - generic [ref=e1453]: 병원 동선 파악, 구급약품 준비
+              - cell "대윤 김대윤" [ref=e1454]:
+                - generic [ref=e1455]:
+                  - generic "김대윤" [ref=e1456]: 대윤
+                  - generic [ref=e1457]: 김대윤
+              - cell "2026-04-10(금) D-13" [ref=e1458]:
+                - generic [ref=e1459]:
+                  - generic [ref=e1460]: 2026-04-10(금)
+                  - generic [ref=e1461]: D-13
+              - cell "● 높음 ▾" [ref=e1462]:
+                - generic [ref=e1463] [cursor=pointer]:
+                  - generic [ref=e1464]: ●
+                  - text: 높음
+                  - generic [ref=e1465]: ▾
+              - cell "대기 ▾" [ref=e1466]:
+                - generic [ref=e1467] [cursor=pointer]:
+                  - text: 대기
+                  - generic [ref=e1468]: ▾
+              - cell [ref=e1469]:
+                - checkbox [ref=e1470] [cursor=pointer]
+            - row "[1차시] 참가사 안내문 발송 2026 롯데백화점 동행 워크숍 일정표, 숙소, 준비물 안내 대윤 김대윤 2026-04-17(금) D-20 ● 보통 ▾ 대기 ▾" [ref=e1471]:
+              - cell "[1차시] 참가사 안내문 발송 2026 롯데백화점 동행 워크숍" [ref=e1472]:
+                - generic [ref=e1473]:
+                  - button [ref=e1474] [cursor=pointer]:
+                    - img
+                  - generic [ref=e1475]:
+                    - generic [ref=e1477] [cursor=pointer]: "[1차시] 참가사 안내문 발송"
+                    - generic [ref=e1478]: 2026 롯데백화점 동행 워크숍
+              - cell "일정표, 숙소, 준비물 안내" [ref=e1479]:
+                - generic [ref=e1480]: 일정표, 숙소, 준비물 안내
+              - cell "대윤 김대윤" [ref=e1481]:
+                - generic [ref=e1482]:
+                  - generic "김대윤" [ref=e1483]: 대윤
+                  - generic [ref=e1484]: 김대윤
+              - cell "2026-04-17(금) D-20" [ref=e1485]:
+                - generic [ref=e1486]:
+                  - generic [ref=e1487]: 2026-04-17(금)
+                  - generic [ref=e1488]: D-20
+              - cell "● 보통 ▾" [ref=e1489]:
+                - generic [ref=e1490] [cursor=pointer]:
+                  - generic [ref=e1491]: ●
+                  - text: 보통
+                  - generic [ref=e1492]: ▾
+              - cell "대기 ▾" [ref=e1493]:
+                - generic [ref=e1494] [cursor=pointer]:
+                  - text: 대기
+                  - generic [ref=e1495]: ▾
+              - cell [ref=e1496]:
+                - checkbox [ref=e1497] [cursor=pointer]
+            - row "[2차시] 참가사 안내문 발송 2026 롯데백화점 동행 워크숍 메모 추가... 대윤 김대윤 2026-04-28(화) D-31 ● 보통 ▾ 대기 ▾" [ref=e1498]:
+              - cell "[2차시] 참가사 안내문 발송 2026 롯데백화점 동행 워크숍" [ref=e1499]:
+                - generic [ref=e1500]:
+                  - button [ref=e1501] [cursor=pointer]:
+                    - img
+                  - generic [ref=e1502]:
+                    - generic [ref=e1504] [cursor=pointer]: "[2차시] 참가사 안내문 발송"
+                    - generic [ref=e1505]: 2026 롯데백화점 동행 워크숍
+              - cell "메모 추가..." [ref=e1506]:
+                - generic [ref=e1507]: 메모 추가...
+              - cell "대윤 김대윤" [ref=e1508]:
+                - generic [ref=e1509]:
+                  - generic "김대윤" [ref=e1510]: 대윤
+                  - generic [ref=e1511]: 김대윤
+              - cell "2026-04-28(화) D-31" [ref=e1512]:
+                - generic [ref=e1513]:
+                  - generic [ref=e1514]: 2026-04-28(화)
+                  - generic [ref=e1515]: D-31
+              - cell "● 보통 ▾" [ref=e1516]:
+                - generic [ref=e1517] [cursor=pointer]:
+                  - generic [ref=e1518]: ●
+                  - text: 보통
+                  - generic [ref=e1519]: ▾
+              - cell "대기 ▾" [ref=e1520]:
+                - generic [ref=e1521] [cursor=pointer]:
+                  - text: 대기
+                  - generic [ref=e1522]: ▾
+              - cell [ref=e1523]:
+                - checkbox [ref=e1524] [cursor=pointer]
+            - row "[1차시] 호텔 예약 명단 확인 및 방 배정 2026 롯데백화점 동행 워크숍 개인 사용분 개별 결제 대윤 김대윤 — ● 낮음 ▾ 진행중 ▾" [ref=e1525]:
+              - cell "[1차시] 호텔 예약 명단 확인 및 방 배정 2026 롯데백화점 동행 워크숍" [ref=e1526]:
+                - generic [ref=e1527]:
+                  - button [ref=e1528] [cursor=pointer]:
+                    - img
+                  - generic [ref=e1529]:
+                    - generic [ref=e1531] [cursor=pointer]: "[1차시] 호텔 예약 명단 확인 및 방 배정"
+                    - generic [ref=e1532]: 2026 롯데백화점 동행 워크숍
+              - cell "개인 사용분 개별 결제" [ref=e1533]:
+                - generic [ref=e1534]: 개인 사용분 개별 결제
+              - cell "대윤 김대윤" [ref=e1535]:
+                - generic [ref=e1536]:
+                  - generic "김대윤" [ref=e1537]: 대윤
+                  - generic [ref=e1538]: 김대윤
+              - cell "—" [ref=e1539]:
+                - generic [ref=e1541]: —
+              - cell "● 낮음 ▾" [ref=e1542]:
+                - generic [ref=e1543] [cursor=pointer]:
+                  - generic [ref=e1544]: ●
+                  - text: 낮음
+                  - generic [ref=e1545]: ▾
+              - cell "진행중 ▾" [ref=e1546]:
+                - generic [ref=e1547] [cursor=pointer]:
+                  - text: 진행중
+                  - generic [ref=e1548]: ▾
+              - cell [ref=e1549]:
+                - checkbox [ref=e1550] [cursor=pointer]
+            - row "[2차시] 호텔 예약 명단 확인 및 방 배정 2026 롯데백화점 동행 워크숍 부문별 맞게 체험 프로그램 배정 대윤 김대윤 — ● 낮음 ▾ 진행중 ▾" [ref=e1551]:
+              - cell "[2차시] 호텔 예약 명단 확인 및 방 배정 2026 롯데백화점 동행 워크숍" [ref=e1552]:
+                - generic [ref=e1553]:
+                  - button [ref=e1554] [cursor=pointer]:
+                    - img
+                  - generic [ref=e1555]:
+                    - generic [ref=e1557] [cursor=pointer]: "[2차시] 호텔 예약 명단 확인 및 방 배정"
+                    - generic [ref=e1558]: 2026 롯데백화점 동행 워크숍
+              - cell "부문별 맞게 체험 프로그램 배정" [ref=e1559]:
+                - generic [ref=e1560]: 부문별 맞게 체험 프로그램 배정
+              - cell "대윤 김대윤" [ref=e1561]:
+                - generic [ref=e1562]:
+                  - generic "김대윤" [ref=e1563]: 대윤
+                  - generic [ref=e1564]: 김대윤
+              - cell "—" [ref=e1565]:
+                - generic [ref=e1567]: —
+              - cell "● 낮음 ▾" [ref=e1568]:
+                - generic [ref=e1569] [cursor=pointer]:
+                  - generic [ref=e1570]: ●
+                  - text: 낮음
+                  - generic [ref=e1571]: ▾
+              - cell "진행중 ▾" [ref=e1572]:
+                - generic [ref=e1573] [cursor=pointer]:
+                  - text: 진행중
+                  - generic [ref=e1574]: ▾
+              - cell [ref=e1575]:
+                - checkbox [ref=e1576] [cursor=pointer]
+            - row "롯데호텔 숙박·연회장 계약 2026 롯데백화점 동행 워크숍 선금 입금 완료(3.16) 대윤 김대윤 — ● 낮음 ▾ 진행중 ▾" [ref=e1577]:
+              - cell "롯데호텔 숙박·연회장 계약 2026 롯데백화점 동행 워크숍" [ref=e1578]:
+                - generic [ref=e1579]:
+                  - button [ref=e1580] [cursor=pointer]:
+                    - img
+                  - generic [ref=e1581]:
+                    - generic [ref=e1583] [cursor=pointer]: 롯데호텔 숙박·연회장 계약
+                    - generic [ref=e1584]: 2026 롯데백화점 동행 워크숍
+              - cell "선금 입금 완료(3.16)" [ref=e1585]:
+                - generic [ref=e1586]: 선금 입금 완료(3.16)
+              - cell "대윤 김대윤" [ref=e1587]:
+                - generic [ref=e1588]:
+                  - generic "김대윤" [ref=e1589]: 대윤
+                  - generic [ref=e1590]: 김대윤
+              - cell "—" [ref=e1591]:
+                - generic [ref=e1593]: —
+              - cell "● 낮음 ▾" [ref=e1594]:
+                - generic [ref=e1595] [cursor=pointer]:
+                  - generic [ref=e1596]: ●
+                  - text: 낮음
+                  - generic [ref=e1597]: ▾
+              - cell "진행중 ▾" [ref=e1598]:
+                - generic [ref=e1599] [cursor=pointer]:
+                  - text: 진행중
+                  - generic [ref=e1600]: ▾
+              - cell [ref=e1601]:
+                - checkbox [ref=e1602] [cursor=pointer]
+            - row "참가사 명단(출석체크용) 제작 - 파트너사 2026 롯데백화점 동행 워크숍 브릿징그룹 참가사명단 확인 대윤 김대윤 — ● 낮음 ▾ 대기 ▾" [ref=e1603]:
+              - cell "참가사 명단(출석체크용) 제작 - 파트너사 2026 롯데백화점 동행 워크숍" [ref=e1604]:
+                - generic [ref=e1605]:
+                  - button [ref=e1606] [cursor=pointer]:
+                    - img
+                  - generic [ref=e1607]:
+                    - generic [ref=e1609] [cursor=pointer]: 참가사 명단(출석체크용) 제작 - 파트너사
+                    - generic [ref=e1610]: 2026 롯데백화점 동행 워크숍
+              - cell "브릿징그룹 참가사명단 확인" [ref=e1611]:
+                - generic [ref=e1612]: 브릿징그룹 참가사명단 확인
+              - cell "대윤 김대윤" [ref=e1613]:
+                - generic [ref=e1614]:
+                  - generic "김대윤" [ref=e1615]: 대윤
+                  - generic [ref=e1616]: 김대윤
+              - cell "—" [ref=e1617]:
+                - generic [ref=e1619]: —
+              - cell "● 낮음 ▾" [ref=e1620]:
+                - generic [ref=e1621] [cursor=pointer]:
+                  - generic [ref=e1622]: ●
+                  - text: 낮음
+                  - generic [ref=e1623]: ▾
+              - cell "대기 ▾" [ref=e1624]:
+                - generic [ref=e1625] [cursor=pointer]:
+                  - text: 대기
+                  - generic [ref=e1626]: ▾
+              - cell [ref=e1627]:
+                - checkbox [ref=e1628] [cursor=pointer]
+            - row "참가사 명단(출석체크용) 제작 - 외주사 2026 롯데백화점 동행 워크숍 룸드롭 5,000원/객실 대윤 김대윤 — ● 낮음 ▾ 대기 ▾" [ref=e1629]:
+              - cell "참가사 명단(출석체크용) 제작 - 외주사 2026 롯데백화점 동행 워크숍" [ref=e1630]:
+                - generic [ref=e1631]:
+                  - button [ref=e1632] [cursor=pointer]:
+                    - img
+                  - generic [ref=e1633]:
+                    - generic [ref=e1635] [cursor=pointer]: 참가사 명단(출석체크용) 제작 - 외주사
+                    - generic [ref=e1636]: 2026 롯데백화점 동행 워크숍
+              - cell "룸드롭 5,000원/객실" [ref=e1637]:
+                - generic [ref=e1638]: 룸드롭 5,000원/객실
+              - cell "대윤 김대윤" [ref=e1639]:
+                - generic [ref=e1640]:
+                  - generic "김대윤" [ref=e1641]: 대윤
+                  - generic [ref=e1642]: 김대윤
+              - cell "—" [ref=e1643]:
+                - generic [ref=e1645]: —
+              - cell "● 낮음 ▾" [ref=e1646]:
+                - generic [ref=e1647] [cursor=pointer]:
+                  - generic [ref=e1648]: ●
+                  - text: 낮음
+                  - generic [ref=e1649]: ▾
+              - cell "대기 ▾" [ref=e1650]:
+                - generic [ref=e1651] [cursor=pointer]:
+                  - text: 대기
+                  - generic [ref=e1652]: ▾
+              - cell [ref=e1653]:
+                - checkbox [ref=e1654] [cursor=pointer]
+            - row "프로그램 일정표 수정 및 명찰용 스케쥴 2026 롯데백화점 동행 워크숍 명찰 뒤에 스케쥴표 인쇄 대윤 김대윤 — ● 낮음 ▾ 대기 ▾" [ref=e1655]:
+              - cell "프로그램 일정표 수정 및 명찰용 스케쥴 2026 롯데백화점 동행 워크숍" [ref=e1656]:
+                - generic [ref=e1657]:
+                  - button [ref=e1658] [cursor=pointer]:
+                    - img
+                  - generic [ref=e1659]:
+                    - generic [ref=e1661] [cursor=pointer]: 프로그램 일정표 수정 및 명찰용 스케쥴
+                    - generic [ref=e1662]: 2026 롯데백화점 동행 워크숍
+              - cell "명찰 뒤에 스케쥴표 인쇄" [ref=e1663]:
+                - generic [ref=e1664]: 명찰 뒤에 스케쥴표 인쇄
+              - cell "대윤 김대윤" [ref=e1665]:
+                - generic [ref=e1666]:
+                  - generic "김대윤" [ref=e1667]: 대윤
+                  - generic [ref=e1668]: 김대윤
+              - cell "—" [ref=e1669]:
+                - generic [ref=e1671]: —
+              - cell "● 낮음 ▾" [ref=e1672]:
+                - generic [ref=e1673] [cursor=pointer]:
+                  - generic [ref=e1674]: ●
+                  - text: 낮음
+                  - generic [ref=e1675]: ▾
+              - cell "대기 ▾" [ref=e1676]:
+                - generic [ref=e1677] [cursor=pointer]:
+                  - text: 대기
+                  - generic [ref=e1678]: ▾
+              - cell [ref=e1679]:
+                - checkbox [ref=e1680] [cursor=pointer]
+            - row "연회 음료 및 야식 준비 2026 롯데백화점 동행 워크숍 주류 영수증 처리 필요 대윤 김대윤 — ● 낮음 ▾ 대기 ▾" [ref=e1681]:
+              - cell "연회 음료 및 야식 준비 2026 롯데백화점 동행 워크숍" [ref=e1682]:
+                - generic [ref=e1683]:
+                  - button [ref=e1684] [cursor=pointer]:
+                    - img
+                  - generic [ref=e1685]:
+                    - generic [ref=e1687] [cursor=pointer]: 연회 음료 및 야식 준비
+                    - generic [ref=e1688]: 2026 롯데백화점 동행 워크숍
+              - cell "주류 영수증 처리 필요" [ref=e1689]:
+                - generic [ref=e1690]: 주류 영수증 처리 필요
+              - cell "대윤 김대윤" [ref=e1691]:
+                - generic [ref=e1692]:
+                  - generic "김대윤" [ref=e1693]: 대윤
+                  - generic [ref=e1694]: 김대윤
+              - cell "—" [ref=e1695]:
+                - generic [ref=e1697]: —
+              - cell "● 낮음 ▾" [ref=e1698]:
+                - generic [ref=e1699] [cursor=pointer]:
+                  - generic [ref=e1700]: ●
+                  - text: 낮음
+                  - generic [ref=e1701]: ▾
+              - cell "대기 ▾" [ref=e1702]:
+                - generic [ref=e1703] [cursor=pointer]:
+                  - text: 대기
+                  - generic [ref=e1704]: ▾
+              - cell [ref=e1705]:
+                - checkbox [ref=e1706] [cursor=pointer]
+            - row "헤드테이블 확인 2026 롯데백화점 동행 워크숍 VIP 및 파트너사 대표 좌석 지정 대윤 김대윤 — ● 낮음 ▾ 대기 ▾" [ref=e1707]:
+              - cell "헤드테이블 확인 2026 롯데백화점 동행 워크숍" [ref=e1708]:
+                - generic [ref=e1709]:
+                  - button [ref=e1710] [cursor=pointer]:
+                    - img
+                  - generic [ref=e1711]:
+                    - generic [ref=e1713] [cursor=pointer]: 헤드테이블 확인
+                    - generic [ref=e1714]: 2026 롯데백화점 동행 워크숍
+              - cell "VIP 및 파트너사 대표 좌석 지정" [ref=e1715]:
+                - generic [ref=e1716]: VIP 및 파트너사 대표 좌석 지정
+              - cell "대윤 김대윤" [ref=e1717]:
+                - generic [ref=e1718]:
+                  - generic "김대윤" [ref=e1719]: 대윤
+                  - generic [ref=e1720]: 김대윤
+              - cell "—" [ref=e1721]:
+                - generic [ref=e1723]: —
+              - cell "● 낮음 ▾" [ref=e1724]:
+                - generic [ref=e1725] [cursor=pointer]:
+                  - generic [ref=e1726]: ●
+                  - text: 낮음
+                  - generic [ref=e1727]: ▾
+              - cell "대기 ▾" [ref=e1728]:
+                - generic [ref=e1729] [cursor=pointer]:
+                  - text: 대기
+                  - generic [ref=e1730]: ▾
+              - cell [ref=e1731]:
+                - checkbox [ref=e1732] [cursor=pointer]
+            - row "✓ 완료됨 7건 펼치기" [ref=e1733]:
+              - cell "✓ 완료됨 7건 펼치기" [ref=e1734] [cursor=pointer]:
+                - generic [ref=e1735]:
+                  - generic [ref=e1736]: ✓ 완료됨
+                  - generic [ref=e1737]: 7건
+                  - generic [ref=e1738]: 펼치기
+  - generic [ref=e1739]:
+    - button "☆" [ref=e1740] [cursor=pointer]
+    - button "✏️" [ref=e1741] [cursor=pointer]
+    - button "🗑️" [ref=e1742] [cursor=pointer]
+```

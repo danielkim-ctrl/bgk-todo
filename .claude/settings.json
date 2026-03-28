@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep \"^import\" src/components/editor/*.tsx)"
+    ]
+  }
+}
