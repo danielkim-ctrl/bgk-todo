@@ -338,7 +338,11 @@ export function useTodoApp() {
     return () => clearTimeout(t);
   }, [todos, projects, nId, pNId, members, pris, stats, priC, priBg, stC, stBg, userSettings, loaded]);
 
-  const flash = (m: string, t = "ok") => { setToast({ m, t }); setTimeout(() => setToast({ m: "", t: "" }), 2500); };
+  // action을 전달하면 토스트에 버튼이 표시됨 (예: AI 등록 후 "실행 취소")
+  const flash = (m: string, t = "ok", action?: { label: string; fn: () => void }) => {
+    setToast({ m, t, action });
+    setTimeout(() => setToast({ m: "", t: "" }), action ? 5000 : 2500); // 액션 있을 때는 5초 유지
+  };
 
   const forceFirestoreSync = async () => {
     try {
@@ -385,6 +389,7 @@ export function useTodoApp() {
       ]);
     },
     flash,
+    undo, // AI 등록 후 "실행 취소" 토스트 버튼에서 사용
   });
 
   const updTodo = (id: number, u: any) => setTodosWithHistory((p: Todo[]) => p.map(t => {
@@ -423,6 +428,34 @@ export function useTodoApp() {
     });
     setTodosWithHistory((p: Todo[]) => p.filter(t => t.id !== id));
     flash("업무가 삭제되었습니다", "err");
+  };
+
+  // 삭제된 업무를 복원 — deletedLog에서 제거 후 todos에 새 ID로 재등록
+  const restoreTodo = (entry: DeletedTodo) => {
+    // 휴지통에서 해당 항목 제거 (같은 id + deletedAt 기준)
+    setDeletedLog(prev => {
+      const next = prev.filter(e => !(e.id === entry.id && e.deletedAt === entry.deletedAt));
+      localStorage.setItem("bgk_deleted_log", JSON.stringify(next));
+      return next;
+    });
+    // 새 ID를 부여해서 todos에 추가 (원래 ID가 이미 다른 업무에 사용됐을 수 있음)
+    const newId = nId;
+    setNId(nId + 1);
+    const restored: Todo = {
+      id: newId,
+      pid: entry.pid,
+      task: entry.task,
+      who: entry.who,
+      due: "",
+      pri: entry.pri,
+      st: entry.st === "완료" ? "대기" : entry.st, // 완료 상태로 복원 시 대기로 전환
+      det: entry.det,
+      cre: td(),
+      done: null,
+      repeat: entry.repeat || "없음",
+    };
+    setTodosWithHistory((p: Todo[]) => [...p, restored]);
+    flash(`'${entry.task}' 업무가 복원되었습니다`);
   };
 
   const filtered = useMemo(() => todos.filter(t => {
@@ -558,7 +591,7 @@ export function useTodoApp() {
     visibleTodoIds, allVisibleSelected, someVisibleSelected,
     todayStr,
     // handlers
-    deletedLog,
+    deletedLog, restoreTodo,
     undo, redo, flash, forceFirestoreSync, updTodo, addTodo, delTodo,
     toggleSort, togF, handleCheck, toggleSelectAll,
     saveMod, addNR, isNREmpty, saveOneNR, saveNRs,

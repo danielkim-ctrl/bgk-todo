@@ -52,7 +52,7 @@ export default function App() {
     calDate, setCalDate, calToday, calNav, calTitle, weekDates, customDates, agendaItems, evStyle,
     saveMod, addNR, isNREmpty, saveOneNR, saveNRs,
     parseAI, confirmAI, addChip,
-    deletedLog,
+    deletedLog, restoreTodo,
   } = app;
 
   useEffect(() => {
@@ -61,6 +61,8 @@ export default function App() {
       if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) { e.preventDefault(); undo(); return; }
       if ((e.ctrlKey || e.metaKey) && (e.key === "y" || (e.key === "Z" && e.shiftKey))) { e.preventDefault(); redo(); return; }
       if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement).isContentEditable) return;
+      // ? 키로 단축키 도움말 팝업 열기/닫기
+      if (e.key === "?") { e.preventDefault(); setShowShortcuts(p => !p); return; }
       // 선택된 항목 Delete 키 삭제
       if (e.key === "Delete" && selectedIds.size > 0 && view !== "calendar") {
         if (!confirm(`선택한 ${selectedIds.size}건을 삭제하시겠습니까?`)) return;
@@ -88,6 +90,10 @@ export default function App() {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [view, todoView, selectedIds, setTodos, flash, clrSel, setMemoCols, calToday, calNav, setCalView, undo, redo]);
+
+  // ── 단축키 도움말 / 휴지통 모달 상태 ────────────────────────────
+  const [showShortcuts, setShowShortcuts] = useState(false); // 단축키 도움말 팝업 열림 여부
+  const [showTrash, setShowTrash] = useState(false);         // 휴지통 팝업 열림 여부
 
   // ── 캘린더 팝오버 / 빠른 추가 상태 ──────────────────────────────
   const [calEvPop, setCalEvPop] = useState<{todo:any,x:number,y:number}|null>(null);
@@ -292,6 +298,12 @@ export default function App() {
         <button style={S.hBtn} onClick={()=>setSettMod(true)}>⚙️ 설정</button>
         <button style={{...S.hBtn,opacity:historyRef.current.length?1:.4}} onClick={undo} title="되돌리기 (Ctrl+Z)">↩️ 되돌리기</button>
         <button style={{...S.hBtn,opacity:redoRef.current.length?1:.4}} onClick={redo} title="다시 실행 (Ctrl+Y)">↪️ 다시 실행</button>
+        {/* 삭제된 업무가 있을 때만 휴지통 버튼 표시 */}
+        {deletedLog.length>0&&<button style={{...S.hBtn,position:"relative" as const}} onClick={()=>setShowTrash(true)} title="삭제된 업무 복원">
+          🗑️ 휴지통
+          <span style={{position:"absolute" as const,top:-4,right:-4,background:"#ef4444",color:"#fff",borderRadius:99,fontSize:9,fontWeight:800,padding:"1px 5px",lineHeight:1.4}}>{deletedLog.length}</span>
+        </button>}
+        <button style={S.hBtn} onClick={()=>setShowShortcuts(true)} title="단축키 도움말 (?)">⌨️</button>
         <span style={S.hBdg}>{todos.length}건</span>
         <div style={{width:1,height:20,background:"rgba(255,255,255,.25)",margin:"0 4px"}}/>
         <div style={{display:"flex",alignItems:"center",gap:7}}>
@@ -303,11 +315,13 @@ export default function App() {
     </header>
 
     <nav style={S.nav}>
-      {[["dashboard","📊 대시보드"],["kanban","📌 칸반"],["list","📋 리스트"],["calendar","📅 캘린더"]].map(([k,l])=><button key={k} style={S.navB(view===k)} onClick={()=>setView(k)}>{l}{k==="kanban"&&(kbF.length>0||kbFWho.length>0)&&<span style={{fontSize:9,background:"#ef4444",color:"#fff",borderRadius:99,padding:"0 5px",marginLeft:5,fontWeight:700,verticalAlign:"middle"}}>{kbF.length+kbFWho.length}</span>}</button>)}
+      {[["dashboard","📊 대시보드"],["list","📋 리스트"],["calendar","📅 캘린더"],["kanban","📌 칸반"]].map(([k,l])=><button key={k} style={S.navB(view===k)} onClick={()=>setView(k)}>{l}{k==="kanban"&&(kbF.length>0||kbFWho.length>0)&&<span style={{fontSize:9,background:"#ef4444",color:"#fff",borderRadius:99,padding:"0 5px",marginLeft:5,fontWeight:700,verticalAlign:"middle"}}>{kbF.length+kbFWho.length}</span>}</button>)}
     </nav>
 
     <main style={S.main}>
-      {view==="dashboard"&&<Dashboard todos={todos} projects={projects} members={members} priC={priC} priBg={priBg} stC={stC} stBg={stBg} gPr={gPr} deletedLog={deletedLog}/>}
+      {view==="dashboard"&&<Dashboard todos={todos} projects={projects} members={members} priC={priC} priBg={priBg} stC={stC} stBg={stBg} gPr={gPr} deletedLog={deletedLog}
+        // KPI 카드 클릭 시 리스트 뷰로 이동하고 해당 상태 필터를 자동 적용
+        onNavigate={(stF)=>{setView("list");setFilters({proj:[],who:[],pri:[],st:stF,repeat:[],fav:""});}}/>}
 
       {view==="kanban"&&<KanbanView
         todos={todos} stats={stats} pris={pris} priC={priC} priBg={priBg} stC={stC} stBg={stBg}
@@ -488,6 +502,63 @@ export default function App() {
       <SettingsMgr members={members} setMembers={setMembers} pris={pris} setPris={setPris} stats={stats} setStats={setStats} priC={priC} setPriC={setPriC} priBg={priBg} setPriBg={setPriBg} stC={stC} setStC={setStC} stBg={stBg} setStBg={setStBg} todos={todos} flash={flash} apiKey={apiKey} setApiKey={setApiKey}/>
     </Modal>
 
+    {/* ── 단축키 도움말 모달 ─────────────────────────────────── */}
+    <Modal open={showShortcuts} onClose={()=>setShowShortcuts(false)} title="⌨️ 단축키 안내" footer={<button style={S.bs} onClick={()=>setShowShortcuts(false)}>닫기</button>}>
+      <table style={{width:"100%",borderCollapse:"collapse" as const,fontSize:13}}>
+        <tbody>
+          {([
+            ["Ctrl+Z","이전 상태로 되돌리기"],
+            ["Ctrl+Y","작업 다시 실행"],
+            ["Delete","선택한 업무 삭제 (목록 뷰)"],
+            ["?","단축키 도움말 열기/닫기"],
+            ["─── 캘린더 뷰 ──────────────────",""],
+            ["T","오늘로 이동"],
+            ["← / →","이전/다음 달 이동"],
+            ["D","일간 뷰"],
+            ["W","주간 뷰"],
+            ["M","월간 뷰"],
+            ["A","전체 일정 뷰"],
+            ["─── 메모 뷰 ─────────────────────",""],
+            ["1 ~ 5","메모 열 수 변경"],
+            ["─── 텍스트 편집 ─────────────────",""],
+            ["Ctrl+B","굵게"],
+            ["Ctrl+I","기울임"],
+            ["Ctrl+U","밑줄"],
+            ["Ctrl+S","취소선"],
+          ] as [string,string][]).map(([key,desc],i)=>(
+            <tr key={i} style={{borderBottom:"1px solid #f1f5f9"}}>
+              <td style={{padding:"9px 12px",fontWeight:700,fontFamily:"monospace",background:"#f8fafc",color:"#334155",width:220,whiteSpace:"nowrap" as const,fontSize:12}}>
+                {key.startsWith("─")?<span style={{color:"#94a3b8",fontFamily:"inherit",fontWeight:600,fontSize:11}}>{key}</span>:key}
+              </td>
+              <td style={{padding:"9px 12px",color:"#64748b"}}>{desc}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Modal>
+
+    {/* ── 휴지통 모달 (삭제된 업무 복원) ───────────────────────── */}
+    <Modal open={showTrash} onClose={()=>setShowTrash(false)} title="🗑️ 휴지통" footer={<button style={S.bs} onClick={()=>setShowTrash(false)}>닫기</button>}>
+      {deletedLog.length===0
+        ? <div style={{textAlign:"center" as const,padding:"28px 0",color:"#94a3b8",fontSize:13}}>삭제된 업무가 없습니다</div>
+        : <div style={{maxHeight:440,overflowY:"auto" as const}}>
+            <div style={{fontSize:11,color:"#94a3b8",marginBottom:12}}>최근 삭제된 업무 {deletedLog.length}건 · 복원하면 대기 상태로 목록에 추가됩니다</div>
+            {[...deletedLog].reverse().map((entry,i)=>(
+              <div key={`${entry.id}-${entry.deletedAt}-${i}`} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 0",borderBottom:"1px solid #f1f5f9"}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontWeight:600,fontSize:13,color:"#334155",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>{entry.task}</div>
+                  <div style={{fontSize:11,color:"#94a3b8",marginTop:3}}>{entry.who} · {entry.deletedAt} 삭제</div>
+                </div>
+                <button onClick={()=>restoreTodo(entry)}
+                  style={{padding:"5px 14px",borderRadius:6,border:"1px solid #2563eb",background:"#eff6ff",color:"#2563eb",fontSize:12,fontWeight:600,cursor:"pointer",flexShrink:0}}>
+                  복원
+                </button>
+              </div>
+            ))}
+          </div>
+      }
+    </Modal>
+
     {chipAdd&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.3)",zIndex:1100,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={e=>{if(e.target===e.currentTarget)setChipAdd(null)}}>
       <div style={{background:"#fff",borderRadius:12,padding:20,width:320,boxShadow:"0 10px 25px rgba(0,0,0,.15)"}}>
         <div style={{fontSize:14,fontWeight:700,marginBottom:14}}>{({proj:"📁 프로젝트",who:"👤 담당자",pri:"🔥 우선순위",st:"📋 상태"} as any)[chipAdd]} 추가</div>
@@ -500,7 +571,7 @@ export default function App() {
     </div>}
 
 
-    <Toast msg={toast.m} type={toast.t}/>
+    <Toast msg={toast.m} type={toast.t} action={toast.action}/>
     {notePopup&&<NotePopup
       key={notePopup.todo.id}
       todo={notePopup.todo}

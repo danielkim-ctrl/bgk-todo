@@ -3,7 +3,7 @@ import { S } from "../../styles";
 import { isOD, stripHtml } from "../../utils";
 import { Project, DeletedTodo } from "../../types";
 
-export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,deletedLog=[]}: {
+export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,deletedLog=[],onNavigate}: {
   todos: any[];
   projects: Project[];
   members: string[];
@@ -13,16 +13,33 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
   stBg: Record<string,string>;
   gPr: (id: number) => Project;
   deletedLog?: DeletedTodo[];
+  /** KPI 카드 클릭 시 리스트 뷰로 이동하는 콜백 (상태 필터 배열 전달) */
+  onNavigate?: (stFilter: string[]) => void;
 }) {
   const [tab,setTab]=useState("member");
+  // KPI 기간 필터 — 마감기한 기준으로 표시 범위 조정
+  const [period,setPeriod]=useState<"all"|"week"|"month">("all");
   // 데일리 활동 탭 필터 상태
   const [dayRange,setDayRange]=useState<7|30|0>(7); // 0 = 전체
   const [dayWho,setDayWho]=useState("전체");
   const aProj=projects.filter(p=>p.status==="활성");
-  const total=todos.length;
-  const done=todos.filter(t=>t.st==="완료").length;
-  const inProg=todos.filter(t=>t.st==="진행중"||t.st==="검토").length;
-  const delayed=todos.filter(t=>isOD(t.due,t.st)).length;
+
+  // ── 기간 필터 적용 ───────────────────────────────────────────────────────
+  const todayIso=new Date().toISOString().slice(0,10);
+  const weekEnd=(()=>{const d=new Date();d.setDate(d.getDate()+6);return d.toISOString().slice(0,10);})();
+  // 이번 달 마지막 날
+  const monthEndDate=new Date(new Date().getFullYear(),new Date().getMonth()+1,0);
+  const monthEnd=monthEndDate.toISOString().slice(0,10);
+
+  // 기간 필터에 맞는 todo 목록 — 마감기한이 해당 범위 안에 있거나 전체 모드일 때
+  const baseTodos = period==="all" ? todos
+    : period==="week" ? todos.filter(t=>t.due&&t.due.split(" ")[0]>=todayIso&&t.due.split(" ")[0]<=weekEnd)
+    : todos.filter(t=>t.due&&t.due.split(" ")[0].slice(0,7)===todayIso.slice(0,7)); // 이번 달
+
+  const total=baseTodos.length;
+  const done=baseTodos.filter(t=>t.st==="완료").length;
+  const inProg=baseTodos.filter(t=>t.st==="진행중"||t.st==="검토").length;
+  const delayed=baseTodos.filter(t=>isOD(t.due,t.st)).length;
 
   const stColors: Record<string,string>={대기:"#94a3b8",진행중:"#2563eb",검토:"#d97706",완료:"#16a34a"};
   const stBgs: Record<string,string>={대기:"#f1f5f9",진행중:"#dbeafe",검토:"#fef3c7",완료:"#dcfce7"};
@@ -117,10 +134,37 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
     return <div style={{width:size,height:size,borderRadius:"50%",background:bg,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:size*0.38,flexShrink:0}}>{name[0]}</div>;
   };
 
+  // KPI 카드 클릭 시 전달할 상태 필터 — 각 카드가 어떤 상태 목록으로 이동하는지 정의
+  const kpiCards: [string,string,number,string,string[]][] = [
+    ["#2563eb","📋",total,"전 체 업 무",[]],
+    ["#d97706","⚡",inProg,"진행 중",["진행중","검토"]],
+    ["#16a34a","✅",done,"완 료",["완료"]],
+    ["#dc2626","⚠️",delayed,"지 연",[]],
+  ];
+
   return <div>
+    {/* 기간 필터 버튼 — 마감기한 기준으로 KPI 숫자 범위 조정 */}
+    <div style={{display:"flex",gap:6,marginBottom:14,justifyContent:"flex-end"}}>
+      {(["all","week","month"] as const).map((p,i)=>{
+        const labels=["전 체","이번 주","이번 달"];
+        const active=period===p;
+        return <button key={p} onClick={()=>setPeriod(p)}
+          style={{padding:"5px 14px",borderRadius:20,border:`1.5px solid ${active?"#2563eb":"#e2e8f0"}`,
+            background:active?"#2563eb":"#fff",color:active?"#fff":"#64748b",
+            fontSize:12,fontWeight:active?700:500,cursor:"pointer",transition:"all .15s"}}>
+          {labels[i]}
+        </button>;
+      })}
+    </div>
+
     <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:20}}>
-      {([["#2563eb","📋",total,"전 체 업 무"],["#d97706","⚡",inProg,"진행 중"],["#16a34a","✅",done,"완 료"],["#dc2626","⚠️",delayed,"지 연"]] as [string,string,number,string][]).map(([c,ic,v,l])=>
-        <div key={l} style={{...S.card,borderTop:`3px solid ${c}`,display:"flex",alignItems:"center",gap:12}}>
+      {kpiCards.map(([c,ic,v,l,stF])=>
+        // KPI 카드 클릭 시 리스트 뷰로 이동하며 해당 상태 필터 자동 적용
+        <div key={l} onClick={()=>onNavigate?.(stF)}
+          style={{...S.card,borderTop:`3px solid ${c}`,display:"flex",alignItems:"center",gap:12,
+            cursor:onNavigate?"pointer":"default",transition:"box-shadow .15s"}}
+          onMouseEnter={e=>{if(onNavigate)(e.currentTarget as HTMLDivElement).style.boxShadow="0 4px 16px rgba(0,0,0,.12)";}}
+          onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.boxShadow="0 1px 3px rgba(0,0,0,.07)";}}>
           <div style={{fontSize:22}}>{ic}</div>
           <div><div style={{fontSize:26,fontWeight:800,color:c,lineHeight:1}}>{v}</div><div style={{fontSize:11,color:"#64748b",marginTop:2}}>{l}</div></div>
         </div>)}

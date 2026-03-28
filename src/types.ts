@@ -26,6 +26,8 @@ export interface Todo {
 export interface ToastState {
   m: string;
   t: string;
+  /** 토스트에 표시할 액션 버튼 (예: "실행 취소") */
+  action?: { label: string; fn: () => void };
 }
 
 export interface Filters {

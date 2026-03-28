@@ -69,9 +69,9 @@ interface ListViewProps {
   memoCols: number;
   setMemoCols: (v: number) => void;
   showDone: boolean;
-  setShowDone: (fn: (p: boolean) => boolean) => void;
+  setShowDone: (value: boolean | ((prev: boolean) => boolean)) => void;
   expandMode: boolean;
-  setExpandMode: (fn: (p: boolean) => boolean) => void;
+  setExpandMode: (value: boolean | ((prev: boolean) => boolean)) => void;
   sortCol: string;
   sortDir: string;
   sortIcon: (col: string) => string;
@@ -223,7 +223,33 @@ export function ListView(props: ListViewProps) {
     </div>}
 
     {todoView==="memo"&&<MemoView sorted={sorted} showDone={showDone} setShowDone={setShowDone} gPr={gPr} aProj={visibleProj} members={visibleMembers} pris={pris} stats={stats} priC={priC} priBg={priBg} stC={stC} stBg={stBg} updTodo={updTodo} addTodo={addTodo} currentUser={currentUser} delTodo={delTodo} isFav={isFav} toggleFav={toggleFav} flash={flash} cols={memoCols}/>}
-    {todoView==="list"&&sorted.length===0&&<div style={{...S.card,padding:"36px 20px",textAlign:"center" as const,color:"#94a3b8"}}><div style={{fontSize:28,marginBottom:6}}>📭</div><div style={{fontSize:13,fontWeight:600}}>업무가 없습니다</div></div>}
+    {todoView==="list"&&sorted.length===0&&(()=>{
+      // 필터/검색이 적용된 경우와 아닌 경우를 구분해 다른 안내 메시지와 CTA를 표시
+      const hasFilter = filters.proj.length||filters.who.length||filters.pri.length||filters.st.length||filters.repeat.length||filters.fav||search;
+      return <div style={{...S.card,padding:"52px 20px",textAlign:"center" as const}}>
+        <div style={{fontSize:40,marginBottom:14}}>{hasFilter?"🔍":"📭"}</div>
+        <div style={{fontSize:15,fontWeight:700,color:"#475569",marginBottom:8}}>
+          {hasFilter?"검색 결과가 없습니다":"아직 업무가 없습니다"}
+        </div>
+        <div style={{fontSize:12,color:"#94a3b8",marginBottom:24}}>
+          {hasFilter?"다른 검색어나 필터를 시도해보세요":"팀과 함께할 첫 번째 업무를 추가해보세요"}
+        </div>
+        {hasFilter
+          // 필터 있을 때: 초기화 버튼
+          ? <button
+              onClick={()=>{setSearch("");setFilters({proj:[],who:[],pri:[],st:[],repeat:[],fav:""});}}
+              style={{padding:"9px 22px",borderRadius:8,border:"none",background:"#2563eb",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>
+              필터 초기화
+            </button>
+          // 필터 없을 때: 업무 추가 직접 입력 탭으로 이동
+          : <button
+              onClick={()=>setAddTab("direct")}
+              style={{padding:"9px 22px",borderRadius:8,border:"none",background:"#2563eb",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>
+              + 첫 업무 추가하기
+            </button>
+        }
+      </div>;
+    })()}
     {todoView==="list"&&sorted.length>0&&<div style={{...S.card,padding:0,overflow:"hidden"}}>
       <div ref={tblDivRef} style={{overflowX:"auto",overflowY:"auto",maxHeight:"calc(100vh - 260px)"}}
         onScroll={e=>{

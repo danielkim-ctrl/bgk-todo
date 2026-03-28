@@ -32,8 +32,6 @@ src/
 
 @Skills/code.rule.md
 
-@Skills/memo.rules.md
-
 ## QA 점검 기준
 
 @Skills/QA.md

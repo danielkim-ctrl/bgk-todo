@@ -9,10 +9,12 @@ interface UseAIOptions {
   members: string[];
   /** 확인된 AI 파싱 결과를 실제 Todo로 등록하는 콜백 (useTodoApp의 CRUD 레이어) */
   onAddTodos: (checked: AiParsed[]) => void;
-  flash: (msg: string, type?: string) => void;
+  flash: (msg: string, type?: string, action?: { label: string; fn: () => void }) => void;
+  /** AI 등록 직후 "실행 취소" 토스트 버튼에서 호출할 undo 함수 */
+  undo: () => void;
 }
 
-export function useAI({ currentUser, aProj, members, onAddTodos, flash }: UseAIOptions) {
+export function useAI({ currentUser, aProj, members, onAddTodos, flash, undo }: UseAIOptions) {
   // ── 상태 ─────────────────────────────────────────────────────────────────
   const [aiText, setAiText] = useState(() => {
     const u = localStorage.getItem("todo-current-user");
@@ -102,7 +104,8 @@ export function useAI({ currentUser, aProj, members, onAddTodos, flash }: UseAIO
     setAiParsed([]);
     setAiText("");
     setAiSt("");
-    flash(`${checked.length}건이 AI를 통해 등록되었습니다`);
+    // 등록 완료 후 5초 동안 "실행 취소" 버튼이 달린 토스트 표시
+    flash(`${checked.length}건이 AI를 통해 등록되었습니다`, "ok", { label: "실행 취소", fn: undo });
   };
 
   return {
