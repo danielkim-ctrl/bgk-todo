@@ -289,7 +289,7 @@ export default function App() {
   const content = <div style={S.wrap}>
     <header style={S.hdr}>
       <div style={{display:"flex",alignItems:"center",gap:12}}>
-        <img src="/bgk_logo_white.png" alt="Bridging Group" onClick={()=>window.location.reload()} style={{height:32,width:"auto",display:"block",flexShrink:0,cursor:"pointer"}}/>
+        <img src={`${import.meta.env.BASE_URL}bgk_logo_white.png`} alt="Bridging Group" onClick={()=>window.location.reload()} style={{height:32,width:"auto",display:"block",flexShrink:0,cursor:"pointer"}}/>
         <div style={{width:1,height:20,background:"rgba(255,255,255,.3)"}}/>
         <div style={{fontSize:14,fontWeight:700,letterSpacing:"0.01em"}}>팀 TODO 통합관리</div>
       </div>

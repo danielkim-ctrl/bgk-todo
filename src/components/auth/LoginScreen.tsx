@@ -8,7 +8,7 @@ interface LoginScreenProps {
 export function LoginScreen({ members, onLogin }: LoginScreenProps) {
   return <div style={{minHeight:"100vh",background:"#f0f4f8",fontFamily:"'Pretendard',system-ui,sans-serif",display:"flex",flexDirection:"column"}}>
     <div style={{position:"sticky",top:0,zIndex:100,background:"#172f5a",padding:"20px 36px",textAlign:"center",boxShadow:"0 2px 16px rgba(0,0,0,.25)"}}>
-      <img src="/bgk_logo_white.png" alt="Bridging Group" style={{height:40,width:"auto",display:"block",margin:"0 auto"}}/>
+      <img src={`${import.meta.env.BASE_URL}bgk_logo_white.png`} alt="Bridging Group" style={{height:40,width:"auto",display:"block",margin:"0 auto"}}/>
     </div>
     <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:"40px 16px"}}>
       <div style={{background:"#fff",borderRadius:20,width:480,maxWidth:"100%",boxShadow:"0 24px 64px rgba(0,0,0,.12)",padding:"32px 36px"}}>
