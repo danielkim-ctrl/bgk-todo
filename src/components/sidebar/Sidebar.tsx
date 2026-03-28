@@ -39,11 +39,28 @@ export function Sidebar({
   hiddenMembers, toggleHideMember,
 }: SidebarProps) {
   const [expanded, setExpanded] = useState(false);
+  const sidebarRef = React.useRef<HTMLDivElement>(null);
+  const [sbLeft, setSbLeft] = useState(0);
   const [hoverKey, setHoverKey] = useState<string | null>(null);
   const [showHiddenProj, setShowHiddenProj] = useState(false);
   const [showHiddenMem, setShowHiddenMem] = useState(false);
   // 섹션별 접기/펼치기 상태 (기본: 모두 펼침)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+
+  // 사이드바 left 위치 추적 — fixed 플로팅 버튼 정렬용
+  React.useEffect(() => {
+    const update = () => {
+      if (sidebarRef.current) {
+        const rect = sidebarRef.current.getBoundingClientRect();
+        const zoom = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
+        setSbLeft(rect.left / zoom);
+      }
+    };
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => { window.removeEventListener("resize", update); window.removeEventListener("scroll", update, true); };
+  }, [expanded]);
 
   // B5: 활성 필터 총 개수
   const activeCount =
@@ -110,11 +127,12 @@ export function Sidebar({
       .sidebar-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
       .sidebar-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     `}</style>
-    <div style={{
+    <div ref={sidebarRef} style={{
       width: W, flexShrink: 0, background: "#fff", borderRadius: 10,
       border: "1px solid #e2e8f0", position: "sticky", top: 92,
-      maxHeight: "calc(100vh - 104px)", boxShadow: "0 1px 3px rgba(0,0,0,.07)",
-      display: "flex", flexDirection: "column",
+      height: "calc(100vh - 104px)", boxShadow: "0 1px 3px rgba(0,0,0,.07)",
+      display: "flex", flexDirection: "column", overflow: "hidden",
+      /* 필터 초기화 플로팅 기준 */
       transition: "width .2s ease",
     }}>
       {/* ── 검색 — 최상단 고정 ── */}
@@ -203,7 +221,7 @@ export function Sidebar({
         </button>
       </div>
 
-      <div className="sidebar-scroll" style={{ flex: 1, overflowY: "scroll", scrollbarWidth: "thin", scrollbarColor: "#cbd5e1 transparent" }}>
+      <div className="sidebar-scroll" style={{ flex: 1, overflowY: "scroll", scrollbarWidth: "thin", scrollbarColor: "#cbd5e1 transparent", paddingBottom: 44 }}>
         {/* ── 필터 섹션 ── */}
         {sections.map(([icon, label, key, items, canHide]) => {
           const selVals = filters[key as keyof Filters] as string[];
@@ -339,12 +357,12 @@ export function Sidebar({
           <div style={{ borderBottom: "1px solid #e2e8f0" }}>
             <div
               onClick={() => setShowHiddenProj(v => !v)}
-              style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 14px 6px", cursor: "pointer" }}
+              style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 14px 4px", cursor: "pointer" }}
             >
-              <span style={{ fontSize: 13, display: "inline-flex", color: "#94a3b8" }}><EyeSlashIcon style={ICON_SM} /></span>
-              <span style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", flex: 1 }}>숨겨진 프로젝트</span>
-              <span style={{ fontSize: 10, fontWeight: 700, color: "#fff", background: "#94a3b8", borderRadius: 99, padding: "1px 5px", lineHeight: 1.4 }}>{hiddenProjList.length}</span>
-              <span style={{ fontSize: 10, color: "#94a3b8", marginLeft: 2 }}>{showHiddenProj ? "▲" : "▼"}</span>
+              <span style={{ fontSize: 11, display: "inline-flex", color: "#cbd5e1" }}><EyeSlashIcon style={{width:12,height:12}} /></span>
+              <span style={{ fontSize: 10, fontWeight: 400, color: "#94a3b8", flex: 1 }}>숨겨진 프로젝트</span>
+              <span style={{ fontSize: 9, fontWeight: 600, color: "#fff", background: "#cbd5e1", borderRadius: 99, padding: "1px 5px", lineHeight: 1.4 }}>{hiddenProjList.length}</span>
+              <span style={{ fontSize: 9, color: "#cbd5e1", marginLeft: 2 }}>{showHiddenProj ? "▲" : "▼"}</span>
             </div>
             {showHiddenProj && (
               <div style={{ paddingBottom: 4 }}>
@@ -353,7 +371,7 @@ export function Sidebar({
                     key={p.id}
                     onMouseEnter={() => setHoverKey(`hidden_proj_${p.id}`)}
                     onMouseLeave={() => setHoverKey(null)}
-                    style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 14px", fontSize: 12, color: "#94a3b8", background: hoverKey === `hidden_proj_${p.id}` ? "#f8fafc" : "transparent", borderRadius: 6, margin: 0, transition: "background .1s" }}
+                    style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 14px", fontSize: 10, color: "#94a3b8", background: hoverKey === `hidden_proj_${p.id}` ? "#f8fafc" : "transparent", borderRadius: 6, margin: 0, transition: "background .1s" }}
                   >
                     <span style={{ width: 8, height: 8, borderRadius: "50%", background: p.color, flexShrink: 0, display: "inline-block", opacity: 0.5 }} />
                     <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
@@ -376,12 +394,12 @@ export function Sidebar({
           <div style={{ borderBottom: "1px solid #e2e8f0" }}>
             <div
               onClick={() => setShowHiddenMem(v => !v)}
-              style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 14px 6px", cursor: "pointer" }}
+              style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 14px 4px", cursor: "pointer" }}
             >
-              <span style={{ fontSize: 13, display: "inline-flex", color: "#94a3b8" }}><EyeSlashIcon style={ICON_SM} /></span>
-              <span style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", flex: 1 }}>숨겨진 담당자</span>
-              <span style={{ fontSize: 10, fontWeight: 700, color: "#fff", background: "#94a3b8", borderRadius: 99, padding: "1px 5px", lineHeight: 1.4 }}>{hiddenMemberList.length}</span>
-              <span style={{ fontSize: 10, color: "#94a3b8", marginLeft: 2 }}>{showHiddenMem ? "▲" : "▼"}</span>
+              <span style={{ fontSize: 11, display: "inline-flex", color: "#cbd5e1" }}><EyeSlashIcon style={{width:12,height:12}} /></span>
+              <span style={{ fontSize: 10, fontWeight: 400, color: "#94a3b8", flex: 1 }}>숨겨진 담당자</span>
+              <span style={{ fontSize: 9, fontWeight: 600, color: "#fff", background: "#cbd5e1", borderRadius: 99, padding: "1px 5px", lineHeight: 1.4 }}>{hiddenMemberList.length}</span>
+              <span style={{ fontSize: 9, color: "#cbd5e1", marginLeft: 2 }}>{showHiddenMem ? "▲" : "▼"}</span>
             </div>
             {showHiddenMem && (
               <div style={{ paddingBottom: 4 }}>
@@ -390,7 +408,7 @@ export function Sidebar({
                     key={m}
                     onMouseEnter={() => setHoverKey(`hidden_mem_${m}`)}
                     onMouseLeave={() => setHoverKey(null)}
-                    style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 14px", fontSize: 12, color: "#94a3b8", background: hoverKey === `hidden_mem_${m}` ? "#f8fafc" : "transparent", borderRadius: 6, margin: 0, transition: "background .1s" }}
+                    style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 14px", fontSize: 10, color: "#94a3b8", background: hoverKey === `hidden_mem_${m}` ? "#f8fafc" : "transparent", borderRadius: 6, margin: 0, transition: "background .1s" }}
                   >
                     <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m}</span>
                     <button
@@ -408,21 +426,29 @@ export function Sidebar({
         )}
       </div>
 
-      {/* ── 하단: 필터 초기화 ── */}
-      <div style={{ padding: "8px 14px", borderTop: "1px solid #e2e8f0", flexShrink: 0 }}>
-        <button
-          onClick={() => { setSearch(""); togF("__reset__", ""); }}
-          style={{
-            width: "100%", padding: "6px", fontSize: 11,
-            color: hasActiveFilter ? "#2563eb" : "#94a3b8",
-            background: hasActiveFilter ? "#eff6ff" : "#f8fafc",
-            border: `1px solid ${hasActiveFilter ? "#bfdbfe" : "#e2e8f0"}`,
-            borderRadius: 6, cursor: "pointer",
-            fontWeight: hasActiveFilter ? 600 : 400, transition: "all .15s",
-            display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4,
-          }}
-        ><XMarkIcon style={{width:12,height:12}}/> 필터 초기화</button>
-      </div>
+    </div>
+    {/* ── 필터 초기화 — 화면 하단 fixed 플로팅 ── */}
+    <div style={{
+      position: "fixed", bottom: 16, left: sbLeft,
+      width: W, zIndex: 50, boxSizing: "border-box",
+      padding: "8px 14px", background: "rgba(255,255,255,.95)",
+      backdropFilter: "blur(6px)", borderRadius: 10,
+      boxShadow: "0 -2px 12px rgba(0,0,0,.08)",
+      border: "1px solid #e2e8f0",
+      transition: "width .2s ease, left .2s ease",
+    }}>
+      <button
+        onClick={() => { setSearch(""); togF("__reset__", ""); }}
+        style={{
+          width: "100%", padding: "6px", fontSize: 11,
+          color: hasActiveFilter ? "#2563eb" : "#94a3b8",
+          background: hasActiveFilter ? "#eff6ff" : "transparent",
+          border: `1px solid ${hasActiveFilter ? "#bfdbfe" : "#e2e8f0"}`,
+          borderRadius: 6, cursor: "pointer",
+          fontWeight: hasActiveFilter ? 600 : 400, transition: "all .15s",
+          display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4,
+        }}
+      ><XMarkIcon style={{width:12,height:12}}/> 필터 초기화</button>
     </div>
     </>
   );
