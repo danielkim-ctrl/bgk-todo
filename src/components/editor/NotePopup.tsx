@@ -45,6 +45,40 @@ export function NotePopup({todo, x, y, onSave, onClose}: {
   },[]);
 
   const cmd=(c: string)=>{ref.current!.focus();document.execCommand(c,false,null!);};
+  // 체크박스 목록 삽입 — 네모 체크 서식을 팝업 에디터에 추가
+  const toggleCheckList=()=>{
+    const el=ref.current!;
+    el.focus();
+    const sel=window.getSelection();
+    if(!sel||sel.rangeCount===0)return;
+    const range=sel.getRangeAt(0);
+    const ancestor=range.commonAncestorContainer as Node;
+    const root=ancestor.nodeType===3?ancestor.parentElement!:ancestor as HTMLElement;
+    const list=root.closest('ul, ol');
+    // 이미 체크박스 ul이면 → 일반 텍스트로 해제
+    if(list&&list.tagName==='UL'&&list.querySelector('input[type="checkbox"]')){
+      const items=Array.from(list.querySelectorAll('li'));
+      const texts=items.map(li=>{const span=li.querySelector('span');return span?span.textContent||'':li.textContent||'';}).filter(t=>t&&t!=='\u200b');
+      list.outerHTML=texts.map(t=>`<div>${t||'\u200b'}</div>`).join('')||'<div>\u200b</div>';
+      onSaveRef.current(el.innerHTML);
+      return;
+    }
+    // 불릿/넘버링이면 먼저 해제
+    if(list){
+      if(list.tagName==='UL')document.execCommand('insertUnorderedList',false,undefined);
+      else document.execCommand('insertOrderedList',false,undefined);
+    }
+    const makeLi=(text: string)=>
+      `<li><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" style="width:14px;height:14px;accent-color:#2563eb;cursor:pointer;flex-shrink:0"/> <span>${text||'\u200b'}</span></label></li>`;
+    const selectedText=sel.toString();
+    if(selectedText.trim()){
+      const lines=selectedText.split(/\n/).map(l=>l.trim()).filter(l=>l.length>0);
+      document.execCommand('insertHTML',false,`<ul style="list-style:none;padding-left:4px;margin:4px 0">${lines.map(makeLi).join('')}</ul>`);
+    } else {
+      document.execCommand('insertHTML',false,`<ul style="list-style:none;padding-left:4px;margin:4px 0">${makeLi('')}</ul>`);
+    }
+    onSaveRef.current(el.innerHTML);
+  };
   const zoom=parseFloat(getComputedStyle(document.documentElement).zoom)||1;
   const ax=x/zoom, ay=y/zoom;
   const vw=window.innerWidth/zoom, vh=window.innerHeight/zoom;
@@ -76,6 +110,16 @@ export function NotePopup({todo, x, y, onSave, onClose}: {
         onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.background="#eff6ff";(e.currentTarget as HTMLButtonElement).style.borderColor="#93c5fd";}}
         onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.background="#f8fafc";(e.currentTarget as HTMLButtonElement).style.borderColor="#e2e8f0";}}
       >{t.label}</button>)}
+      {/* 체크박스 목록 버튼 — 네모 체크 서식 삽입 */}
+      <button title="체크박스 목록" onMouseDown={e=>{e.preventDefault();toggleCheckList();}}
+        style={{padding:"4px 8px",border:"1px solid #e2e8f0",background:"#f8fafc",cursor:"pointer",
+          fontSize:11,borderRadius:6,fontFamily:"inherit",color:"#334155",transition:"all .12s",
+          display:"inline-flex",alignItems:"center",gap:4}}
+        onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.background="#eff6ff";(e.currentTarget as HTMLButtonElement).style.borderColor="#93c5fd";}}
+        onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.background="#f8fafc";(e.currentTarget as HTMLButtonElement).style.borderColor="#e2e8f0";}}>
+        <span style={{width:12,height:12,border:"1.5px solid #334155",borderRadius:2,display:"inline-block",flexShrink:0}}/>
+        <span>체크</span>
+      </button>
     </div>
     <div ref={ref} contentEditable suppressContentEditableWarning
       onInput={()=>onSaveRef.current(ref.current!.innerHTML)}

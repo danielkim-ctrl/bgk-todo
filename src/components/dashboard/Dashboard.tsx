@@ -126,6 +126,21 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
 
   const tS=(a: boolean)=>({padding:"8px 16px",fontSize:12,fontWeight:a?700:500,color:a?"#2563eb":"#64748b",background:a?"#eff6ff":"transparent",border:"none",borderBottom:a?"2px solid #2563eb":"2px solid transparent",cursor:"pointer"});
 
+  // 담당자 카드 펼침 상태 — 클릭 시 해당 담당자 업무 목록 토글
+  const [expandedMember, setExpandedMember] = useState<string|null>(null);
+
+  // ── 오늘의 브리핑 데이터 계산 ──────────────────────────────────────────────
+  // 지연 업무: 마감일이 오늘 이전이고 완료되지 않은 것
+  const overdueItems = todos.filter(t => isOD(t.due, t.st));
+  // 오늘 마감 업무: due가 오늘이고 완료 아닌 것
+  const todayItems = todos.filter(t => t.due && t.due.slice(0,10) === todayIso && t.st !== "완료");
+  // 내일 마감 업무
+  const tomorrowIso = (() => { const d = new Date(); d.setDate(d.getDate()+1); return d.toISOString().slice(0,10); })();
+  const tomorrowItems = todos.filter(t => t.due && t.due.slice(0,10) === tomorrowIso && t.st !== "완료");
+
+  // 브리핑 섹션 접힘 상태
+  const [briefOpen, setBriefOpen] = useState(true);
+
   const StatBar=({bySt,total}: {bySt: Record<string,number>, total: number})=><div style={{display:"flex",height:6,borderRadius:99,overflow:"hidden",gap:1}}>
     {["대기","진행중","검토","완료"].map(s=>bySt[s]>0&&<div key={s} title={`${s}: ${bySt[s]}건`} style={{width:`${bySt[s]/total*100}%`,background:stColors[s],minWidth:3}}/>)}
   </div>;
@@ -144,7 +159,151 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
     ["#dc2626",<ExclamationTriangleIcon style={{width:22,height:22,color:"#dc2626"}}/>,delayed,"지연",["__overdue__"]],
   ];
 
+  // 브리핑 섹션 내 업무 한 줄 렌더 — 담당자명·우선순위·상태 뱃지 포함
+  const BriefRow = ({t, showWho=true}: {t: any, showWho?: boolean}) => {
+    const proj = gPr(t.pid);
+    const isOver = isOD(t.due, t.st);
+    const isToday = t.due && t.due.slice(0,10) === todayIso;
+    return (
+      <div style={{display:"flex",alignItems:"center",gap:8,padding:"7px 12px",borderRadius:8,
+        transition:"background .12s",cursor:"default",borderLeft:`3px solid ${isOver?"#dc2626":isToday?"#d97706":"#e2e8f0"}`}}
+        onMouseEnter={e=>{(e.currentTarget as HTMLDivElement).style.background="#f8fafc";}}
+        onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.background="transparent";}}>
+        {/* 우선순위 도트 */}
+        <span style={{width:8,height:8,borderRadius:"50%",background:priC[t.pri]||"#94a3b8",flexShrink:0}}/>
+        {/* 업무명 */}
+        <span style={{flex:1,fontSize:12,color:"#1a2332",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}
+          title={t.task}>{t.task}</span>
+        {/* 담당자 */}
+        {showWho && <span style={{fontSize:11,color:"#64748b",whiteSpace:"nowrap" as const,flexShrink:0}}>{t.who}</span>}
+        {/* 프로젝트 칩 */}
+        {proj.id !== 0 && <span style={{fontSize:10,padding:"2px 7px",borderRadius:99,
+          background:proj.color+"18",color:proj.color,fontWeight:600,flexShrink:0,
+          overflow:"hidden",textOverflow:"ellipsis",maxWidth:80,whiteSpace:"nowrap" as const}}>{proj.name}</span>}
+        {/* 상태 */}
+        <span style={{fontSize:10,padding:"2px 7px",borderRadius:99,
+          background:stBg[t.st]||"#f1f5f9",color:stC[t.st]||"#64748b",fontWeight:600,flexShrink:0}}>{t.st}</span>
+        {/* 마감 D-day */}
+        {t.due && <span style={{fontSize:10,fontWeight:700,color:isOver?"#dc2626":isToday?"#d97706":"#64748b",
+          flexShrink:0,minWidth:32,textAlign:"right" as const}}>
+          {isOver ? `D+${Math.floor((new Date(todayIso).getTime()-new Date(t.due.slice(0,10)).getTime())/86400000)}` : "D-day"}
+        </span>}
+      </div>
+    );
+  };
+
   return <div>
+    {/* ── 오늘의 브리핑 ───────────────────────────────────────────────────── */}
+    {(overdueItems.length > 0 || todayItems.length > 0 || tomorrowItems.length > 0) && (
+      <div style={{...S.card,marginBottom:16,padding:0,overflow:"hidden"}}>
+        {/* 헤더 */}
+        <div style={{display:"flex",alignItems:"center",gap:8,padding:"12px 16px",
+          background:"linear-gradient(135deg,#1e3a5f,#1a2f5a)",cursor:"pointer"}}
+          onClick={()=>setBriefOpen(o=>!o)}>
+          <CalendarIcon style={{width:16,height:16,color:"#93c5fd"}}/>
+          <span style={{fontWeight:700,fontSize:13,color:"#fff",flex:1}}>오늘의 브리핑</span>
+          <span style={{fontSize:11,color:"#93c5fd"}}>
+            {todayIso.replace(/-/g,".")} 기준
+          </span>
+          {/* 요약 뱃지 */}
+          {overdueItems.length > 0 &&
+            <span style={{fontSize:11,padding:"2px 10px",borderRadius:99,background:"#dc2626",color:"#fff",fontWeight:700}}>
+              지연 {overdueItems.length}건
+            </span>}
+          {todayItems.length > 0 &&
+            <span style={{fontSize:11,padding:"2px 10px",borderRadius:99,background:"#d97706",color:"#fff",fontWeight:700}}>
+              오늘 마감 {todayItems.length}건
+            </span>}
+          {tomorrowItems.length > 0 &&
+            <span style={{fontSize:11,padding:"2px 10px",borderRadius:99,background:"#2563eb",color:"#fff",fontWeight:700}}>
+              내일 마감 {tomorrowItems.length}건
+            </span>}
+          <span style={{color:"#93c5fd",fontSize:12,marginLeft:4}}>{briefOpen?"▲":"▼"}</span>
+        </div>
+
+        {briefOpen && <div style={{padding:"12px 16px",display:"flex",flexDirection:"column",gap:16}}>
+          {/* 지연 업무 */}
+          {overdueItems.length > 0 && (
+            <div>
+              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
+                <ExclamationTriangleIcon style={{width:14,height:14,color:"#dc2626"}}/>
+                <span style={{fontSize:12,fontWeight:700,color:"#dc2626"}}>지연 업무 — 즉시 확인 필요</span>
+                <span style={{fontSize:11,color:"#dc2626",marginLeft:"auto"}}>{overdueItems.length}건</span>
+              </div>
+              {/* 담당자별로 묶기 */}
+              {members.filter(n => overdueItems.some(t => t.who === n)).map(name => {
+                const items = overdueItems.filter(t => t.who === name);
+                return (
+                  <div key={name} style={{marginBottom:8}}>
+                    <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
+                      <MemberAvatar name={name} size={20}/>
+                      <span style={{fontSize:11,fontWeight:700,color:"#1a2332"}}>{name}</span>
+                      <span style={{fontSize:10,padding:"1px 7px",borderRadius:99,background:"#fee2e2",color:"#dc2626",fontWeight:600}}>{items.length}건</span>
+                    </div>
+                    <div style={{paddingLeft:26}}>
+                      {items.map(t => <BriefRow key={t.id} t={t} showWho={false}/>)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* 오늘 마감 */}
+          {todayItems.length > 0 && (
+            <div>
+              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
+                <CalendarIcon style={{width:14,height:14,color:"#d97706"}}/>
+                <span style={{fontSize:12,fontWeight:700,color:"#d97706"}}>오늘 마감</span>
+                <span style={{fontSize:11,color:"#d97706",marginLeft:"auto"}}>{todayItems.length}건</span>
+              </div>
+              {members.filter(n => todayItems.some(t => t.who === n)).map(name => {
+                const items = todayItems.filter(t => t.who === name);
+                return (
+                  <div key={name} style={{marginBottom:8}}>
+                    <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
+                      <MemberAvatar name={name} size={20}/>
+                      <span style={{fontSize:11,fontWeight:700,color:"#1a2332"}}>{name}</span>
+                      <span style={{fontSize:10,padding:"1px 7px",borderRadius:99,background:"#fff7ed",color:"#d97706",fontWeight:600}}>{items.length}건</span>
+                    </div>
+                    <div style={{paddingLeft:26}}>
+                      {items.map(t => <BriefRow key={t.id} t={t} showWho={false}/>)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* 내일 마감 */}
+          {tomorrowItems.length > 0 && (
+            <div>
+              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
+                <CalendarIcon style={{width:14,height:14,color:"#2563eb"}}/>
+                <span style={{fontSize:12,fontWeight:700,color:"#2563eb"}}>내일 마감</span>
+                <span style={{fontSize:11,color:"#2563eb",marginLeft:"auto"}}>{tomorrowItems.length}건</span>
+              </div>
+              {members.filter(n => tomorrowItems.some(t => t.who === n)).map(name => {
+                const items = tomorrowItems.filter(t => t.who === name);
+                return (
+                  <div key={name} style={{marginBottom:8}}>
+                    <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
+                      <MemberAvatar name={name} size={20}/>
+                      <span style={{fontSize:11,fontWeight:700,color:"#1a2332"}}>{name}</span>
+                      <span style={{fontSize:10,padding:"1px 7px",borderRadius:99,background:"#eff6ff",color:"#2563eb",fontWeight:600}}>{items.length}건</span>
+                    </div>
+                    <div style={{paddingLeft:26}}>
+                      {items.map(t => <BriefRow key={t.id} t={t} showWho={false}/>)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>}
+      </div>
+    )}
+
     {/* 기간 필터 버튼 — 마감기한 기준으로 KPI 숫자 범위 조정 */}
     <div style={{display:"flex",gap:6,marginBottom:14,justifyContent:"flex-end"}}>
       {(["all","week","month"] as const).map((p,i)=>{
@@ -223,30 +382,128 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
           </div>)}
         </div>
 
-        <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:10}}>담당자 상세</div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:10}}>
-          {memberData.map(m=><div key={m.name} style={{border:"1.5px solid #e2e8f0",borderRadius:10,padding:12,background:"#fafafa",transition:"box-shadow .15s, transform .15s",cursor:"default"}}
-            onMouseEnter={e=>{(e.currentTarget as HTMLDivElement).style.boxShadow="0 4px 14px rgba(0,0,0,.1)";(e.currentTarget as HTMLDivElement).style.transform="translateY(-2px)";}}
-            onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.boxShadow="none";(e.currentTarget as HTMLDivElement).style.transform="none";}}>
-            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
-              <MemberAvatar name={m.name}/>
-              <div style={{flex:1}}>
-                <div style={{display:"flex",alignItems:"center",gap:6}}>
-                  <span style={{fontWeight:700,fontSize:13}}>{m.name}</span>
-                  {m.hasDelayed&&<span style={{fontSize:10,padding:"1px 5px",borderRadius:99,background:"#fee2e2",color:"#dc2626",fontWeight:600,display:"inline-flex",alignItems:"center",gap:2}}><ExclamationTriangleIcon style={{width:10,height:10}}/> 지연</span>}
+        <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:10}}>담당자 상세 <span style={{fontWeight:400,color:"#94a3b8"}}>— 클릭하면 업무 목록을 볼 수 있어요</span></div>
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {memberData.map(m=>{
+            const isExp = expandedMember === m.name;
+            // 담당자의 완료되지 않은 업무 — 우선순위순(긴급→높음→보통→낮음), 마감일순으로 정렬
+            const priOrder: Record<string,number> = {긴급:0,높음:1,보통:2,낮음:3};
+            const mTodos = todos.filter(t=>t.who===m.name && t.st!=="완료")
+              .sort((a,b)=>(priOrder[a.pri]??9)-(priOrder[b.pri]??9) || (a.due||"").localeCompare(b.due||""));
+            const mDone = todos.filter(t=>t.who===m.name && t.st==="완료");
+            return (
+              <div key={m.name} style={{border:`1.5px solid ${isExp?"#2563eb33":"#e2e8f0"}`,borderRadius:10,
+                background:"#fafafa",overflow:"hidden",transition:"box-shadow .15s, border-color .15s",
+                boxShadow:isExp?"0 4px 14px rgba(37,99,235,.1)":"none"}}>
+                {/* 카드 헤더 — 클릭으로 업무 목록 토글 */}
+                <div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",cursor:"pointer",
+                  background:isExp?"#f0f6ff":"#fafafa",transition:"background .15s"}}
+                  onClick={()=>setExpandedMember(isExp?null:m.name)}
+                  onMouseEnter={e=>{if(!isExp)(e.currentTarget as HTMLDivElement).style.background="#f8fafc";}}
+                  onMouseLeave={e=>{if(!isExp)(e.currentTarget as HTMLDivElement).style.background="#fafafa";}}>
+                  <MemberAvatar name={m.name}/>
+                  <div style={{flex:1}}>
+                    <div style={{display:"flex",alignItems:"center",gap:6}}>
+                      <span style={{fontWeight:700,fontSize:13,color:"#1a2332"}}>{m.name}</span>
+                      {m.hasDelayed&&<span style={{fontSize:10,padding:"1px 5px",borderRadius:99,background:"#fee2e2",color:"#dc2626",fontWeight:600,display:"inline-flex",alignItems:"center",gap:2}}><ExclamationTriangleIcon style={{width:10,height:10}}/> 지연</span>}
+                    </div>
+                    <div style={{fontSize:11,color:"#64748b",marginTop:2}}>
+                      총 {m.total}건 · 진행중 {mTodos.length}건 · 완료 {m.done}건
+                    </div>
+                  </div>
+                  {/* 상태 진행바 */}
+                  <div style={{width:120}}>
+                    <StatBar bySt={m.bySt} total={m.total}/>
+                    <div style={{display:"flex",gap:3,flexWrap:"wrap" as const,marginTop:6}}>
+                      {["대기","진행중","검토","완료"].map(s=>m.bySt[s]>0&&
+                        <span key={s} style={{fontSize:10,padding:"1px 5px",borderRadius:99,background:stBgs[s],color:stColors[s],fontWeight:600}}>{s} {m.bySt[s]}</span>)}
+                    </div>
+                  </div>
+                  {/* 프로젝트 칩 */}
+                  <div style={{display:"flex",gap:3,flexWrap:"wrap" as const}}>
+                    {m.byProj.map(({proj,cnt})=><span key={proj.id} style={{fontSize:10,padding:"2px 6px",borderRadius:99,background:proj.color+"18",color:proj.color,fontWeight:600,border:`1px solid ${proj.color}33`}}>{cnt}</span>)}
+                  </div>
+                  {/* 펼침 토글 아이콘 */}
+                  <span style={{fontSize:11,color:isExp?"#2563eb":"#94a3b8",transition:"color .15s",marginLeft:4}}>{isExp?"▲":"▼"}</span>
                 </div>
-                <div style={{fontSize:10,color:"#64748b",marginTop:1}}>총 {m.total}건 · 완료 {m.done}건</div>
+
+                {/* 펼침 — 진행중 업무 목록 */}
+                {isExp && <div style={{borderTop:"1px solid #e2e8f0",padding:"8px 0"}}>
+                  {/* 테이블 헤더 */}
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 90px 56px 56px 64px",gap:0,
+                    padding:"4px 14px",marginBottom:2}}>
+                    <span style={{fontSize:10,fontWeight:700,color:"#94a3b8"}}>업무</span>
+                    <span style={{fontSize:10,fontWeight:700,color:"#94a3b8",textAlign:"center" as const}}>프로젝트</span>
+                    <span style={{fontSize:10,fontWeight:700,color:"#94a3b8",textAlign:"center" as const}}>우선순위</span>
+                    <span style={{fontSize:10,fontWeight:700,color:"#94a3b8",textAlign:"center" as const}}>상태</span>
+                    <span style={{fontSize:10,fontWeight:700,color:"#94a3b8",textAlign:"right" as const}}>마감일</span>
+                  </div>
+                  {mTodos.length === 0
+                    ? <div style={{padding:"12px 14px",fontSize:12,color:"#94a3b8",textAlign:"center" as const}}>
+                        진행중인 업무가 없습니다
+                      </div>
+                    : mTodos.map(t => {
+                        const proj = gPr(t.pid);
+                        const isOver = isOD(t.due, t.st);
+                        const isTdy = t.due && t.due.slice(0,10) === todayIso;
+                        return (
+                          <div key={t.id} style={{display:"grid",gridTemplateColumns:"1fr 90px 56px 56px 64px",gap:0,
+                            padding:"6px 14px",borderLeft:`3px solid ${isOver?"#dc2626":isTdy?"#d97706":"transparent"}`,
+                            transition:"background .12s",cursor:"default",alignItems:"center"}}
+                            onMouseEnter={e=>{(e.currentTarget as HTMLDivElement).style.background="#f8fafc";}}
+                            onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.background="transparent";}}>
+                            {/* 업무명 */}
+                            <div style={{display:"flex",alignItems:"center",gap:6}}>
+                              <span style={{width:7,height:7,borderRadius:"50%",background:priC[t.pri]||"#94a3b8",flexShrink:0}}/>
+                              <span title={t.task} style={{fontSize:12,color:"#1a2332",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>{t.task}</span>
+                            </div>
+                            {/* 프로젝트 */}
+                            <div style={{textAlign:"center" as const}}>
+                              {proj.id!==0
+                                ? <span title={proj.name} style={{fontSize:10,padding:"2px 6px",borderRadius:99,background:proj.color+"18",color:proj.color,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,display:"inline-block",maxWidth:80}}>{proj.name}</span>
+                                : <span style={{fontSize:10,color:"#cbd5e1"}}>—</span>}
+                            </div>
+                            {/* 우선순위 */}
+                            <div style={{textAlign:"center" as const}}>
+                              <span style={{fontSize:10,padding:"2px 5px",borderRadius:99,background:priBg[t.pri]||"#f1f5f9",color:priC[t.pri]||"#64748b",fontWeight:600}}>{t.pri}</span>
+                            </div>
+                            {/* 상태 */}
+                            <div style={{textAlign:"center" as const}}>
+                              <span style={{fontSize:10,padding:"2px 5px",borderRadius:99,background:stBg[t.st]||"#f1f5f9",color:stC[t.st]||"#64748b",fontWeight:600}}>{t.st}</span>
+                            </div>
+                            {/* 마감 */}
+                            <div style={{textAlign:"right" as const}}>
+                              {t.due
+                                ? <span style={{fontSize:11,fontWeight:700,color:isOver?"#dc2626":isTdy?"#d97706":"#64748b"}}>
+                                    {isOver
+                                      ? `D+${Math.floor((new Date(todayIso).getTime()-new Date(t.due.slice(0,10)).getTime())/86400000)}`
+                                      : isTdy ? "D-day" : t.due.slice(5).replace("-","/")}
+                                  </span>
+                                : <span style={{fontSize:11,color:"#cbd5e1"}}>—</span>}
+                            </div>
+                          </div>
+                        );
+                      })
+                  }
+                  {/* 완료 업무 요약 */}
+                  {mDone.length > 0 && (
+                    <div style={{margin:"8px 14px 4px",padding:"6px 10px",borderRadius:8,background:"#f0fdf4",
+                      display:"flex",alignItems:"center",gap:8}}>
+                      <CheckCircleIcon style={{width:14,height:14,color:"#16a34a"}}/>
+                      <span style={{fontSize:11,color:"#16a34a",fontWeight:600}}>완료 {mDone.length}건</span>
+                      <div style={{flex:1,display:"flex",gap:4,flexWrap:"wrap" as const}}>
+                        {mDone.slice(0,4).map(t=>(
+                          <span key={t.id} style={{fontSize:10,color:"#64748b",textDecoration:"line-through",
+                            overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>{t.task}</span>
+                        ))}
+                        {mDone.length > 4 && <span style={{fontSize:10,color:"#94a3b8"}}>외 {mDone.length-4}건</span>}
+                      </div>
+                    </div>
+                  )}
+                </div>}
               </div>
-            </div>
-            <StatBar bySt={m.bySt} total={m.total}/>
-            <div style={{display:"flex",gap:3,flexWrap:"wrap" as const,marginTop:8}}>
-              {["대기","진행중","검토","완료"].map(s=>m.bySt[s]>0&&
-                <span key={s} style={{fontSize:10,padding:"2px 6px",borderRadius:99,background:stBgs[s],color:stColors[s],fontWeight:600}}>{s} {m.bySt[s]}</span>)}
-            </div>
-            <div style={{marginTop:8,display:"flex",gap:3,flexWrap:"wrap" as const}}>
-              {m.byProj.map(({proj,cnt})=><span key={proj.id} style={{fontSize:10,padding:"2px 6px",borderRadius:99,background:proj.color+"18",color:proj.color,fontWeight:600,border:`1px solid ${proj.color}33`}}>{proj.name} {cnt}</span>)}
-            </div>
-          </div>)}
+            );
+          })}
         </div>
       </>}
       </div>}
@@ -314,15 +571,15 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
                       </div>
                     </div>
 
-                    {/* 컬럼 헤더 — 8컬럼 고정 레이아웃: 아이콘·업무명·프로젝트·우선순위·상태·반복·진행률·마감 */}
+                    {/* 컬럼 헤더 — 8컬럼 고정 레이아웃: 아이콘·업무내용·프로젝트·우선순위·상태·반복·진행률·마감 */}
                     <div style={{display:"grid",gridTemplateColumns:"16px 1fr 78px 40px 44px 36px 38px",gap:0,padding:"3px 12px",borderBottom:"1px solid #f1f5f9",alignItems:"center"}}>
                       <div/>
-                      <div style={{fontSize:10,color:"#94a3b8",fontWeight:600}}>업무명</div>
+                      <div style={{fontSize:10,color:"#94a3b8",fontWeight:600}}>업무내용</div>
                       <div style={{fontSize:10,color:"#94a3b8",fontWeight:600,textAlign:"center" as const}}>프로젝트</div>
                       <div style={{fontSize:10,color:"#94a3b8",fontWeight:600,textAlign:"center" as const}}>우선순위</div>
                       <div style={{fontSize:10,color:"#94a3b8",fontWeight:600,textAlign:"center" as const}}>상태</div>
                       <div style={{fontSize:10,color:"#94a3b8",fontWeight:600,textAlign:"center" as const}}>반복</div>
-                      <div style={{fontSize:10,color:"#94a3b8",fontWeight:600,textAlign:"right" as const}}>마감</div>
+                      <div style={{fontSize:10,color:"#94a3b8",fontWeight:600,textAlign:"right" as const}}>마감기한</div>
                     </div>
 
                     {/* 업무 목록 — 모든 행이 동일한 8컬럼 grid 구조 */}
@@ -335,7 +592,7 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
                           onMouseEnter={e=>{(e.currentTarget as HTMLDivElement).style.background="#f8fafc";}}
                           onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.background="transparent";}}>
                           <span style={{width:14,height:14,borderRadius:"50%",background:"#dbeafe",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:"#2563eb",fontWeight:700,alignSelf:"flex-start",marginTop:2}}>+</span>
-                          {/* 업무명 + 상세내용 두 줄 */}
+                          {/* 업무내용 + 상세내용 두 줄 */}
                           <div style={{overflow:"hidden",paddingRight:6}}>
                             <div title={t.task} style={{fontSize:11,color:"#1a2332",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>{t.task}</div>
                             {stripHtml(t.det)&&<div style={{fontSize:10,color:"#94a3b8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,marginTop:1}}>{stripHtml(t.det)}</div>}

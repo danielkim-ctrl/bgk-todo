@@ -40,26 +40,28 @@ export function Sidebar({
 }: SidebarProps) {
   const [expanded, setExpanded] = useState(false);
   const sidebarRef = React.useRef<HTMLDivElement>(null);
-  const [sbLeft, setSbLeft] = useState(0);
+  const [fixedPos, setFixedPos] = useState<{left:number;width:number}>({left:0,width:196});
   const [hoverKey, setHoverKey] = useState<string | null>(null);
   const [showHiddenProj, setShowHiddenProj] = useState(false);
   const [showHiddenMem, setShowHiddenMem] = useState(false);
-  // 섹션별 접기/펼치기 상태 (기본: 모두 펼침)
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  // 섹션별 접기/펼치기 상태 (우선순위·상태는 기본 접힘)
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({pri: true, st: true});
 
-  // 사이드바 left 위치 추적 — fixed 플로팅 버튼 정렬용
+
+  // 사이드바 위치·크기 추적 — fixed 플로팅 버튼 정렬용
   React.useEffect(() => {
     const update = () => {
       if (sidebarRef.current) {
         const rect = sidebarRef.current.getBoundingClientRect();
         const zoom = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
-        setSbLeft(rect.left / zoom);
+        setFixedPos({ left: rect.left / zoom, width: rect.width / zoom });
       }
     };
     update();
     window.addEventListener("resize", update);
-    window.addEventListener("scroll", update, true);
-    return () => { window.removeEventListener("resize", update); window.removeEventListener("scroll", update, true); };
+    const ro = new ResizeObserver(update);
+    if (sidebarRef.current) ro.observe(sidebarRef.current);
+    return () => { window.removeEventListener("resize", update); ro.disconnect(); };
   }, [expanded]);
 
   // B5: 활성 필터 총 개수
@@ -67,7 +69,10 @@ export function Sidebar({
     filters.proj.length + filters.who.length + filters.pri.length +
     filters.st.length + filters.repeat.length + (filters.fav ? 1 : 0) + (search ? 1 : 0);
 
-  const W = expanded ? 300 : 196;
+  const W_BASE = 196;
+  const W = expanded ? 300 : W_BASE;
+  // 확장 시 왼쪽으로 커지도록 음수 마진 적용 — 메인 콘텐츠가 밀리지 않음
+  const mLeft = expanded ? -(300 - W_BASE) : 0;
 
   const gridStyle = {} as const;
 
@@ -130,10 +135,11 @@ export function Sidebar({
     <div ref={sidebarRef} style={{
       width: W, flexShrink: 0, background: "#fff", borderRadius: 10,
       border: "1px solid #e2e8f0", position: "sticky", top: 92,
+      marginLeft: mLeft,
       height: "calc(100vh - 104px)", boxShadow: "0 1px 3px rgba(0,0,0,.07)",
       display: "flex", flexDirection: "column", overflow: "hidden",
       /* 필터 초기화 플로팅 기준 */
-      transition: "width .2s ease",
+      transition: "width .2s ease, margin-left .2s ease",
     }}>
       {/* ── 검색 — 최상단 고정 ── */}
       <div style={{ padding: "10px 14px 8px", borderBottom: "1px solid #e2e8f0", flexShrink: 0 }}>
@@ -426,16 +432,16 @@ export function Sidebar({
         )}
       </div>
 
+
     </div>
-    {/* ── 필터 초기화 — 화면 하단 fixed 플로팅 ── */}
+    {/* ── 필터 초기화 — 화면 하단 fixed ── */}
     <div style={{
-      position: "fixed", bottom: 16, left: sbLeft,
-      width: W, zIndex: 50, boxSizing: "border-box",
+      position: "fixed", bottom: 16, left: fixedPos.left,
+      width: fixedPos.width, zIndex: 50, boxSizing: "border-box",
       padding: "8px 14px", background: "rgba(255,255,255,.95)",
       backdropFilter: "blur(6px)", borderRadius: 10,
       boxShadow: "0 -2px 12px rgba(0,0,0,.08)",
       border: "1px solid #e2e8f0",
-      transition: "width .2s ease, left .2s ease",
     }}>
       <button
         onClick={() => { setSearch(""); togF("__reset__", ""); }}

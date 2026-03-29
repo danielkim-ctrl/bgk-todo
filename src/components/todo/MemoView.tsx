@@ -132,6 +132,42 @@ function MemoCard({
     if (editorRef.current) updTodo(t.id, { det: editorRef.current.innerHTML });
   };
 
+  // 체크박스 서식 토글 — 불릿/넘버링과 동일한 토글 방식
+  const toggleCheckList = () => {
+    const el = editorRef.current;
+    if (!el) return;
+    el.focus();
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    const ancestor = range.commonAncestorContainer as Node;
+    const root = ancestor.nodeType === 3 ? ancestor.parentElement! : ancestor as HTMLElement;
+    const list = root.closest('ul, ol');
+    // 이미 체크박스 ul이면 → 일반 텍스트로 해제
+    if (list && list.tagName === 'UL' && list.querySelector('input[type="checkbox"]')) {
+      const items = Array.from(list.querySelectorAll('li'));
+      const texts = items.map(li => { const span = li.querySelector('span'); return span ? span.textContent || '' : li.textContent || ''; }).filter(t => t && t !== '\u200b');
+      list.outerHTML = texts.map(t => `<div>${t || '\u200b'}</div>`).join('') || '<div>\u200b</div>';
+      updTodo(t.id, { det: el.innerHTML });
+      return;
+    }
+    // 불릿/넘버링이면 먼저 해제
+    if (list) {
+      if (list.tagName === 'UL') document.execCommand('insertUnorderedList', false, undefined);
+      else document.execCommand('insertOrderedList', false, undefined);
+    }
+    const makeLi = (text: string) =>
+      `<li><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" style="width:14px;height:14px;accent-color:#2563eb;cursor:pointer;flex-shrink:0"/> <span>${text || '\u200b'}</span></label></li>`;
+    const selectedText = sel.toString();
+    if (selectedText.trim()) {
+      const lines = selectedText.split(/\n/).map(l => l.trim()).filter(l => l.length > 0);
+      document.execCommand('insertHTML', false, `<ul style="list-style:none;padding-left:4px;margin:4px 0">${lines.map(makeLi).join('')}</ul>`);
+    } else {
+      document.execCommand('insertHTML', false, `<ul style="list-style:none;padding-left:4px;margin:4px 0">${makeLi('')}</ul>`);
+    }
+    updTodo(t.id, { det: el.innerHTML });
+  };
+
   const dropStyle: React.CSSProperties = {
     position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 300,
     background: "#fff", border: "1.5px solid #e2e8f0", borderRadius: 8,
@@ -284,7 +320,7 @@ function MemoCard({
         </div>
       </div>
 
-      {/* ── 업무명 ── */}
+      {/* ── 업무내용 ── */}
       <div data-memocard style={{ padding: "8px 10px 2px" }}>
         <textarea
           defaultValue={t.task}
@@ -337,6 +373,11 @@ function MemoCard({
             onMouseDown={e => { e.preventDefault(); cmd("insertOrderedList"); }}>1≡</span>
           <span title="불릿 목록" style={{ fontSize: 13, padding: "2px 4px", borderRadius: 4, cursor: "pointer", color: "#334155" }}
             onMouseDown={e => { e.preventDefault(); cmd("insertUnorderedList"); }}>•≡</span>
+          {/* 체크박스 목록 — 네모 체크 서식 삽입 */}
+          <span title="체크박스 목록" style={{ fontSize: 11, padding: "2px 5px", borderRadius: 4, cursor: "pointer", color: "#334155", display: "inline-flex", alignItems: "center", gap: 3 }}
+            onMouseDown={e => { e.preventDefault(); toggleCheckList(); }}>
+            <span style={{ width: 11, height: 11, border: "1.5px solid #334155", borderRadius: 2, display: "inline-block", flexShrink: 0 }}/>
+          </span>
 
           <div style={{ width: 1, height: 14, background: note.border, margin: "0 3px" }} />
 
@@ -425,7 +466,7 @@ function AddCard({ addTodo, currentUser, flash, onDragOver, onDrop }: {
   return (
     <div style={{ minHeight: 240, border: "2px solid #2563eb", borderRadius: 6, display: "flex", flexDirection: "column", background: "#f8fbff", boxShadow: "0 2px 12px rgba(37,99,235,.12)" }}>
       <div style={{ padding: "10px 10px 6px", flex: 1, display: "flex", flexDirection: "column" }}>
-        <textarea ref={inputRef} rows={6} placeholder="업무명을 입력하세요..."
+        <textarea ref={inputRef} rows={6} placeholder="업무내용을 입력하세요..."
           onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); save(); } if (e.key === "Escape") setActive(false); }}
           style={{ flex: 1, width: "100%", background: "transparent", border: "none", outline: "none", resize: "none", fontFamily: "inherit", fontSize: 13, fontWeight: 600, color: "#1a2332", lineHeight: 1.6, boxSizing: "border-box", padding: 0 }} />
       </div>

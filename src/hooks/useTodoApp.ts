@@ -14,8 +14,8 @@ import { useUserSettings } from "./useUserSettings";
 export function useTodoApp() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [todos, setTodos] = useState<Todo[]>([]);
-  const historyRef = useRef<Todo[][]>([]);
-  const redoRef = useRef<Todo[][]>([]);
+  const historyRef = useRef<any[]>([]);
+  const redoRef = useRef<any[]>([]);
   const clientId = useRef(Math.random().toString(36).slice(2));
   const pendingWrite = useRef(false);
   const writeVersion = useRef(0);
@@ -37,44 +37,102 @@ export function useTodoApp() {
     todoView, setTodoView, memoCols, setMemoCols, showDone, setShowDone,
     favSidebar, togFavSidebar,
     userFavs, isFav, toggleFav,
+    customSortOrders, setCustomSortOrders,
+    activeSortFields, setActiveSortFields,
     userSettings, setUserSettings,
   } = userSets;
 
   const guard = () => { pendingWrite.current = true; };
 
-  const setTodosWithHistory = (fn: any) => {
-    guard();
-    setTodos(prev => {
-      historyRef.current = [...historyRef.current.slice(-49), prev];
-      redoRef.current = [];
-      return typeof fn === "function" ? fn(prev) : fn;
-    });
+  // ── 전체 앱 상태 스냅샷 기반 Undo/Redo ────────────────────────────────────
+  // 업무뿐 아니라 프로젝트, 멤버, 우선순위, 상태 등 모든 변경을 되돌릴 수 있도록
+  // 변경 전 전체 상태를 스냅샷으로 저장한다.
+  type AppSnapshot = {
+    todos: Todo[];
+    projects: Project[];
+    members: string[];
+    pris: string[];
+    stats: string[];
+    priC: Record<string,string>;
+    priBg: Record<string,string>;
+    stC: Record<string,string>;
+    stBg: Record<string,string>;
+    filters: Filters;
   };
 
-  const setProjectsGuarded = (fn: any) => { guard(); setProjects(fn); };
-  const setMembersGuarded = (fn: any) => { guard(); setMembers(fn); };
-  const setPrisGuarded = (fn: any) => { guard(); setPris(fn); };
-  const setStatsGuarded = (fn: any) => { guard(); setStats(fn); };
-  const setPriCGuarded = (fn: any) => { guard(); setPriC(fn); };
-  const setPriBgGuarded = (fn: any) => { guard(); setPriBg(fn); };
-  const setStCGuarded = (fn: any) => { guard(); setStC(fn); };
-  const setStBgGuarded = (fn: any) => { guard(); setStBg(fn); };
+  // 현재 앱 상태의 스냅샷을 생성하는 함수
+  const takeSnapshot = (): AppSnapshot => ({
+    todos: todos,
+    projects: projects,
+    members: members,
+    pris: pris,
+    stats: stats,
+    priC: { ...priC },
+    priBg: { ...priBg },
+    stC: { ...stC },
+    stBg: { ...stBg },
+    filters: { ...filters },
+  });
+
+  // 스냅샷을 앱 상태에 복원하는 함수
+  const restoreSnapshot = (snap: AppSnapshot) => {
+    setTodos(snap.todos);
+    setProjects(snap.projects);
+    setMembers(snap.members);
+    setPris(snap.pris);
+    setStats(snap.stats);
+    setPriC(snap.priC);
+    setPriBg(snap.priBg);
+    setStC(snap.stC);
+    setStBg(snap.stBg);
+    if (snap.filters) setFilters(snap.filters);
+  };
+
+  // 변경 전 스냅샷을 히스토리에 저장하고 redo 스택을 비우는 함수
+  // 같은 렌더 사이클 내에서 여러 setter가 연달아 호출되어도 스냅샷은 1번만 저장
+  const historyPushedThisFrame = useRef(false);
+  const pushHistory = () => {
+    if (historyPushedThisFrame.current) return;
+    historyPushedThisFrame.current = true;
+    historyRef.current = [...historyRef.current.slice(-49), takeSnapshot()];
+    redoRef.current = [];
+    // 다음 마이크로태스크에서 플래그 리셋 — 같은 이벤트 핸들러 내 연속 호출은 1번으로 병합
+    Promise.resolve().then(() => { historyPushedThisFrame.current = false; });
+  };
+
+  const setTodosWithHistory = (fn: any) => {
+    guard();
+    pushHistory();
+    setTodos(prev => typeof fn === "function" ? fn(prev) : fn);
+  };
+
+  // 모든 상태 변경 함수에 히스토리 저장을 적용
+  const setProjectsGuarded = (fn: any) => { guard(); pushHistory(); setProjects(fn); };
+  const setMembersGuarded = (fn: any) => { guard(); pushHistory(); setMembers(fn); };
+  const setPrisGuarded = (fn: any) => { guard(); pushHistory(); setPris(fn); };
+  const setStatsGuarded = (fn: any) => { guard(); pushHistory(); setStats(fn); };
+  const setPriCGuarded = (fn: any) => { guard(); pushHistory(); setPriC(fn); };
+  const setPriBgGuarded = (fn: any) => { guard(); pushHistory(); setPriBg(fn); };
+  const setStCGuarded = (fn: any) => { guard(); pushHistory(); setStC(fn); };
+  const setStBgGuarded = (fn: any) => { guard(); pushHistory(); setStBg(fn); };
 
   const undo = () => {
     if (!historyRef.current.length) return;
-    setTodos(prev => {
-      redoRef.current = [...redoRef.current.slice(-49), prev];
-      return historyRef.current.pop()!;
-    });
+    const snap = historyRef.current.pop()!;
+    // 현재 상태를 redo 스택에 저장
+    redoRef.current = [...redoRef.current.slice(-49), takeSnapshot()];
+    guard();
+    restoreSnapshot(snap);
     flash("이전 상태로 복원되었습니다");
   };
 
   const redo = () => {
     if (!redoRef.current.length) return;
-    setTodos(prev => {
-      historyRef.current = [...historyRef.current.slice(-49), prev];
-      return redoRef.current.pop()!;
-    });
+    const snap = redoRef.current.pop()!;
+    // 현재 상태를 history 스택에 저장
+    historyRef.current = [...historyRef.current.slice(-49), takeSnapshot()];
+    guard();
+    restoreSnapshot(snap);
     flash("작업이 다시 실행되었습니다");
   };
 
@@ -414,19 +472,17 @@ export function useTodoApp() {
   );
 
   const delTodo = (id: number) => {
-    // 삭제 전 업무 정보를 deletedLog에 기록
-    setTodos(prev => {
-      const target = prev.find(t => t.id === id);
-      if (target) {
-        const entry: DeletedTodo = { id: target.id, task: target.task, who: target.who, pid: target.pid, pri: target.pri, st: target.st, repeat: target.repeat, det: target.det, deletedAt: td() };
-        setDeletedLog(prevLog => {
-          const next = [...prevLog, entry].slice(-200);
-          localStorage.setItem("bgk_deleted_log", JSON.stringify(next));
-          return next;
-        });
-      }
-      return prev;
-    });
+    // 삭제 전 업무 정보를 deletedLog에 기록 (todos를 직접 읽어서 로그만 저장)
+    const target = todos.find(t => t.id === id);
+    if (target) {
+      const entry: DeletedTodo = { id: target.id, task: target.task, who: target.who, pid: target.pid, pri: target.pri, st: target.st, repeat: target.repeat, det: target.det, deletedAt: td() };
+      setDeletedLog(prevLog => {
+        const next = [...prevLog, entry].slice(-200);
+        localStorage.setItem("bgk_deleted_log", JSON.stringify(next));
+        return next;
+      });
+    }
+    // 히스토리 포함 삭제 — undo로 복원 가능
     setTodosWithHistory((p: Todo[]) => p.filter(t => t.id !== id));
     flash("업무가 삭제되었습니다", "err");
   };
@@ -476,22 +532,54 @@ export function useTodoApp() {
   };
   const priOrder: Record<string, number> = { 긴급: 0, 높음: 1, 보통: 2, 낮음: 3 };
   const stOrder: Record<string, number> = { 대기: 0, 진행중: 1, 검토: 2, 완료: 3 };
-  const sorted = useMemo(() => [...filtered].sort((a, b) => {
-    if (!sortCol) return 0;
+
+  // 하나의 정렬 기준으로 두 업무를 비교하는 함수 (다중 정렬의 각 단계에서 사용)
+  const compareByCol = (a: any, b: any, col: string, dir: "asc" | "desc"): number => {
+    // 커스텀 순서가 있으면 그 순서대로 비교
+    const customOrder = customSortOrders[col];
+    if (customOrder && customOrder.length > 0) {
+      const orderMap: Record<string, number> = {};
+      customOrder.forEach((v, i) => { orderMap[v] = i; });
+      // pid는 프로젝트 이름으로 매칭 (ColumnFilterDropdown이 이름 기준 순서를 전달)
+      const keyA = col === "pid" ? (gPr(a.pid).name || "미배정") : col === "who" ? (a.who || "") : col === "pri" ? (a.pri || "") : col === "st" ? (a.st || "") : "";
+      const keyB = col === "pid" ? (gPr(b.pid).name || "미배정") : col === "who" ? (b.who || "") : col === "pri" ? (b.pri || "") : col === "st" ? (b.st || "") : "";
+      const ia = orderMap[keyA] ?? 999;
+      const ib = orderMap[keyB] ?? 999;
+      return dir === "asc" ? ia - ib : ib - ia;
+    }
+
+    // 기본 비교 로직
     let va: any, vb: any;
-    if (sortCol === "id") { va = a.id; vb = b.id; }
-    else if (sortCol === "pid") { va = gPr(a.pid).name; vb = gPr(b.pid).name; }
-    else if (sortCol === "task") { va = a.task; vb = b.task; }
-    else if (sortCol === "det") { va = stripHtml(a.det || ""); vb = stripHtml(b.det || ""); }
-    else if (sortCol === "who") { va = a.who; vb = b.who; }
-    else if (sortCol === "due") { va = a.due || "9999"; vb = b.due || "9999"; }
-    else if (sortCol === "pri") { va = priOrder[a.pri] ?? 9; vb = priOrder[b.pri] ?? 9; }
-    else if (sortCol === "st") { va = stOrder[a.st] ?? 9; vb = stOrder[b.st] ?? 9; }
-    else if (sortCol === "repeat") { va = a.repeat || "없음"; vb = b.repeat || "없음"; }
+    if (col === "id") { va = a.id; vb = b.id; }
+    else if (col === "pid") { va = gPr(a.pid).name; vb = gPr(b.pid).name; }
+    else if (col === "task") { va = a.task; vb = b.task; }
+    else if (col === "det") { va = stripHtml(a.det || ""); vb = stripHtml(b.det || ""); }
+    else if (col === "who") { va = a.who || ""; vb = b.who || ""; }
+    else if (col === "due") { va = a.due || "9999"; vb = b.due || "9999"; }
+    else if (col === "pri") { va = priOrder[a.pri] ?? 9; vb = priOrder[b.pri] ?? 9; }
+    else if (col === "st") { va = stOrder[a.st] ?? 9; vb = stOrder[b.st] ?? 9; }
+    else if (col === "repeat") { va = a.repeat || "없음"; vb = b.repeat || "없음"; }
     else return 0;
-    if (typeof va === "string") return sortDir === "asc" ? va.localeCompare(vb) : vb.localeCompare(va);
-    return sortDir === "asc" ? va - vb : vb - va;
-  }), [filtered, sortCol, sortDir, projects]);
+    if (typeof va === "string") return dir === "asc" ? va.localeCompare(vb) : vb.localeCompare(va);
+    return dir === "asc" ? va - vb : vb - va;
+  };
+
+  // 누적 정렬 — activeSortFields 배열 순서대로 비교 (1차 정렬 → 2차 정렬 → ...)
+  // activeSortFields가 비어있으면 sortCol 단일 정렬 (메모뷰 등 호환)
+  const sorted = useMemo(() => {
+    console.log("[SORT] activeSortFields:", JSON.stringify(activeSortFields), "sortCol:", sortCol, "sortDir:", sortDir);
+    return [...filtered].sort((a, b) => {
+      if (activeSortFields.length > 0) {
+        for (const sf of activeSortFields) {
+          const diff = compareByCol(a, b, sf.col, sf.dir);
+          if (diff !== 0) return diff;
+        }
+        return 0;
+      }
+      if (!sortCol) return 0;
+      return compareByCol(a, b, sortCol, sortDir as "asc" | "desc");
+    });
+  }, [filtered, sortCol, sortDir, projects, customSortOrders, activeSortFields]);
   const sortIcon = (col: string) => sortCol === col ? (sortDir === "asc" ? "▲" : "▼") : "⇅";
   const visibleTodoIds = useMemo(() => sorted.filter(t => t.st !== "완료").map(t => t.id), [sorted]);
   const allVisibleSelected = visibleTodoIds.length > 0 && visibleTodoIds.every(id => selectedIds.has(id));
@@ -522,6 +610,7 @@ export function useTodoApp() {
     lastSelRef.current = id;
   };
   const togF = (k: string, v: string) => {
+    pushHistory();
     if (k === "__reset__") { setFilters({ proj: [], who: [], pri: [], st: [], repeat: [], fav: "" }); return; }
     if (k === "fav") { setFilters(f => ({ ...f, fav: f.fav ? "" : "1" })); return; }
     if (v === "") { setFilters(f => ({ ...f, [k]: [] })); return; }
@@ -534,15 +623,15 @@ export function useTodoApp() {
   const cal = useCalendar({ todos });
 
   const saveMod = (f: any) => {
-    if (!f.task || !f.who) { alert("업무명과 담당자는 필수 항목입니다."); return; }
+    if (!f.task || !f.who) { alert("업무내용과 담당자는 필수 항목입니다."); return; }
     if (f.id) { updTodo(parseInt(f.id), { pid: parseInt(f.pid), task: f.task, who: f.who, due: f.due, pri: f.pri, st: f.st, det: f.det, repeat: f.repeat || "없음" }); flash("변경사항이 저장되었습니다"); }
     else { addTodo({ pid: parseInt(f.pid), task: f.task, who: f.who, due: f.due, pri: f.pri, st: f.st, det: f.det, repeat: f.repeat || "없음" }); flash("업무가 등록되었습니다"); }
     setEditMod(null);
   };
   const addNR = () => setNewRows(r => [...r, { pid: "", task: "", who: currentUser || "", due: "", pri: "보통", det: "", repeat: "없음" }]);
   const isNREmpty = (r: NewRow) => !r.task && !r.pid && !r.who && !r.due && !r.det;
-  const saveOneNR = (i: number) => { const r = newRows[i]; if (!r.task?.trim()) { flash("업무명을 입력해주세요", "err"); return; } addTodo({ pid: r.pid ? parseInt(r.pid) : 0, task: r.task.trim(), who: r.who || currentUser || "미배정", due: r.due || "", pri: r.pri || "보통", st: "대기", det: r.det || "", repeat: r.repeat || "없음" }); setNewRows(p => p.filter((_, j) => j !== i)); flash("업무가 등록되었습니다"); };
-  const saveNRs = () => { if (savingNRs.current) return; const empty = newRows.filter(r => !r.task?.trim()); if (empty.length) { flash(`업무명이 비어 있는 항목이 ${empty.length}건 있습니다`, "err"); return; } const v = newRows.filter(r => r.task?.trim()); if (!v.length) { setNewRows([]); return; } savingNRs.current = true; v.forEach(r => addTodo({ pid: r.pid ? parseInt(r.pid) : 0, task: r.task.trim(), who: r.who || currentUser || "미배정", due: r.due || "", pri: r.pri || "보통", st: "대기", det: r.det || "", repeat: r.repeat || "없음" })); setNewRows([]); flash(`${v.length}건이 등록되었습니다`); setTimeout(() => { savingNRs.current = false; }, 300); };
+  const saveOneNR = (i: number) => { const r = newRows[i]; if (!r.task?.trim()) { flash("업무내용을 입력해주세요", "err"); return; } addTodo({ pid: r.pid ? parseInt(r.pid) : 0, task: r.task.trim(), who: r.who || currentUser || "미배정", due: r.due || "", pri: r.pri || "보통", st: "대기", det: r.det || "", repeat: r.repeat || "없음" }); setNewRows(p => p.filter((_, j) => j !== i)); flash("업무가 등록되었습니다"); };
+  const saveNRs = () => { if (savingNRs.current) return; const empty = newRows.filter(r => !r.task?.trim()); if (empty.length) { flash(`업무내용이 비어 있는 항목이 ${empty.length}건 있습니다`, "err"); return; } const v = newRows.filter(r => r.task?.trim()); if (!v.length) { setNewRows([]); return; } savingNRs.current = true; v.forEach(r => addTodo({ pid: r.pid ? parseInt(r.pid) : 0, task: r.task.trim(), who: r.who || currentUser || "미배정", due: r.due || "", pri: r.pri || "보통", st: "대기", det: r.det || "", repeat: r.repeat || "없음" })); setNewRows([]); flash(`${v.length}건이 등록되었습니다`); setTimeout(() => { savingNRs.current = false; }, 300); };
 
 
   const addChip = () => {
@@ -554,19 +643,9 @@ export function useTodoApp() {
     setChipVal(""); setChipAdd(null);
   };
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
-        if ((e.target as HTMLElement).tagName === "INPUT" || (e.target as HTMLElement).tagName === "TEXTAREA" || (e.target as HTMLElement).isContentEditable) return;
-        e.preventDefault(); undo();
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key === "y") {
-        if ((e.target as HTMLElement).tagName === "INPUT" || (e.target as HTMLElement).tagName === "TEXTAREA" || (e.target as HTMLElement).isContentEditable) return;
-        e.preventDefault(); redo();
-      }
-    };
-    window.addEventListener("keydown", handler); return () => window.removeEventListener("keydown", handler);
-  }, []);
+  // Ctrl+Z/Y 단축키 — 검색창 등 input 안에서도 앱 undo/redo 동작하도록 태그 체크 제거
+  // App.tsx에 동일 핸들러가 있으므로 여기서는 제거 (중복 방지)
+
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -594,11 +673,13 @@ export function useTodoApp() {
     datePop, setDatePop, nrDatePop, setNrDatePop,
     hoverRow, setHoverRow,
     ...userSets,
+    // setFilters를 히스토리 포함 버전으로 덮어쓰기 — 필터 변경도 undo 가능
+    setFilters: ((fn: any) => { pushHistory(); setFilters(fn); }) as typeof setFilters,
     selectedIds, lastSelRef, addSecRef, tblDivRef,
     clrSel, selAll, movePop, setMovePop, bulkPop, setBulkPop,
     historyRef, redoRef,
     // computed
-    aProj, gPr, filtered, sorted, sortIcon,
+    aProj, gPr, filtered, sorted, sortIcon, setSortCol, setSortDir,
     visibleTodoIds, allVisibleSelected, someVisibleSelected,
     todayStr,
     // handlers

@@ -24,7 +24,7 @@ export function DetailView({t,p,stats,stC,stBg,priC,priBg,onSt}: {
     </div>
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,background:"#f8fafc",padding:10,borderRadius:7,fontSize:12}}>
       <div><div style={{fontSize:10,color:"#94a3b8"}}>담당자</div><b>{t.who}</b></div>
-      <div><div style={{fontSize:10,color:"#94a3b8"}}>마감 기준일</div><b style={{color:od?"#dc2626":"inherit"}}>{t.due}</b></div>
+      <div><div style={{fontSize:10,color:"#94a3b8"}}>마감기한</div><b style={{color:od?"#dc2626":"inherit"}}>{t.due}</b></div>
       <div><div style={{fontSize:10,color:"#94a3b8"}}>등록</div>{t.cre||"—"}</div>
       <div><div style={{fontSize:10,color:"#94a3b8"}}>완료</div>{t.done||"—"}</div>
     </div>

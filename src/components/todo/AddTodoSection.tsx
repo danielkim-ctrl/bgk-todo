@@ -231,13 +231,13 @@ export function AddTodoSection({
               <col style={{width:"5%"}}/>
             </colgroup>
             <thead><tr style={{background:"#f8fafc",borderBottom:"1px solid #e2e8f0"}}>
-              {["프로젝트","업무내용 *","상세내용","담당자 *","마감일","우선순위","반복",""].map((h,i)=>
+              {["프로젝트","업무내용 *","상세내용","담당자 *","마감기한","우선순위","반복",""].map((h,i)=>
                 <th key={i} style={{padding:"6px 8px",fontSize:10,fontWeight:700,color:"#64748b",textAlign:"left"}}>{h}</th>)}
             </tr></thead>
             <tbody>
               {newRows.map((r,i)=>{const empty=isNREmpty(r);return <tr key={"nr"+i} style={{background:i%2===0?"#fafcff":"#f5f8ff",borderBottom:i===newRows.length-1?"none":"1px solid #e2e8f0"}}>
                 <td style={{padding:"4px 6px"}}><select value={r.pid} onChange={e=>{const n=[...newRows];n[i].pid=e.target.value;setNewRows(n)}} style={{...cellInput,fontSize:10}}><option value="">프로젝트</option>{aProj.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></td>
-                <td style={{padding:"4px 6px"}}><input value={r.task} onChange={e=>{const n=[...newRows];n[i].task=e.target.value;setNewRows(n)}} onKeyDown={e=>{if(e.key==="Enter"){if(!isNREmpty(newRows[i]))saveOneNR(i);else addNR()}}} placeholder="업무 내용 (필수)" autoFocus={i===newRows.length-1} style={{...cellInput,fontWeight:600}}/></td>
+                <td style={{padding:"4px 6px"}}><input value={r.task} onChange={e=>{const n=[...newRows];n[i].task=e.target.value;setNewRows(n)}} onKeyDown={e=>{if(e.key==="Enter"){if(!isNREmpty(newRows[i]))saveOneNR(i);else addNR()}}} placeholder="업무내용 (필수)" autoFocus={i===newRows.length-1} style={{...cellInput,fontWeight:600}}/></td>
                 <td style={{padding:"4px 6px"}}>
                   <div onClick={e=>{const rect=e.currentTarget.getBoundingClientRect();setNotePopup({todo:{id:`__nr_${i}`,task:r.task||"새 업무",det:r.det||""},x:rect.left,y:rect.bottom,_newRow:i});}}
                     style={{...cellInput,cursor:"text",color:r.det&&stripHtml(r.det)?"#334155":"#94a3b8",display:"flex",alignItems:"center",padding:"0 6px"}}>
@@ -263,7 +263,7 @@ export function AddTodoSection({
         {/* UB-9: 핵심 키워드 강조 */}
         <p style={{fontSize:11,color:"#64748b",margin:"0 0 10px",lineHeight:1.6}}>
           자유롭게 업무를 입력하거나 파일·이미지를 첨부하면 AI가 자동으로 TODO를 생성합니다.<br/>
-          담당자는 <b style={{color:"#334155"}}>@이름</b>, 마감일은 <b style={{color:"#334155"}}>"4월 10일"</b>, 반복은 <b style={{color:"#334155"}}>"매일/매주/매월"</b>처럼 입력하세요.
+          담당자는 <b style={{color:"#334155"}}>@이름</b>, 마감기한은 <b style={{color:"#334155"}}>"4월 10일"</b>, 반복은 <b style={{color:"#334155"}}>"매일/매주/매월"</b>처럼 입력하세요.
         </p>
 
         {/* 파일 첨부 영역 */}
@@ -356,9 +356,9 @@ export function AddTodoSection({
                     </div>}
                   </div>
                 ))}
-                {/* 마감일 일괄배정 — DateTimePicker 사용 */}
+                {/* 마감기한 일괄배정 — DateTimePicker 사용 */}
                 <div style={{position:"relative"}}>
-                  <button title="마감일 일괄배정" onMouseDown={e=>{
+                  <button title="마감기한 일괄배정" onMouseDown={e=>{
                     e.stopPropagation();
                     if(setDatePop){
                       const rect=(e.currentTarget as HTMLElement).getBoundingClientRect();

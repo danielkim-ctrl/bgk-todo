@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useState, useEffect, useCallback, useMemo } from "react";
 import { S } from "../styles";
 import { isOD, dDay, fDow, fmt2, stripHtml, sanitize } from "../utils";
 import { REPEAT_OPTS } from "../constants";
@@ -9,8 +9,81 @@ import { MemoView } from "../components/todo/MemoView";
 import { SectionLabel } from "../components/ui/SectionLabel";
 import { DropPanel } from "../components/ui/DropPanel";
 import { RepeatBadge } from "../components/ui/RepeatBadge";
+import { ColumnFilterDropdown } from "../components/ui/ColumnFilterDropdown";
 import { Bars3Icon, ListBulletIcon, FolderIcon, UserIcon, ArrowPathIcon, MagnifyingGlassIcon, ExclamationTriangleIcon, CheckIcon, CheckCircleIcon, FlagIcon, PencilSquareIcon, TrashIcon, InboxIcon, StarIcon, StarOutlineIcon, ICON_SM } from "../components/ui/Icons";
 import { Chip } from "../components/ui/Chip";
+
+// ── hover 플로팅 액션 팝업 (mouseLeave 없이 document mousemove로 좌표 감지) ──
+// DateTimePicker처럼 mouseEnter/mouseLeave를 사용하지 않고,
+// document의 mousemove 이벤트에서 마우스 좌표가 행 또는 팝업 영역 안인지 직접 계산.
+// DOM 이벤트 경계가 아닌 좌표 기반이므로 gap/zoom에 무관하게 깜빡임이 원천 차단됨.
+function HoverPopup({hoverRow,hoverRowRect,setHoverRow,setHoverRowRect,sorted,tblDivRef,setEditMod,delTodo,popupOpen}:{
+  hoverRow:number|null; hoverRowRect:{top:number;height:number}|null;
+  setHoverRow:(v:number|null)=>void; setHoverRowRect:(v:{top:number;height:number}|null)=>void;
+  sorted:any[]; tblDivRef:React.RefObject<HTMLDivElement>;
+  setEditMod:(v:any)=>void; delTodo:(id:number)=>void;
+  popupOpen:boolean;
+}) {
+  const popupRef = useRef<HTMLDivElement>(null);
+
+  // 다른 팝업(DropPanel, DateTimePicker 등)이 열리면 hover 팝업 즉시 숨김
+  useEffect(()=>{
+    if (popupOpen) { setHoverRow(null); setHoverRowRect(null); }
+  }, [popupOpen]);
+
+  // 마우스가 행 영역 또는 팝업 영역 밖으로 나가면 숨김
+  useEffect(()=>{
+    if (!hoverRow || !hoverRowRect || popupOpen) return;
+    const onMove = (e: MouseEvent) => {
+      const zoom = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
+      const mx = e.clientX / zoom;
+      const my = e.clientY / zoom;
+
+      // 행 영역 확인 (테이블 왼쪽~오른쪽, 행 top~bottom)
+      const tblRect = tblDivRef.current?.getBoundingClientRect();
+      const rowTop = hoverRowRect.top / zoom;
+      const rowBottom = rowTop + hoverRowRect.height / zoom;
+      const tblLeft = tblRect ? tblRect.left / zoom : 0;
+      const tblRight = tblRect ? tblRect.right / zoom : window.innerWidth / zoom;
+      const inRow = mx >= tblLeft && mx <= tblRight && my >= rowTop && my <= rowBottom;
+
+      // 팝업 영역 확인
+      const popRect = popupRef.current?.getBoundingClientRect();
+      const inPopup = popRect
+        ? mx >= popRect.left / zoom && mx <= popRect.right / zoom
+          && my >= popRect.top / zoom && my <= popRect.bottom / zoom
+        : false;
+
+      // 행에도 팝업에도 없으면 숨김
+      if (!inRow && !inPopup) {
+        setHoverRow(null);
+        setHoverRowRect(null);
+      }
+    };
+    document.addEventListener("mousemove", onMove);
+    return () => document.removeEventListener("mousemove", onMove);
+  }, [hoverRow, hoverRowRect, setHoverRow, setHoverRowRect, tblDivRef, popupOpen]);
+
+  if (!hoverRow || !hoverRowRect) return null;
+  const t = sorted.find((x:any) => x.id === hoverRow);
+  if (!t) return null;
+  const isDone = t.st === "완료";
+
+  const zoom = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
+  const tblRect = tblDivRef.current?.getBoundingClientRect();
+  const visibleRight = tblRect ? tblRect.right / zoom : window.innerWidth / zoom - 16;
+
+  return <div ref={popupRef}
+    style={{position:"fixed",top:hoverRowRect.top / zoom,left:visibleRight + 6,height:hoverRowRect.height / zoom,
+      display:"flex",alignItems:"center",gap:4,zIndex:500,
+      background:"#fff",borderRadius:8,boxShadow:"0 2px 10px rgba(0,0,0,.14)",
+      border:"1px solid #e2e8f0",padding:"0 8px",pointerEvents:"auto"}}>
+    {!isDone&&<button onClick={()=>setEditMod(t)}
+      style={{background:"#f1f5f9",border:"none",cursor:"pointer",fontSize:11,color:"#475569",borderRadius:6,padding:"3px 7px",display:"inline-flex",alignItems:"center"}}><PencilSquareIcon style={ICON_SM}/></button>}
+    <button onClick={e=>{e.stopPropagation();if(confirm(`"${t.task}" 업무를 삭제하시겠습니까?`)){delTodo(t.id);setHoverRow(null);setHoverRowRect(null);}}}
+      style={{background:"#fee2e2",border:"none",cursor:"pointer",fontSize:11,color:"#dc2626",borderRadius:6,padding:"3px 7px",fontWeight:700,display:"inline-flex",alignItems:"center"}}><TrashIcon style={ICON_SM}/></button>
+  </div>;
+}
 
 interface ListViewProps {
   // sidebar props
@@ -77,8 +150,14 @@ interface ListViewProps {
   setExpandMode: (value: boolean | ((prev: boolean) => boolean)) => void;
   sortCol: string;
   sortDir: string;
+  setSortCol: (v: string | null) => void;
+  setSortDir: (v: string) => void;
   sortIcon: (col: string) => string;
   toggleSort: (col: string) => void;
+  customSortOrders: Record<string, string[]>;
+  setCustomSortOrders: (v: Record<string, string[]> | ((prev: Record<string, string[]>) => Record<string, string[]>)) => void;
+  activeSortFields: {col:string;dir:"asc"|"desc"}[];
+  setActiveSortFields: (v: {col:string;dir:"asc"|"desc"}[] | ((prev: {col:string;dir:"asc"|"desc"}[]) => {col:string;dir:"asc"|"desc"}[])) => void;
   selectedIds: Set<number>;
   allVisibleSelected: boolean;
   someVisibleSelected: boolean;
@@ -118,7 +197,9 @@ export function ListView(props: ListViewProps) {
     aiLoad, aiSt, setAiSt, aiParsed, setAiParsed, parseAI, confirmAI,
     sorted, currentUser,
     todoView, setTodoView, memoCols, setMemoCols, showDone, setShowDone,
-    expandMode, setExpandMode, sortCol, sortDir, sortIcon, toggleSort,
+    expandMode, setExpandMode, sortCol, sortDir, setSortCol, setSortDir, sortIcon, toggleSort,
+    customSortOrders, setCustomSortOrders,
+    activeSortFields, setActiveSortFields,
     selectedIds, allVisibleSelected, someVisibleSelected, handleCheck, toggleSelectAll,
     toggleFav, addTodo, updTodo, flash, delTodo, setEditMod,
     editCell, setEditCell, datePop, setDatePop,
@@ -126,15 +207,86 @@ export function ListView(props: ListViewProps) {
     addSecRef, tblDivRef,
   } = props;
 
-  // 정렬 버튼 그룹 — 리스트뷰와 메모뷰에서 동일하게 사용
-  const SortButtons = () => <>{([["due","마감순"],["pri","우선순위순"],["id","기본"]] as [string,string][]).map(([col,label])=>
+  // ── 컬럼 필터 드롭다운 (Google Sheets 스타일) ──────────────────────────────
+  const [filterOpenCol, setFilterOpenCol] = useState<string|null>(null);
+  const [filterAnchorRect, setFilterAnchorRect] = useState<{top:number;left:number;bottom:number;right:number}|null>(null);
+
+  // 컬럼별 고유값 목록 계산 — 필터 드롭다운에 체크박스로 표시
+  const getColumnValues = useMemo(() => (col: string) => {
+    const countMap: Record<string, number> = {};
+    todos.forEach((t: any) => {
+      let val = "";
+      if (col === "pid") val = gPr(t.pid).name || "미배정";
+      else if (col === "who") val = t.who || "";
+      else if (col === "pri") val = t.pri || "";
+      else if (col === "st") val = t.st || "";
+      else if (col === "due") val = t.due ? t.due.split(" ")[0] : "(없음)";
+      else return;
+      countMap[val] = (countMap[val] || 0) + 1;
+    });
+    const colorMap: Record<string, string> = {};
+    if (col === "pid") visibleProj.forEach(p => { colorMap[p.name] = p.color; });
+    if (col === "pri") pris.forEach(p => { colorMap[p] = priC[p]; });
+    if (col === "st") stats.forEach(s => { colorMap[s] = stC[s]; });
+    return Object.entries(countMap).sort(([a],[b]) => a.localeCompare(b, "ko")).map(([key, count]) => ({
+      key, label: key, color: colorMap[key], count,
+    }));
+  }, [todos, visibleProj, pris, priC, stats, stC, gPr]);
+
+  // 컬럼 필터 → 기존 filters/togF 연동
+  // 필터 키 매핑: pid→proj, who→who, pri→pri, st→st
+  const colToFilterKey = (col: string) => col === "pid" ? "proj" : col;
+  const getSelectedForCol = (col: string): string[] => {
+    const fk = colToFilterKey(col);
+    if (fk === "proj") {
+      // proj 필터는 id 문자열 → 이름으로 변환 필요
+      return (filters.proj as string[]).map(v => v === "__none__" ? "미배정" : aProj.find(p => String(p.id) === v)?.name || v);
+    }
+    return (filters[fk as keyof typeof filters] as string[]) || [];
+  };
+  const handleFilterChange = (col: string, values: string[]) => {
+    const fk = colToFilterKey(col);
+    if (fk === "proj") {
+      // 이름 → id 문자열로 역변환
+      const ids = values.filter(v => v !== "__NONE__").map(name => {
+        if (name === "미배정") return "__none__";
+        const p = aProj.find(pr => pr.name === name);
+        return p ? String(p.id) : name;
+      });
+      setFilters((f: any) => ({ ...f, proj: ids }));
+    } else {
+      const clean = values.filter(v => v !== "__NONE__");
+      setFilters((f: any) => ({ ...f, [fk]: clean }));
+    }
+  };
+
+  // 헤더 클릭 핸들러
+  const openColumnFilter = (e: React.MouseEvent, col: string) => {
+    // due, task, det 컬럼은 정렬만 지원 (값 필터 불필요)
+    if (col === "task" || col === "det") {
+      toggleSort(col);
+      return;
+    }
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setFilterAnchorRect({ top: rect.top, left: rect.left, bottom: rect.bottom, right: rect.right });
+    setFilterOpenCol(prev => prev === col ? null : col);
+  };
+
+  // 이전 커스텀 정렬 관련 변수 — 사용하지 않지만 props 호환용
+  const customSortOpen = null as string | null;
+  const customSortRef = useRef<HTMLDivElement|null>(null);
+  const dragIdxRef = useRef<number|null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number|null>(null);
+
+  // 메모뷰용 간단 정렬 버튼 (리스트뷰에서는 헤더 드롭다운으로 대체)
+  const MemoSortButtons = () => <>{([["due","마감순"],["pri","우선순위순"],["id","기본"]] as [string,string][]).map(([col,label])=>
     <button key={col} onClick={()=>toggleSort(col)} style={{fontSize:11,padding:"3px 10px",borderRadius:99,border:`1px solid ${sortCol===col?"#2563eb":"#e2e8f0"}`,background:sortCol===col?"#2563eb":"#fff",color:sortCol===col?"#fff":"#64748b",cursor:"pointer",display:"inline-flex",alignItems:"center",gap:3}}>
       {label}{sortCol===col&&<span style={{fontSize:10,fontWeight:700}}>{sortDir==="asc"?"▲":"▼"}</span>}
     </button>)}</>;
 
   // 클릭한 셀의 위치를 ref로 저장 — DropPanel이 이 위치에 portal로 표시됨
   const clickRectRef = useRef<{top:number,left:number,bottom:number,right:number}|null>(null);
-  const CellEdit = ({todo, field, children}: {todo: any, field: string, children: React.ReactNode}) => {
+  const CellEdit = ({todo, field, children, tdStyle}: {todo: any, field: string, children: React.ReactNode, tdStyle?: React.CSSProperties}) => {
     const isE = editCell?.id === todo.id && editCell?.field === field;
     const stop = () => setEditCell(null);
     const start = (e: React.MouseEvent) => {
@@ -144,7 +296,7 @@ export function ListView(props: ListViewProps) {
       setEditCell({id: todo.id, field});
     };
     const save = (val: string) => { updTodo(todo.id, {[field]: field === "pid" ? parseInt(val) : val}); stop(); };
-    if (!isE) return <td style={S.tdc} onClick={e => { if (field === "due") { const r = e.currentTarget.getBoundingClientRect(); setDatePop({id: todo.id, rect: r, value: todo.due || ""}); return; } start(e); }} onMouseEnter={e => { e.currentTarget.style.cursor = "pointer"; }} onMouseLeave={e => { e.currentTarget.style.cursor = ""; }}>{children}</td>;
+    if (!isE) return <td style={{...S.tdc,...tdStyle}} onClick={e => { if (field === "due") { const r = e.currentTarget.getBoundingClientRect(); setDatePop({id: todo.id, rect: {top:r.top,left:r.left,bottom:r.bottom,right:r.right}, value: todo.due || ""}); return; } start(e); }} onMouseEnter={e => { e.currentTarget.style.cursor = "pointer"; }} onMouseLeave={e => { e.currentTarget.style.cursor = ""; }}>{children}</td>;
     if (field === "task") return <td style={{...S.tdc, overflow:"visible"}}><input autoFocus defaultValue={todo.task} style={S.iinp} onKeyDown={e => { if ((e as any).key === "Enter") save((e.target as HTMLInputElement).value); if ((e as any).key === "Escape") stop(); }} onBlur={e => save(e.target.value)}/></td>;
     if (field === "due") return <td style={{...S.tdc, background:"#eff6ff"}}>{children}</td>;
     const ar = clickRectRef.current || undefined;
@@ -218,7 +370,7 @@ export function ListView(props: ListViewProps) {
       <button onClick={()=>{setSearch("");setFilters({proj:[],who:[],pri:[],st:[],repeat:[],fav:""});}} style={{marginLeft:"auto",fontSize:10,color:"#94a3b8",background:"none",border:"none",cursor:"pointer",padding:"2px 6px",borderRadius:4}}>전체 초기화</button>
     </div>:null}
 
-    {/* 건수+정렬+상세펼치기 바 — 리스트뷰일 때만 sticky 안에 포함 */}
+    {/* 건수+상세펼치기 바 — 정렬 버튼 제거, 헤더 드롭다운으로 통합 */}
     {todoView==="list"&&sorted.length>0&&<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 14px",background:"#fafbfc",border:"1px solid #f1f5f9",borderRadius:"8px 8px 0 0"}}>
       <span style={{fontSize:12,color:"#64748b"}}>
         <span style={{fontWeight:700,color:"#334155"}}>{sorted.filter(t=>t.st!=="완료").length}건 미완료</span>
@@ -226,8 +378,6 @@ export function ListView(props: ListViewProps) {
         <span>{sorted.filter(t=>t.st==="완료").length}건 완료</span>
       </span>
       <div style={{display:"flex",gap:4,alignItems:"center"}}>
-        <SortButtons/>
-        <div style={{width:1,height:16,background:"#e2e8f0",margin:"0 2px"}}/>
         <button onClick={()=>setExpandMode(p=>!p)} title="상세내용 펼치기/접기"
           style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:11,padding:"4px 10px",borderRadius:6,border:`1.5px solid ${expandMode?"#7c3aed":"#e2e8f0"}`,background:expandMode?"#7c3aed":"#fff",color:expandMode?"#fff":"#94a3b8",cursor:"pointer",fontWeight:600,transition:"all .15s"}}>
           <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
@@ -244,20 +394,41 @@ export function ListView(props: ListViewProps) {
     {todoView==="list"&&sorted.length>0&&<table style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
       <colgroup>
         {expandMode?<>
-          <col style={{width:"30%"}}/><col style={{width:"41%"}}/><col style={{width:"11%"}}/><col style={{width:"13%"}}/><col style={{width:"5%"}}/>
+          <col style={{width:"13%"}}/><col style={{width:"26%"}}/><col style={{width:"35%"}}/><col style={{width:"10%"}}/><col style={{width:"12%"}}/><col style={{width:"4%"}}/>
         </>:<>
-          <col style={{width:"32%"}}/><col style={{width:"22%"}}/><col style={{width:"10%"}}/><col style={{width:"12%"}}/><col style={{width:"10%"}}/><col style={{width:"10%"}}/><col style={{width:"4%"}}/>
+          <col style={{width:"13%"}}/><col style={{width:"27%"}}/><col style={{width:"16%"}}/><col style={{width:"10%"}}/><col style={{width:"12%"}}/><col style={{width:"9%"}}/><col style={{width:"9%"}}/><col style={{width:"4%"}}/>
         </>}
       </colgroup>
       <thead><tr style={{background:"#f8fafc",borderBottom:"2px solid #e2e8f0"}}>
         {((expandMode
-          ?[["task","업무내용"],["det","상세내용"],["who","담당자"],["due","마감기한"]]
-          :[["task","업무내용"],["det","상세내용"],["who","담당자"],["due","마감기한"],["pri","우선순위"],["st","상태"]]
-         ) as [string,string][]).map(([col,label])=>
-          <th key={col} style={{...S.th,cursor:"pointer",userSelect:"none" as const}} onClick={()=>toggleSort(col)}>
-            <span style={{display:"inline-flex",alignItems:"center",gap:3}}>{label}<span style={{fontSize:10,fontWeight:700,color:sortCol===col?"#2563eb":"#c0c8d4"}}>{sortIcon(col)}</span></span>
-          </th>)}
-        <th style={{...S.th,width:36,padding:"0 6px",textAlign:"center" as const}}>
+          ?[["pid","프로젝트"],["task","업무내용"],["det","상세내용"],["who","담당자"],["due","마감기한"]]
+          :[["pid","프로젝트"],["task","업무내용"],["det","상세내용"],["who","담당자"],["due","마감기한"],["pri","우선순위"],["st","상태"]]
+         ) as [string,string][]).map(([col,label])=>{
+          const fk = col === "pid" ? "proj" : col;
+          const hasFilter = ["proj","who","pri","st"].includes(fk) && ((filters as any)[fk] as string[])?.length > 0;
+          // 누적 정렬에서 해당 컬럼의 정렬 상태 확인
+          const sf = activeSortFields.find(f => f.col === col);
+          const isSorted = !!sf || sortCol === col;
+          const sortDirForCol = sf ? sf.dir : (sortCol === col ? sortDir : null);
+          // 몇 번째 정렬 기준인지 (1, 2, 3...)
+          const sortRank = sf ? activeSortFields.indexOf(sf) + 1 : 0;
+          const isActive = hasFilter || isSorted;
+          const iconColor = isActive ? "#34a853" : "#5f6368";
+          return <th key={col} style={{...S.th,cursor:"pointer",userSelect:"none" as const}} onClick={e=>openColumnFilter(e,col)}>
+            <span style={{display:"inline-flex",alignItems:"center",gap:3}}>
+              {label}
+              {/* 정렬 상태 — 순번+방향을 하나로 통합 */}
+              {isSorted ? (
+                activeSortFields.length > 1 && sortRank > 0
+                  ? <span style={{fontSize:10,fontWeight:700,color:"#1a73e8",display:"inline-flex",alignItems:"center",gap:1}}><span style={{fontSize:9,fontWeight:800,color:"#fff",background:"#1a73e8",borderRadius:99,width:13,height:13,display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{sortRank}</span>{sortDirForCol==="asc"?"▲":"▼"}</span>
+                  : <span style={{fontSize:10,fontWeight:700,color:"#1a73e8"}}>{sortDirForCol==="asc"?"▲":"▼"}</span>
+              ) : (
+                <span style={{fontSize:10,fontWeight:700,color:hasFilter?"#1a73e8":"#c0c8d4"}}>▼</span>
+              )}
+            </span>
+          </th>;
+        })}
+        <th style={{...S.th,padding:"0 6px",textAlign:"center" as const}}>
           <input type="checkbox"
             checked={allVisibleSelected}
             ref={el=>{if(el)el.indeterminate=someVisibleSelected&&!allVisibleSelected;}}
@@ -267,6 +438,51 @@ export function ListView(props: ListViewProps) {
         </th>
       </tr></thead>
     </table>}
+
+    {/* 컬럼 필터 드롭다운 — Google Sheets 스타일 */}
+    {filterOpenCol && filterAnchorRect && ["pid","who","pri","st","due"].includes(filterOpenCol) &&
+      <ColumnFilterDropdown
+        col={filterOpenCol}
+        label={{pid:"프로젝트",who:"담당자",pri:"우선순위",st:"상태",due:"마감기한"}[filterOpenCol]||filterOpenCol}
+        currentSortDir={(()=>{ const sf = activeSortFields.find(f=>f.col===filterOpenCol); return sf ? sf.dir as "asc"|"desc" : (sortCol===filterOpenCol ? sortDir as "asc"|"desc" : null); })()}
+        onSort={(col, dir) => {
+          // 누적 정렬 — activeSortFields에 추가/업데이트/제거
+          // 해당 컬럼 커스텀 순서 제거 (오름/내림 기본 정렬 사용)
+          setCustomSortOrders(prev => { const n = {...prev}; delete n[col]; return n; });
+          setSortCol(null); // activeSortFields 우선 사용
+          if (dir === null) {
+            // 같은 방향 다시 클릭 → 해당 컬럼만 제거
+            setActiveSortFields(prev => prev.filter(f => f.col !== col));
+          } else {
+            setActiveSortFields(prev => {
+              const idx = prev.findIndex(f => f.col === col);
+              if (idx >= 0) {
+                // 이미 있으면 방향만 업데이트
+                const next = [...prev]; next[idx] = { col, dir }; return next;
+              }
+              // 없으면 맨 뒤에 추가 (하위 정렬 기준)
+              return [...prev, { col, dir }];
+            });
+          }
+        }}
+        allValues={getColumnValues(filterOpenCol)}
+        selectedValues={getSelectedForCol(filterOpenCol)}
+        onFilterChange={handleFilterChange}
+        customOrder={customSortOrders[filterOpenCol]}
+        onCustomOrderChange={(col, order) => {
+          // 커스텀 순서 저장 + activeSortFields에 누적 추가
+          setCustomSortOrders(prev => ({...prev, [col]: order}));
+          setSortCol(null);
+          setActiveSortFields(prev => {
+            const idx = prev.findIndex(f => f.col === col);
+            if (idx >= 0) { const next = [...prev]; next[idx] = { col, dir: "asc" }; return next; }
+            return [...prev, { col, dir: "asc" }];
+          });
+        }}
+        onClose={()=>setFilterOpenCol(null)}
+        anchorRect={filterAnchorRect}
+      />
+    }
 
     </div>{/* sticky div 끝 */}
 
@@ -278,7 +494,7 @@ export function ListView(props: ListViewProps) {
         <span>{sorted.filter(t=>t.st==="완료").length}건 완료</span>
       </span>
       <div style={{display:"flex",gap:4,alignItems:"center"}}>
-        <SortButtons/>
+        <MemoSortButtons/>
       </div>
     </div>}
 
@@ -310,23 +526,13 @@ export function ListView(props: ListViewProps) {
         }
       </div>;
     })()}
-    {todoView==="list"&&sorted.length>0&&<div ref={tblDivRef} style={{...S.card,padding:0,borderRadius:"0 0 12px 12px",borderTop:"none"}}>
+    {todoView==="list"&&sorted.length>0&&<div ref={tblDivRef} onScroll={()=>{setHoverRow(null);setHoverRowRect(null);}} style={{...S.card,padding:0,borderRadius:"0 0 12px 12px",borderTop:"none"}}>
         <table style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
           <colgroup>
             {expandMode?<>
-              <col style={{width:"30%"}}/>
-              <col style={{width:"41%"}}/>
-              <col style={{width:"11%"}}/>
-              <col style={{width:"13%"}}/>
-              <col style={{width:"5%"}}/>
+              <col style={{width:"13%"}}/><col style={{width:"26%"}}/><col style={{width:"35%"}}/><col style={{width:"10%"}}/><col style={{width:"12%"}}/><col style={{width:"4%"}}/>
             </>:<>
-              <col style={{width:"32%"}}/>
-              <col style={{width:"22%"}}/>
-              <col style={{width:"10%"}}/>
-              <col style={{width:"12%"}}/>
-              <col style={{width:"10%"}}/>
-              <col style={{width:"10%"}}/>
-              <col style={{width:"4%"}}/>
+              <col style={{width:"13%"}}/><col style={{width:"27%"}}/><col style={{width:"16%"}}/><col style={{width:"10%"}}/><col style={{width:"12%"}}/><col style={{width:"9%"}}/><col style={{width:"9%"}}/><col style={{width:"4%"}}/>
             </>}
           </colgroup>
           <tbody>
@@ -334,18 +540,28 @@ export function ListView(props: ListViewProps) {
               const plain=stripHtml(t.det||"");
               const isUrgent=t.pri==="긴급";const isHigh=t.pri==="높음";const isLow=t.pri==="낮음";
               const isSel=selectedIds.has(t.id);
-              // 선택된 행은 배경색 + 좌측 파란 테두리로 강조
-              const rowBg=isUrgent?"#fff8f8":isHigh?"#fffdf5":"#fff";
-              const rowBorder=isUrgent?"1px solid #fecaca":isHigh?"1px solid #fde68a":"1px solid #f1f5f9";
+              // 우선순위 배경색 — 프로젝트 셀은 깨끗, 업무내용~오른쪽만 적용
+              const rowPriBg=isUrgent?"#fff8f8":isHigh?"#fffdf5":"#fff";
+              const rowPriBorder=isUrgent?"1px solid #fecaca":isHigh?"1px solid #fde68a":"1px solid #f1f5f9";
+              // 업무내용 셀 좌측 2px 띠
+              const taskBar=isUrgent?"inset 2px 0 0 #dc2626":isHigh?"inset 2px 0 0 #d97706":"none";
               const taskColor=isUrgent?"#b91c1c":isHigh?"#92400e":isLow?"#94a3b8":"#0f172a";
               const taskWeight=isUrgent?800:isHigh?700:isLow?400:600;
-              const bg=isSel?(isUrgent?"#fee2e2":"#dbeafe"):hoverRow===t.id?(isUrgent?"#fff0f0":isHigh?"#fffbee":"#f0f7ff"):rowBg;
-              return <tr key={t.id}
-                onMouseEnter={e=>{clearTimeout(hoverLeaveTimer.current);setHoverRow(t.id);const r=(e.currentTarget as HTMLTableRowElement).getBoundingClientRect();setHoverRowRect({top:r.top,height:r.height});}}
-                onMouseLeave={()=>{hoverLeaveTimer.current=setTimeout(()=>{setHoverRow(null);setHoverRowRect(null);},80);}}
-                style={{borderBottom:rowBorder,background:isSel?"#eff6ff":bg,borderLeft:isSel?"3px solid #2563eb":undefined,...(!isSel&&isUrgent?{boxShadow:"inset 3px 0 0 #dc2626"}:!isSel&&isHigh?{boxShadow:"inset 3px 0 0 #d97706"}:{})}}>
-                <td style={{...S.tdc,overflow:"visible",...(expandMode?{whiteSpace:"normal" as const,verticalAlign:"top" as const}:{})}}>
-                  <div style={{display:"flex",alignItems:expandMode?"flex-start":"center",gap:12}}>
+              // 선택/hover 시 배경 — 업무내용~오른쪽 셀에만 적용
+              const cellBg=isSel?(isUrgent?"#fee2e2":"#dbeafe"):hoverRow===t.id?(isUrgent?"#fff0f0":isHigh?"#fffbee":"#f0f7ff"):rowPriBg;
+              // 업무내용~오른쪽 셀 공통 스타일
+              const priCellStyle={background:cellBg,borderBottom:rowPriBorder} as const;
+              return <tr key={t.id} data-rowid={t.id}
+                onMouseEnter={e=>{if(editCell||datePop)return;setHoverRow(t.id);const r=(e.currentTarget as HTMLTableRowElement).getBoundingClientRect();setHoverRowRect({top:r.top,height:r.height});}}
+                style={{borderBottom:"1px solid #f1f5f9",borderLeft:isSel?"3px solid #2563eb":undefined,
+                  // 프로젝트순 정렬 시 프로젝트 경계에 구분선 표시
+                  ...(sortCol==="pid"&&idx>0&&gPr(arr[idx-1].pid).name!==gPr(t.pid).name?{borderTop:"2px solid #e2e8f0"}:{})}}>
+                {/* 프로젝트 컬럼 — 깨끗 (배경색·띠 없음) */}
+                <CellEdit todo={t} field="pid">{(()=>{const p=gPr(t.pid);return <div style={{display:"flex",alignItems:"center",gap:5,fontSize:12,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}><span style={{...S.dot(p.color||"#94a3b8")}}/>
+                  <span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{p.name||"미배정"}</span></div>;})()}</CellEdit>
+                {/* 업무내용 — 좌측 2px 띠 + 배경색 */}
+                <td style={{...S.tdc,...priCellStyle,boxShadow:taskBar,overflow:"visible",...(expandMode?{whiteSpace:"normal" as const}:{})}}>
+                  <div style={{display:"flex",alignItems:"center",gap:12}}>
                     {/* 즐겨찾기 버튼: 행 안에 항상 표시 */}
                     <button onClick={e=>{e.stopPropagation();toggleFav(t.id);}} title={isFav(t.id)?"즐겨찾기 해제":"즐겨찾기"}
                       style={{background:"none",border:"none",cursor:"pointer",fontSize:14,padding:"0 2px",lineHeight:1,color:isFav(t.id)?"#f59e0b":"#d1d5db",transition:"color .15s",flexShrink:0}}
@@ -367,33 +583,32 @@ export function ListView(props: ListViewProps) {
                            <RepeatBadge repeat={t.repeat}/>
                            {od&&<span style={{color:"#dc2626",display:"inline-flex"}}><ExclamationTriangleIcon style={ICON_SM}/></span>}
                          </div>}
-                      {!filters.proj.length&&(()=>{const p=gPr(t.pid);return p.id?<span style={{fontSize:10,fontWeight:600,padding:"1px 7px",borderRadius:99,background:p.color+"18",color:p.color,border:`1px solid ${p.color}33`,whiteSpace:"nowrap" as const,alignSelf:"flex-start" as const,display:"inline-block"}}>{p.name}</span>:null;})()}
                     </div>
                   </div>
                 </td>
-                <td style={{...S.tdc,maxWidth:0,...(expandMode?{whiteSpace:"normal" as const,verticalAlign:"top" as const,cursor:"text",wordBreak:"break-word" as const}:{})}}
+                <td style={{...S.tdc,...priCellStyle,maxWidth:0,...(expandMode?{whiteSpace:"normal" as const,verticalAlign:"top" as const,cursor:"text",wordBreak:"break-word" as const}:{})}}
                   onClick={expandMode?e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();setNotePopup({todo:t,x:r.left,y:r.bottom});}:undefined}>
                   {expandMode
                     ?<div style={{fontSize:13,color:plain?"#374151":"#c0c8d4",lineHeight:1.7,padding:"4px 6px",fontStyle:plain?"normal":"italic",borderRadius:6,border:"1px solid transparent",transition:"border-color .15s"}}
                         onMouseEnter={e=>{(e.currentTarget as HTMLDivElement).style.borderColor="#e2e8f0";(e.currentTarget as HTMLDivElement).style.background="#fafbfc";}}
                         onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.borderColor="transparent";(e.currentTarget as HTMLDivElement).style.background="transparent";}}
-                        dangerouslySetInnerHTML={{__html:sanitize(t.det||"<span style='color:#c0c8d4;font-style:italic'>메모 추가...</span>")}}/>
+                        dangerouslySetInnerHTML={{__html:sanitize(t.det||"<span style='color:#c0c8d4;font-style:italic'>상세내용 추가...</span>")}}/>
                     :<span onClick={e=>{e.stopPropagation();const r=e.currentTarget.closest("td")!.getBoundingClientRect();setNotePopup({todo:t,x:r.left,y:r.bottom});}}
                         style={{fontSize:13,color:plain?"#475569":"#c0c8d4",fontStyle:plain?"normal":"italic",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,display:"block",cursor:"text"}}>
-                        {plain?plain.slice(0,50)+(plain.length>50?"…":""):"메모 추가..."}
+                        {plain?plain.slice(0,50)+(plain.length>50?"…":""):"상세내용 추가..."}
                       </span>}
                 </td>
-                <CellEdit todo={t} field="who"><div style={{display:"flex",alignItems:"center",gap:6,...(expandMode?{alignSelf:"flex-start" as const}:{})}}><span style={{width:26,height:26,borderRadius:"50%",background:`linear-gradient(135deg,${avColor(t.who)},${avColor2(t.who)})`,color:"#fff",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,flexShrink:0,letterSpacing:"-0.5px",boxShadow:"0 1px 3px rgba(0,0,0,.15)"}} title={t.who}>{avInitials(t.who)}</span><span style={{fontSize:13}}>{t.who}</span></div></CellEdit>
-                <CellEdit todo={t} field="due">{(()=>{const[dpart,tpart]=(t.due||"").split(" ");const fmt12v=(v: string)=>{if(!v)return "";const[hh,mm]=v.split(":").map(Number);const ap=hh<12?"오전":"오후";const h12=hh===0?12:hh>12?hh-12:hh;return `${ap} ${h12}:${fmt2(mm)}`;};const dd=dDay(t.due,t.st);return <div style={{display:"flex",flexDirection:"column" as const,alignItems:"center",gap:2}}>
+                <CellEdit todo={t} field="who" tdStyle={priCellStyle}><div style={{display:"flex",alignItems:"center",gap:6,...(expandMode?{alignSelf:"flex-start" as const}:{})}}><span style={{width:26,height:26,borderRadius:"50%",background:`linear-gradient(135deg,${avColor(t.who)},${avColor2(t.who)})`,color:"#fff",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,flexShrink:0,letterSpacing:"-0.5px",boxShadow:"0 1px 3px rgba(0,0,0,.15)"}} title={t.who}>{avInitials(t.who)}</span><span style={{fontSize:13}}>{t.who}</span></div></CellEdit>
+                <CellEdit todo={t} field="due" tdStyle={priCellStyle}>{(()=>{const[dpart,tpart]=(t.due||"").split(" ");const fmt12v=(v: string)=>{if(!v)return "";const[hh,mm]=v.split(":").map(Number);const ap=hh<12?"오전":"오후";const h12=hh===0?12:hh>12?hh-12:hh;return `${ap} ${h12}:${fmt2(mm)}`;};const dd=dDay(t.due,t.st);return <div style={{display:"flex",flexDirection:"column" as const,alignItems:"center",gap:2}}>
                   <span style={{fontSize:13,color:od?"#dc2626":"#64748b"}}>{dpart?`${dpart}(${fDow(dpart)})`:"—"}</span>
                   {tpart&&<span style={{fontSize:13,color:od?"#dc2626":"#94a3b8",fontWeight:400}}>{fmt12v(tpart)}</span>}
                   {dd&&<span style={{fontSize:10,fontWeight:700,color:dd.color,background:dd.bg,border:`1px solid ${dd.border}`,padding:"1px 6px",borderRadius:4,letterSpacing:"0.02em"}}>{dd.label}</span>}
                 </div>;})()}</CellEdit>
                 {!expandMode&&<>
-                  <CellEdit todo={t} field="pri"><span style={{...S.badge(priBg[t.pri],priC[t.pri],`1px solid ${priC[t.pri]}55`),display:"inline-flex",alignItems:"center",gap:3,cursor:"pointer",transition:"filter .12s"}} onMouseEnter={e=>(e.currentTarget as HTMLElement).style.filter="brightness(.93)"} onMouseLeave={e=>(e.currentTarget as HTMLElement).style.filter="none"}><span>●</span>{t.pri}<span style={{fontSize:8,opacity:.5}}>▾</span></span></CellEdit>
-                  <CellEdit todo={t} field="st"><span style={{...S.badge(stBg[t.st],stC[t.st],`1px solid ${stC[t.st]}55`),display:"inline-flex",alignItems:"center",gap:3,cursor:"pointer",transition:"filter .12s"}} onMouseEnter={e=>(e.currentTarget as HTMLElement).style.filter="brightness(.93)"} onMouseLeave={e=>(e.currentTarget as HTMLElement).style.filter="none"}>{t.st}<span style={{fontSize:8,opacity:.5}}>▾</span></span></CellEdit>
+                  <CellEdit todo={t} field="pri" tdStyle={priCellStyle}><span style={{...S.badge(priBg[t.pri],priC[t.pri],`1px solid ${priC[t.pri]}55`),display:"inline-flex",alignItems:"center",gap:3,cursor:"pointer",transition:"filter .12s"}} onMouseEnter={e=>(e.currentTarget as HTMLElement).style.filter="brightness(.93)"} onMouseLeave={e=>(e.currentTarget as HTMLElement).style.filter="none"}><span>●</span>{t.pri}<span style={{fontSize:8,opacity:.5}}>▾</span></span></CellEdit>
+                  <CellEdit todo={t} field="st" tdStyle={priCellStyle}><span style={{...S.badge(stBg[t.st],stC[t.st],`1px solid ${stC[t.st]}55`),display:"inline-flex",alignItems:"center",gap:3,cursor:"pointer",transition:"filter .12s"}} onMouseEnter={e=>(e.currentTarget as HTMLElement).style.filter="brightness(.93)"} onMouseLeave={e=>(e.currentTarget as HTMLElement).style.filter="none"}>{t.st}<span style={{fontSize:8,opacity:.5}}>▾</span></span></CellEdit>
                 </>}
-                <td style={{...S.tdc,padding:"0 6px",textAlign:"center" as const,verticalAlign:"middle" as const}} onClick={e=>e.stopPropagation()}>
+                <td style={{...S.tdc,...priCellStyle,padding:"0 6px",textAlign:"center" as const,verticalAlign:"middle" as const}} onClick={e=>e.stopPropagation()}>
                   <input type="checkbox" checked={selectedIds.has(t.id)} onChange={()=>{}} onClick={(e)=>{e.stopPropagation();handleCheck(t.id,(e as any).shiftKey);}}
                     style={{width:15,height:15,cursor:"pointer",accentColor:"#2563eb"}}/>
                 </td>
@@ -408,10 +623,11 @@ export function ListView(props: ListViewProps) {
               </td>
             </tr>}
             {showDone&&sorted.filter(t=>t.st==="완료").map(t=>{const plain=stripHtml(t.det||"");
-              return <tr key={t.id} style={{borderBottom:"1px solid #f1f5f9",background:"#fafafa",opacity:.72}}
-                onMouseEnter={e=>{clearTimeout(hoverLeaveTimer.current);setHoverRow(t.id);const r=(e.currentTarget as HTMLTableRowElement).getBoundingClientRect();setHoverRowRect({top:r.top,height:r.height});}}
-                onMouseLeave={()=>{hoverLeaveTimer.current=setTimeout(()=>{setHoverRow(null);setHoverRowRect(null);},80);}}>
+              return <tr key={t.id} data-rowid={t.id} style={{borderBottom:"1px solid #f1f5f9",background:"#fafafa",opacity:.72}}
+                onMouseEnter={e=>{if(editCell||datePop)return;setHoverRow(t.id);const r=(e.currentTarget as HTMLTableRowElement).getBoundingClientRect();setHoverRowRect({top:r.top,height:r.height});}}>
 
+                {/* 완료 행 — 프로젝트 컬럼 */}
+                <td style={S.tdc}>{(()=>{const p=gPr(t.pid);return <div style={{display:"flex",alignItems:"center",gap:5,fontSize:12,fontWeight:500,color:"#94a3b8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}><span style={{...S.dot(p.color||"#94a3b8"),opacity:.5}}/><span>{p.name||"미배정"}</span></div>;})()}</td>
                 <td style={S.tdc}>
                   <div style={{display:"flex",alignItems:"center",gap:12}}>
                     <button onClick={e=>{e.stopPropagation();updTodo(t.id,{st:"대기"});flash("완료가 취소되었습니다");}}
@@ -421,7 +637,6 @@ export function ListView(props: ListViewProps) {
                     </button>
                     <div style={{display:"flex",flexDirection:"column" as const,gap:2,minWidth:0}}>
                       <div style={{display:"flex",alignItems:"center",gap:3}}><span style={{fontSize:14,color:"#94a3b8",textDecoration:"line-through"}}>{t.task}</span><RepeatBadge repeat={t.repeat}/></div>
-                      {!filters.proj.length&&(()=>{const p=gPr(t.pid);return p.id?<span style={{fontSize:10,fontWeight:600,padding:"1px 7px",borderRadius:99,background:"#f1f5f9",color:"#94a3b8",border:"1px solid #e2e8f0",whiteSpace:"nowrap" as const,alignSelf:"flex-start" as const,display:"inline-block"}}>{p.name}</span>:null;})()}
                     </div>
                   </div>
                 </td>
@@ -447,27 +662,11 @@ export function ListView(props: ListViewProps) {
     </div>
 
     {/* ── 리스트 hover 플로팅 액션 버튼 ───────────────────────── */}
-    {hoverRow&&hoverRowRect&&(()=>{
-      const t=sorted.find(x=>x.id===hoverRow);
-      if(!t) return null;
-      const isDone=t.st==="완료";
-      // 브라우저 줌 보정 + 테이블 보이는 영역 오른쪽 끝 바깥에 배치
-      const zoom = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
-      const tblRect = tblDivRef.current?.getBoundingClientRect();
-      const visibleRight = tblRect ? tblRect.right / zoom : window.innerWidth / zoom - 16;
-      const safeLeft = visibleRight + 6;
-      return <div
-        style={{position:"fixed",top:hoverRowRect.top / zoom,left:safeLeft,height:hoverRowRect.height / zoom,
-          display:"flex",alignItems:"center",gap:4,zIndex:500,
-          background:"#fff",borderRadius:8,boxShadow:"0 2px 10px rgba(0,0,0,.14)",
-          border:"1px solid #e2e8f0",padding:"0 8px",pointerEvents:"auto"}}
-        onMouseEnter={()=>clearTimeout(hoverLeaveTimer.current)}
-        onMouseLeave={()=>{hoverLeaveTimer.current=setTimeout(()=>{setHoverRow(null);setHoverRowRect(null);},80);}}>
-        {!isDone&&<button onClick={()=>setEditMod(t)}
-          style={{background:"#f1f5f9",border:"none",cursor:"pointer",fontSize:11,color:"#475569",borderRadius:6,padding:"3px 7px",display:"inline-flex",alignItems:"center"}}><PencilSquareIcon style={ICON_SM}/></button>}
-        <button onClick={e=>{e.stopPropagation();if(confirm(`"${t.task}" 업무를 삭제하시겠습니까?`)){delTodo(t.id);setHoverRow(null);setHoverRowRect(null);}}}
-          style={{background:"#fee2e2",border:"none",cursor:"pointer",fontSize:11,color:"#dc2626",borderRadius:6,padding:"3px 7px",fontWeight:700,display:"inline-flex",alignItems:"center"}}><TrashIcon style={ICON_SM}/></button>
-      </div>;
-    })()}
+    {/* mouseEnter/mouseLeave 대신 document mousemove로 좌표 감지 — 깜빡임 원천 차단 */}
+    <HoverPopup hoverRow={hoverRow} hoverRowRect={hoverRowRect}
+      setHoverRow={setHoverRow} setHoverRowRect={setHoverRowRect}
+      sorted={sorted} tblDivRef={tblDivRef}
+      setEditMod={setEditMod} delTodo={delTodo}
+      popupOpen={!!(editCell||datePop)}/>
   </div>;
 }

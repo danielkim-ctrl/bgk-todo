@@ -50,14 +50,20 @@ export function MultiMonthView({calY,calM,ftodos,todayStr,gPr,onEvClick,onDayCli
   const todayYear=todayStr?parseInt(todayStr.split("-")[0]):-1;
   const todayMonthIdx=todayStr?parseInt(todayStr.split("-")[1])-1:-1;
 
+  // 오늘 날짜가 소속된 월의 헤더가 화면 상단(sticky 헤더 바로 아래)에 위치하도록 스크롤
+  // scrollIntoView 후 sticky 헤더 높이만큼 보정하여 월 헤더가 가려지지 않게 한다.
   useEffect(()=>{
     const targetIdx=calY===todayYear?todayMonthIdx:0;
     const id=requestAnimationFrame(()=>{
       const el=monthRefs.current[targetIdx];
       if(!el) return;
-      const absTop=el.getBoundingClientRect().top+(window.pageYOffset||document.documentElement.scrollTop);
-      const headerH=document.querySelector('[data-cal-header]')?.getBoundingClientRect().bottom??190;
-      window.scrollTo({top:Math.max(0,absTop-headerH-8),behavior:"smooth"});
+      // sticky 헤더의 실제 하단 위치를 기준으로 월 헤더를 그 바로 아래에 배치
+      const headerEl=document.querySelector('[data-cal-header]');
+      const headerBottom=headerEl?headerEl.getBoundingClientRect().bottom:0;
+      // 월 헤더의 현재 화면 위치와 헤더 하단 사이의 차이만큼 스크롤
+      const elTop=el.getBoundingClientRect().top;
+      // 월 헤더를 sticky 헤더 하단에 딱 붙이기
+      window.scrollBy({top:elTop-headerBottom+1});
     });
     return ()=>cancelAnimationFrame(id);
   },[calY,calTodayKey]); // eslint-disable-line react-hooks/exhaustive-deps

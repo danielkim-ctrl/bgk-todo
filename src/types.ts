@@ -106,6 +106,32 @@ export interface UserRole {
   role: Role;
 }
 
+// ─── 반복 설정 (Google Tasks 스타일) ──────────────────────────────────────────
+// "없음" 문자열이면 반복 없음, 객체면 상세 반복 설정
+// 레거시 호환: "매일"|"매주"|"매월" 문자열도 읽기 시 자동 변환
+export interface RepeatConfig {
+  interval: number;          // 반복 간격 (1 이상)
+  unit: "일" | "주" | "월";  // 간격 단위
+  time?: string;             // 반복 시간 (HH:MM, 선택)
+  start: string;             // 시작 날짜 (YYYY-MM-DD)
+  endType: "none" | "date" | "count"; // 종료 조건
+  endDate?: string;          // endType="date" 시 종료 날짜
+  endCount?: number;         // endType="count" 시 반복 횟수
+}
+
+// ─── 사용자 정의 정렬 순서 ────────────────────────────────────────────────────
+// 각 정렬 기준(프로젝트, 담당자, 우선순위, 상태)별로 사용자가 원하는 값 나열 순서를 저장
+// 예: { pid: ["3","1","2"] } → 프로젝트 ID 3번을 가장 먼저 표시
+export interface CustomSortOrders {
+  [sortCol: string]: string[];
+}
+
+// 다중 정렬 기준 — 여러 필드를 순서대로 적용 (예: 프로젝트순 → 그 안에서 담당자순)
+export interface SortField {
+  col: string;
+  dir: "asc" | "desc";
+}
+
 // ─── 삭제된 업무 기록 ──────────────────────────────────────────────────────────
 
 // 삭제된 업무 기록 (localStorage에 보관, 데일리 활동 로그에서 사용)

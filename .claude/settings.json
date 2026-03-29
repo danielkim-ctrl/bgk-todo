@@ -1,7 +1,18 @@
 {
   "permissions": {
     "allow": [
-      "Bash(grep \"^import\" src/components/editor/*.tsx)"
+      "Bash(grep \"^import\" src/components/editor/*.tsx)",
+      "Bash(start \"\" \"c:\\\\Users\\\\abc22\\\\OneDrive\\\\바탕 화면\\\\bgk-todo\\\\Demo\\\\2026-03-29_repeat-setting.html\")",
+      "Edit(/.claude/skills/UIdesigner/**)",
+      "Edit(/.claude/skills/UXdesigner/**)",
+      "Edit(/.claude/skills/QA/**)",
+      "Edit(/.claude/skills/planning/**)",
+      "Edit(~/.claude/skills/UIdesigner/**)",
+      "Bash(node -e \":*)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\abc22\\OneDrive\\바탕 화면\\bgk-todo\\.claude\\skills",
+      "C:\\Users\\abc22\\.claude\\skills"
     ]
   }
 }

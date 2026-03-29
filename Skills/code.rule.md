@@ -220,15 +220,23 @@ import { FolderIcon, UserIcon, CalendarIcon } from '@heroicons/react/24/outline'
 
 ---
 
-## 11. UX 표준 — Google 생태계 기준
+## 11. UI/UX 표준 — Google 생태계 기준
 
-**UI/UX 설계 시 Google 서비스(Google Tasks, Google Calendar, Gmail, Google Sheets 등)의 인터랙션 패턴을 표준으로 삼는다.**
+**UI 디자인과 인터랙션 모두 Google 서비스(Google Tasks, Google Calendar, Gmail, Google Sheets 등)를 표준으로 삼는다. 시각적 스타일과 동작 방식 모두 Google 서비스와 가장 유사한 형태로 구현한다.**
 
 ### 이유
 - 대부분의 사용자가 Google 서비스에 익숙하므로, 동일한 패턴을 따르면 학습 비용이 0에 가깝다
-- 검증된 UX 패턴이므로 실수할 확률이 낮다
+- 검증된 UI/UX 패턴이므로 실수할 확률이 낮다
 
-### 적용 기준
+### UI 디자인 적용 기준
+- **전체 톤**: Google Material Design 3 스타일 — 깔끔하고 밝은 배경, 부드러운 그림자, 둥근 모서리
+- **색상**: 주요 액션은 Google Blue(#1a73e8 계열), 경고는 빨강, 성공은 초록 — Google 서비스의 색상 체계 참고
+- **카드/리스트**: Google Tasks/Keep 스타일의 카드 형태, 여백과 간격
+- **버튼**: Google 서비스의 텍스트 버튼 / 아웃라인 버튼 / 채움 버튼 구분 방식 참고
+- **입력 필드**: Material Design 스타일 — 밑줄 또는 아웃라인 입력, 포커스 시 파란색 강조
+- **아이콘 배치/크기**: Google 서비스의 아이콘 사용 패턴(위치, 크기, 간격) 참고
+
+### 인터랙션 적용 기준
 - **리스트 조작**: Google Tasks / Google Sheets 방식 (인라인 편집, 체크박스 완료, 드래그 정렬)
 - **캘린더**: Google Calendar 방식 (날짜 클릭 빠른 추가, 이벤트 드래그 이동, 월/주/일 뷰 전환)
 - **칸반**: 업계 표준 (Trello/Notion 칸반 — 드래그로 상태 변경)
@@ -238,8 +246,8 @@ import { FolderIcon, UserIcon, CalendarIcon } from '@heroicons/react/24/outline'
 - **키보드 단축키**: Google 서비스의 공통 단축키 패턴 참고 (?, Ctrl+Z 등)
 
 ### 새 기능 설계 시 체크
-> "Google 서비스에서 이와 같은 기능은 어떻게 동작하는가?"
-해당 패턴이 있다면 그것을 따른다. 없거나 맞지 않는 경우에만 독자적으로 설계한다.
+> "Google 서비스에서 이와 같은 기능은 어떻게 보이고, 어떻게 동작하는가?"
+해당 패턴이 있다면 UI와 동작 모두 그것을 따른다. 없거나 맞지 않는 경우에만 독자적으로 설계한다.
 
 ---
 

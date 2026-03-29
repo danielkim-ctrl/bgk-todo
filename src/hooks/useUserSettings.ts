@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Filters } from "../types";
+import { Filters, CustomSortOrders, SortField } from "../types";
 
 // ── 뷰 설정 기본값 ────────────────────────────────────────────────────────────
 const DEFAULT_VIEW_SETTINGS = {
@@ -9,6 +9,8 @@ const DEFAULT_VIEW_SETTINGS = {
   sortDir: "asc" as const,
   expandMode: false,
   filters: { proj: [], who: [], pri: [], st: [], repeat: [], fav: "" } as Filters,
+  customSortOrders: {} as CustomSortOrders,
+  activeSortFields: [] as SortField[],
 };
 
 function loadViewSettings(user: string | null) {
@@ -40,6 +42,14 @@ export function useUserSettings() {
   const [todoView, setTodoView] = useState<"list" | "memo">(_init.todoView);
   const [memoCols, setMemoCols] = useState<number>(_init.memoCols);
   const [showDone, setShowDone] = useState(false);
+  // 사용자가 직접 지정한 정렬 값 순서 (프로젝트, 담당자, 우선순위, 상태 등)
+  const [customSortOrders, setCustomSortOrders] = useState<CustomSortOrders>(
+    _init.customSortOrders || {}
+  );
+  // 다중 정렬 기준 — 여러 필드를 순서대로 적용 (예: [{col:"pid",dir:"asc"},{col:"who",dir:"asc"}])
+  const [activeSortFields, setActiveSortFields] = useState<SortField[]>(
+    _init.activeSortFields || []
+  );
 
   // ── 즐겨찾기 사이드바 ─────────────────────────────────────────────────────
   const [favSidebar, setFavSidebar] = useState<{ [k: string]: string[] }>(() => {
@@ -87,7 +97,7 @@ export function useUserSettings() {
     if (prev) {
       localStorage.setItem(
         `todo-view-settings-${prev}`,
-        JSON.stringify({ todoView, memoCols, sortCol, sortDir, expandMode, filters })
+        JSON.stringify({ todoView, memoCols, sortCol, sortDir, expandMode, filters, customSortOrders, activeSortFields })
       );
     }
     prevUserRef.current = currentUser;
@@ -101,6 +111,8 @@ export function useUserSettings() {
       setSortDir(s.sortDir);
       setExpandMode(s.expandMode);
       setFilters(s.filters);
+      setCustomSortOrders(s.customSortOrders || {});
+      setActiveSortFields(s.activeSortFields || []);
     } else {
       localStorage.removeItem("todo-current-user");
     }
@@ -111,9 +123,9 @@ export function useUserSettings() {
     if (!currentUser) return;
     localStorage.setItem(
       `todo-view-settings-${currentUser}`,
-      JSON.stringify({ todoView, memoCols, sortCol, sortDir, expandMode, filters })
+      JSON.stringify({ todoView, memoCols, sortCol, sortDir, expandMode, filters, customSortOrders, activeSortFields })
     );
-  }, [todoView, memoCols, sortCol, sortDir, expandMode, filters, currentUser]);
+  }, [todoView, memoCols, sortCol, sortDir, expandMode, filters, customSortOrders, activeSortFields, currentUser]);
 
   // ── 기타 자동 저장 ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -140,6 +152,8 @@ export function useUserSettings() {
     showDone, setShowDone,
     favSidebar, togFavSidebar,
     userFavs, isFav, toggleFav,
+    customSortOrders, setCustomSortOrders,
+    activeSortFields, setActiveSortFields,
     userSettings, setUserSettings,
   };
 }

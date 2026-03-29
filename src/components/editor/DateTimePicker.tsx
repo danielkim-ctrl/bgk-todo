@@ -32,6 +32,17 @@ export function DateTimePicker({datePop,onSave,onClose}: {
     else{setNavY(today.getFullYear());setNavM(today.getMonth());}
     setSelDay(pd);setTimeStr(pt);setShowTime(!!pt);
   },[datePop?.id,datePop?.value]);
+  // 스크롤 발생 시 팝업 닫기 — position:fixed 팝업이 트리거 요소와 분리되는 것을 방지
+  // 단, 팝업 내부 스크롤(시간 목록 등)은 무시
+  useEffect(()=>{
+    if(!datePop)return;
+    const onScroll=(e:Event)=>{
+      if(ref.current&&ref.current.contains(e.target as Node))return;
+      onClose();
+    };
+    window.addEventListener("scroll",onScroll,true);
+    return()=>window.removeEventListener("scroll",onScroll,true);
+  },[datePop,onClose]);
   useEffect(()=>{
     if(!datePop)return;
     const h=(e:MouseEvent)=>{if(ref.current&&!ref.current.contains(e.target as Node))onClose();};
@@ -47,8 +58,14 @@ export function DateTimePicker({datePop,onSave,onClose}: {
   const rr={top:rect.top/zoom,left:rect.left/zoom,bottom:rect.bottom/zoom,right:rect.right/zoom};
   const vw=window.innerWidth/zoom, vh=window.innerHeight/zoom;
   let left=Math.max(8, Math.min(rr.left, vw-W-8));
+  // 팝업 예상 높이 (시간 선택 포함 시 더 높음)
+  const popH=showTime?490:340;
   let top2=rr.bottom+4;
-  if(top2+370>vh)top2=Math.max(8, rr.top-374);
+  // 아래 공간 부족 시 셀 위로 배치, 위도 부족하면 뷰포트 하단에 맞춤
+  if(top2+popH>vh){
+    const aboveTop=rr.top-popH-4;
+    top2=aboveTop>=8?aboveTop:Math.max(8, vh-popH-8);
+  }
   const firstDow=new Date(navY,navM,1).getDay();
   const startOff=(firstDow+6)%7;
   const dim=new Date(navY,navM+1,0).getDate();

@@ -38,7 +38,7 @@ export function expandRepeats(todos: any[], startDs: string, endDs: string) {
       if (dueDate && dueDate >= startDs && dueDate <= endDs) result.push({...t, _instance: false});
       return;
     }
-    // 반복 업무인데 마감일이 없으면 원본만 표시
+    // 반복 업무인데 마감기한이 없으면 원본만 표시
     if (!t.due) { result.push({...t, _instance: false}); return; }
     const originDs = t.due.split(" ")[0];
     // 완료된 반복 업무는 원본 날짜만 표시하고 미래 인스턴스는 생성하지 않음
@@ -46,7 +46,7 @@ export function expandRepeats(todos: any[], startDs: string, endDs: string) {
       if (originDs >= startDs && originDs <= endDs) result.push({...t, _instance: false});
       return;
     }
-    // 반복 업무: 마감일 기준으로 과거/미래 인스턴스를 범위 내에서 생성
+    // 반복 업무: 마감기한 기준으로 과거/미래 인스턴스를 범위 내에서 생성
     let cur = new Date(t.due);
     // 범위 시작점까지 과거로 이동
     while (cur > start) {
