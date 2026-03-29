@@ -1,6 +1,7 @@
-import { useRef } from "react";
+import { useRef, useState, useEffect } from "react";
 import { S } from "../styles";
-import { isOD, dateStr } from "../utils";
+import { isOD, dateStr, fDow } from "../utils";
+import { REPEAT_OPTS } from "../constants";
 import { avColor, avColor2 } from "../utils/avatarUtils";
 import { Chip } from "../components/ui/Chip";
 import { RepeatBadge } from "../components/ui/RepeatBadge";
@@ -102,13 +103,9 @@ interface CalendarViewProps {
   setSidebarEditId: (v: number|null) => void;
   sidebarEditVal: string;
   setSidebarEditVal: (v: string) => void;
-  sidebarDateId: number|null;
-  setSidebarDateId: (v: number|null) => void;
   sidebarExpandId: number|null;
   sidebarDetId: number|null;
   setSidebarDetId: (v: number|null) => void;
-  sidebarProjId: number|null;
-  setSidebarProjId: (v: number|null) => void;
   sidebarExpand: (id: number|null) => void;
   sidebarDoneOpen: boolean;
   setSidebarDoneOpen: (fn: (v: boolean) => boolean) => void;
@@ -125,6 +122,696 @@ interface CalendarViewProps {
   pendingComplete: Set<number>;
   handleSideComplete: (id: number, isDone: boolean) => void;
   detDivRefs: React.MutableRefObject<Map<number, HTMLDivElement>>;
+  taskDivRefs: React.MutableRefObject<Map<number, HTMLDivElement>>;
+}
+
+// ── 사이드바 업무 추가 — Google Tasks 스타일 ──────────────────────────────
+// 제목 + 세부정보(contentEditable, Ctrl+B 등 단축키로 서식 적용) + 옵션 아이콘
+function SidebarAddTask({ adding, setAdding, title, setTitle, visibleProj, visibleMembers, pris, priC, currentUser, todayStr, addTodo, flash }: {
+  adding: boolean; setAdding: (v: boolean) => void;
+  title: string; setTitle: (v: string) => void;
+  visibleProj: any[]; visibleMembers: string[]; pris: string[]; priC: Record<string,string>;
+  currentUser: string|null; todayStr: string;
+  addTodo: (t: any) => void; flash: (msg: string, type?: string) => void;
+}) {
+  const [addDue, setAddDue] = useState("");
+  const [addPid, setAddPid] = useState("0");
+  const [addWho, setAddWho] = useState("");
+  const [addPri, setAddPri] = useState("보통");
+  const [addRepeat, setAddRepeat] = useState<any>("없음");
+  // 반복 상세 설정 state
+  const [repInterval, setRepInterval] = useState(1);
+  const [repUnit, setRepUnit] = useState<"일"|"주"|"월">("일");
+  const [repTime, setRepTime] = useState("");
+  const [repEndType, setRepEndType] = useState<"none"|"date"|"count">("none");
+  const [repEndDate, setRepEndDate] = useState("");
+  const [repEndCount, setRepEndCount] = useState(30);
+  const [showRepeatDetail, setShowRepeatDetail] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false); // 시간 드롭다운 열림 여부
+  const [picker, setPicker] = useState<string|null>(null);
+  const detRef = useRef<HTMLDivElement>(null);
+  const timePickerRef = useRef<HTMLDivElement>(null); // 시간 드롭다운 ref (바깥 클릭 감지용)
+  const titleRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLDivElement>(null);
+  // 최신 상태를 ref로 유지 — 바깥 클릭 핸들러에서 참조
+  // 반복 설정을 RepeatConfig 객체로 구성
+  const buildRepeat = () => {
+    if (!showRepeatDetail) return "없음";
+    return { interval: repInterval, unit: repUnit, time: repTime || undefined, start: addDue || todayStr, endType: repEndType, endDate: repEndType === "date" ? repEndDate : undefined, endCount: repEndType === "count" ? repEndCount : undefined };
+  };
+  const stateRef = useRef({ title, addDue, addPid, addWho, addPri, buildRepeat });
+  stateRef.current = { title, addDue, addPid, addWho, addPri, buildRepeat };
+
+  const resetForm = () => {
+    setTitle(""); setAddDue(""); setAddPid("0"); setAddWho(""); setAddPri("보통"); setAddRepeat("없음"); setPicker(null);
+    setRepInterval(1); setRepUnit("일"); setRepTime(""); setRepEndType("none"); setRepEndDate(""); setRepEndCount(30); setShowRepeatDetail(false);
+    if (detRef.current) detRef.current.innerHTML = "";
+  };
+
+  // 업무 저장 후 폼 초기화, 연속 입력 준비
+  const save = () => {
+    const s = stateRef.current;
+    if (!s.title.trim()) return;
+    // 날짜 미설정 시 빈 값으로 저장 (Google Tasks 방식 — "날짜 없음" 섹션에 표시)
+    addTodo({ pid: parseInt(s.addPid), task: s.title.trim(), who: s.addWho || currentUser || "", due: s.addDue || "", pri: s.addPri, st: "대기", det: detRef.current?.innerHTML || "", repeat: s.buildRepeat() });
+    resetForm();
+    flash("업무가 등록되었습니다");
+    setTimeout(() => titleRef.current?.focus(), 50);
+  };
+
+  // 닫기 — 제목이 있으면 자동 저장 후 닫기
+  const close = () => {
+    if (stateRef.current.title.trim()) save();
+    setAdding(false); resetForm();
+  };
+
+  // 바깥 클릭 시 닫기 — ref 기반이므로 항상 최신 title 참조
+  // 시간 드롭다운(timePickerRef)이 열려있을 때는 닫지 않음
+  useEffect(() => {
+    if (!adding) return;
+    const h = (e: MouseEvent) => {
+      const inForm = formRef.current?.contains(e.target as Node);
+      const inTimePicker = timePickerRef.current?.contains(e.target as Node);
+      if (!inForm && !inTimePicker) close();
+    };
+    const t = setTimeout(() => document.addEventListener("mousedown", h, true), 50);
+    return () => { clearTimeout(t); document.removeEventListener("mousedown", h, true); };
+  }, [adding]);
+
+  // 시간 드롭다운 — 바깥 클릭 시 닫기
+  useEffect(() => {
+    if (!showTimePicker) return;
+    const h = (e: MouseEvent) => {
+      if (timePickerRef.current && !timePickerRef.current.contains(e.target as Node)) {
+        setShowTimePicker(false);
+      }
+    };
+    document.addEventListener("mousedown", h, true);
+    return () => document.removeEventListener("mousedown", h, true);
+  }, [showTimePicker]);
+
+  // 칩 목록
+  const chips: {key:string; label:string; color?:string}[] = [];
+  // 날짜 칩 — Google Tasks 스타일 (오늘/내일/M월 D일(요일))
+  if (addDue) {
+    const _today = new Date(); const _todayS = dateStr(_today.getFullYear(), _today.getMonth(), _today.getDate());
+    const _tmr = new Date(_today); _tmr.setDate(_tmr.getDate() + 1); const _tmrS = dateStr(_tmr.getFullYear(), _tmr.getMonth(), _tmr.getDate());
+    const dueLabel = addDue === _todayS ? "오늘" : addDue === _tmrS ? "내일" : `${parseInt(addDue.slice(5,7))}월 ${parseInt(addDue.slice(8,10))}일(${fDow(addDue)})`;
+    chips.push({ key: "due", label: dueLabel });
+  }
+  if (addPid !== "0") { const p = visibleProj.find((pr: any) => String(pr.id) === addPid); if (p) chips.push({ key: "pid", label: p.name, color: p.color }); }
+  if (addWho && addWho !== currentUser) chips.push({ key: "who", label: addWho });
+  if (addPri !== "보통") chips.push({ key: "pri", label: addPri, color: priC[addPri] });
+  if (showRepeatDetail) {
+    const rl = repInterval === 1 ? `매${repUnit}` : `${repInterval}${repUnit}마다`;
+    chips.push({ key: "repeat", label: rl });
+  }
+
+  const removeChip = (key: string) => {
+    if (key === "due") setAddDue("");
+    if (key === "pid") setAddPid("0");
+    if (key === "who") setAddWho("");
+    if (key === "pri") setAddPri("보통");
+    if (key === "repeat") { setShowRepeatDetail(false); setRepInterval(1); setRepUnit("일"); setRepTime(""); setRepEndType("none"); }
+  };
+
+  const optBtn = (active: boolean) => ({
+    display: "flex" as const, alignItems: "center" as const, justifyContent: "center" as const,
+    width: 28, height: 28, border: "none" as const, background: active ? "#e8f0fe" : "none",
+    cursor: "pointer" as const, borderRadius: "50%" as const, color: active ? "#1a73e8" : "#5f6368",
+    transition: "background .12s", padding: 0, flexShrink: 0,
+  });
+
+  if (!adding) {
+    return (
+      <div style={{ padding: "8px 12px", borderBottom: "1px solid #f1f5f9", flexShrink: 0 }}>
+        <button onClick={() => { setAdding(true); setTimeout(() => titleRef.current?.focus(), 50); }}
+          style={{ width: "100%", padding: "8px 12px", border: "none", borderRadius: 6, background: "none", cursor: "pointer", fontSize: 13, color: "#1a73e8", display: "flex", alignItems: "center", gap: 6, fontFamily: "inherit", fontWeight: 500, transition: "background .12s" }}
+          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "#f1f3f4"; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}>
+          <span style={{fontSize:16,lineHeight:1,fontWeight:400}}>+</span> 할 일 추가
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div ref={formRef} style={{ padding: "8px 12px", borderBottom: "1px solid #f1f5f9", flexShrink: 0 }}>
+      <div style={{ border: "1.5px solid #1a73e8", borderRadius: 8, background: "#fff", overflow: "hidden" }}>
+        {/* 업무내용 (필수) */}
+        <input ref={titleRef} autoFocus value={title} onChange={e => setTitle(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); save(); } if (e.key === "Escape") close(); }}
+          placeholder="업무내용 *"
+          style={{ width: "100%", padding: "10px 12px 4px", border: "none", fontSize: 13, fontWeight: 500, outline: "none", fontFamily: "inherit", color: "#1f1f1f", boxSizing: "border-box" as const }} />
+        {/* 상세내용 — contentEditable (Ctrl+B/I/U 단축키로 서식 적용) */}
+        <div ref={detRef} contentEditable suppressContentEditableWarning
+          onKeyDown={e => { if (e.key === "Escape") close(); }}
+          data-placeholder="상세내용"
+          style={{ minHeight: 28, maxHeight: 80, overflowY: "auto" as const, padding: "4px 12px 8px", fontSize: 12, outline: "none", color: "#5f6368", fontFamily: "inherit", lineHeight: 1.6, whiteSpace: "pre-wrap" as const, wordBreak: "break-word" as const }} />
+
+        {/* 칩 */}
+        {chips.length > 0 && (
+          <div style={{ padding: "0 10px 6px", display: "flex", flexWrap: "wrap" as const, gap: 4 }}>
+            {chips.map(c => (
+              <span key={c.key} style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, padding: "2px 8px", borderRadius: 99, background: "#e8f0fe", color: "#1a73e8", fontWeight: 500 }}>
+                {c.color && <span style={{ width: 6, height: 6, borderRadius: "50%", background: c.color }} />}
+                {c.label}
+                <span onClick={() => removeChip(c.key)} style={{ fontSize: 14, color: "#80868b", cursor: "pointer", lineHeight: 1, marginLeft: 2 }}>×</span>
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* 옵션 아이콘 버튼 */}
+        <div style={{ display: "flex", alignItems: "center", gap: 2, padding: "4px 8px", borderTop: "1px solid #f1f3f4" }}>
+          <button style={optBtn(picker === "date")} title="날짜·반복" onClick={() => setPicker(picker === "date" ? null : "date")}>
+            <CalendarIcon style={{ width: 16, height: 16 }} />
+          </button>
+          <button style={optBtn(picker === "proj")} title="프로젝트" onClick={() => setPicker(picker === "proj" ? null : "proj")}>
+            <FolderIcon style={{ width: 16, height: 16 }} />
+          </button>
+          <button style={optBtn(picker === "who")} title="담당자" onClick={() => setPicker(picker === "who" ? null : "who")}>
+            <UserIcon style={{ width: 16, height: 16 }} />
+          </button>
+          <button style={optBtn(picker === "pri")} title="우선순위" onClick={() => setPicker(picker === "pri" ? null : "pri")}>
+            <BoltIcon style={{ width: 16, height: 16 }} />
+          </button>
+        </div>
+
+        {/* ── 피커 패널들 ── */}
+        {/* 날짜 + 반복 — Google Tasks 스타일 */}
+        {picker === "date" && (
+          <div style={{ borderTop: "1px solid #f1f3f4", background: "#fafbfc", padding: "8px 10px" }}>
+            {/* 빠른 날짜 선택 */}
+            <div style={{ display: "flex", gap: 4, flexWrap: "wrap" as const, marginBottom: 6 }}>
+              {[["오늘", todayStr], ["내일", (() => { const d = new Date(); d.setDate(d.getDate() + 1); return dateStr(d.getFullYear(), d.getMonth(), d.getDate()); })()], ["다음주", (() => { const d = new Date(); d.setDate(d.getDate() + 7); return dateStr(d.getFullYear(), d.getMonth(), d.getDate()); })()], ["없음", ""]].map(([l, v]) => (
+                <button key={l} onClick={() => setAddDue(v as string)}
+                  style={{ fontSize: 11, padding: "3px 10px", borderRadius: 99, border: `1px solid ${addDue === v ? "#1a73e8" : "#e2e8f0"}`, background: addDue === v ? "#e8f0fe" : "#fff", color: addDue === v ? "#1a73e8" : "#334155", cursor: "pointer", fontFamily: "inherit", fontWeight: addDue === v ? 600 : 400 }}>{l}</button>
+              ))}
+            </div>
+            <input type="date" value={addDue} onChange={e => setAddDue(e.target.value)}
+              style={{ width: "100%", fontSize: 11, padding: "4px 6px", border: "1px solid #e2e8f0", borderRadius: 6, outline: "none", fontFamily: "inherit", boxSizing: "border-box" as const, marginBottom: 8 }} />
+            {/* 반복 설정 — Google Tasks 스타일 */}
+            <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: 8 }}>
+              <div onClick={() => setShowRepeatDetail(p => !p)}
+                style={{ fontSize: 11, fontWeight: 600, color: "#334155", marginBottom: 6, display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
+                <ArrowPathIcon style={{ width: 13, height: 13 }} />
+                반복 {showRepeatDetail ? "▾" : "▸"}
+                {showRepeatDetail && <span style={{ marginLeft: "auto", fontSize: 10, color: "#1a73e8", fontWeight: 500 }}>{repInterval === 1 ? `매${repUnit}` : `${repInterval}${repUnit}마다`}</span>}
+              </div>
+              {showRepeatDetail && <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+                {/* 간격 */}
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <input type="number" min={1} value={repInterval} onChange={e => setRepInterval(Math.max(1, parseInt(e.target.value) || 1))}
+                    style={{ width: 44, padding: "5px 6px", border: "1px solid #dadce0", borderRadius: 6, fontSize: 12, textAlign: "center" as const, outline: "none", fontFamily: "inherit" }} />
+                  {(["일", "주", "월"] as const).map(u => (
+                    <button key={u} onClick={() => setRepUnit(u)}
+                      style={{ fontSize: 11, padding: "3px 10px", borderRadius: 99, border: `1px solid ${repUnit === u ? "#1a73e8" : "#e2e8f0"}`, background: repUnit === u ? "#e8f0fe" : "#fff", color: repUnit === u ? "#1a73e8" : "#334155", cursor: "pointer", fontFamily: "inherit", fontWeight: repUnit === u ? 600 : 400 }}>{u}</button>
+                  ))}
+                </div>
+                {/* 시간 — 버튼 클릭 시 드롭다운, 바깥 클릭 시 닫힘 */}
+                <div style={{ position: "relative" as const }} ref={timePickerRef}>
+                  <div style={{ fontSize: 10, color: "#94a3b8", marginBottom: 4 }}>시간</div>
+                  {/* 현재 선택된 시간 표시 버튼 */}
+                  <button onClick={() => setShowTimePicker(v => !v)}
+                    onBlur={e => {
+                      // 드롭다운 내부로 포커스가 이동하면 닫지 않음
+                      if (timePickerRef.current && !timePickerRef.current.contains(e.relatedTarget as Node)) {
+                        setShowTimePicker(false);
+                      }
+                    }}
+                    style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 10px", fontSize: 11, border: "1px solid #dadce0", borderRadius: 6, background: "#fff", color: repTime ? "#1a73e8" : "#5f6368", cursor: "pointer", fontFamily: "inherit", fontWeight: repTime ? 600 : 400 }}>
+                    <span>{repTime || "시간 설정"}</span>
+                    <span style={{ fontSize: 9, color: "#94a3b8" }}>▾</span>
+                  </button>
+                  {/* 드롭다운 목록 — onMouseDown+preventDefault로 바깥클릭 핸들러보다 먼저 처리 */}
+                  {showTimePicker && (
+                    <div style={{ position: "absolute" as const, top: "100%", left: 0, right: 0, zIndex: 100, border: "1px solid #dadce0", borderRadius: 6, background: "#fff", boxShadow: "0 4px 12px rgba(0,0,0,0.12)", overflow: "hidden", marginTop: 2 }}>
+                      {/* 없음 */}
+                      <div onMouseDown={e => { e.preventDefault(); e.stopPropagation(); setRepTime(""); setShowTimePicker(false); }}
+                        style={{ padding: "6px 12px", fontSize: 11, cursor: "pointer", background: !repTime ? "#e8f0fe" : "#fff", color: !repTime ? "#1a73e8" : "#334155", fontWeight: !repTime ? 600 : 400, borderBottom: "1px solid #f1f3f4" }}
+                        onMouseEnter={e => { if (repTime) (e.currentTarget as HTMLElement).style.background = "#f1f3f4"; }}
+                        onMouseLeave={e => { if (repTime) (e.currentTarget as HTMLElement).style.background = "#fff"; }}>
+                        없음
+                      </div>
+                      {/* 00:00 ~ 23:30, 30분 단위 스크롤 */}
+                      <div style={{ maxHeight: 150, overflowY: "auto" as const }}>
+                        {Array.from({ length: 48 }, (_, i) => {
+                          const h = String(Math.floor(i / 2)).padStart(2, "0");
+                          const m = i % 2 === 0 ? "00" : "30";
+                          const t = `${h}:${m}`;
+                          return (
+                            <div key={t} onMouseDown={e => { e.preventDefault(); e.stopPropagation(); setRepTime(t); setShowTimePicker(false); }}
+                              style={{ padding: "6px 12px", fontSize: 11, cursor: "pointer", background: repTime === t ? "#e8f0fe" : "transparent", color: repTime === t ? "#1a73e8" : "#334155", fontWeight: repTime === t ? 600 : 400 }}
+                              onMouseEnter={e => { if (repTime !== t) (e.currentTarget as HTMLElement).style.background = "#f1f3f4"; }}
+                              onMouseLeave={e => { if (repTime !== t) (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
+                              {t}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {/* 종료 */}
+                <div>
+                  <div style={{ fontSize: 10, color: "#94a3b8", marginBottom: 3 }}>종료</div>
+                  <div style={{ display: "flex", flexDirection: "column" as const, gap: 4 }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, cursor: "pointer" }}>
+                      <input type="radio" name="repEnd" checked={repEndType === "none"} onChange={() => setRepEndType("none")} style={{ accentColor: "#1a73e8" }} /> 없음
+                    </label>
+                    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, cursor: "pointer" }}>
+                      <input type="radio" name="repEnd" checked={repEndType === "date"} onChange={() => setRepEndType("date")} style={{ accentColor: "#1a73e8" }} /> 날짜
+                      {repEndType === "date" && <input type="date" value={repEndDate} onChange={e => setRepEndDate(e.target.value)}
+                        style={{ fontSize: 10, padding: "2px 6px", border: "1px solid #dadce0", borderRadius: 4, outline: "none", fontFamily: "inherit" }} />}
+                    </label>
+                    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, cursor: "pointer" }}>
+                      <input type="radio" name="repEnd" checked={repEndType === "count"} onChange={() => setRepEndType("count")} style={{ accentColor: "#1a73e8" }} /> 반복
+                      {repEndType === "count" && <><input type="number" min={1} value={repEndCount} onChange={e => setRepEndCount(parseInt(e.target.value) || 1)}
+                        style={{ width: 40, fontSize: 10, padding: "2px 4px", border: "1px solid #dadce0", borderRadius: 4, textAlign: "center" as const, outline: "none", fontFamily: "inherit" }} /><span style={{ fontSize: 10, color: "#5f6368" }}>회</span></>}
+                    </label>
+                  </div>
+                </div>
+              </div>}
+            </div>
+            {/* 완료 버튼 */}
+            <button onClick={() => setPicker(null)}
+              style={{ width: "100%", marginTop: 8, padding: "5px", borderRadius: 6, border: "none", background: "#1a73e8", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>완료</button>
+          </div>
+        )}
+        {picker === "proj" && (
+          <div style={{ borderTop: "1px solid #f1f3f4", background: "#fafbfc", maxHeight: 140, overflowY: "auto" as const }}>
+            {visibleProj.map((pr: any) => (
+              <div key={pr.id} onClick={() => { setAddPid(String(pr.id)); setPicker(null); }}
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", cursor: "pointer", fontSize: 12, background: String(pr.id) === addPid ? "#e8f0fe" : "transparent", color: String(pr.id) === addPid ? "#1a73e8" : "#334155", fontWeight: String(pr.id) === addPid ? 600 : 400 }}
+                onMouseEnter={e => { if (String(pr.id) !== addPid) (e.currentTarget as HTMLElement).style.background = "#f1f3f4"; }}
+                onMouseLeave={e => { if (String(pr.id) !== addPid) (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: pr.color, flexShrink: 0 }} />
+                {pr.name}
+                {String(pr.id) === addPid && <CheckIcon style={{ width: 12, height: 12, marginLeft: "auto", color: "#1a73e8" }} />}
+              </div>
+            ))}
+          </div>
+        )}
+        {picker === "who" && (
+          <div style={{ borderTop: "1px solid #f1f3f4", background: "#fafbfc", maxHeight: 140, overflowY: "auto" as const }}>
+            {visibleMembers.map(m => (
+              <div key={m} onClick={() => { setAddWho(m); setPicker(null); }}
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", cursor: "pointer", fontSize: 12, background: m === (addWho || currentUser) ? "#e8f0fe" : "transparent", color: m === (addWho || currentUser) ? "#1a73e8" : "#334155", fontWeight: m === (addWho || currentUser) ? 600 : 400 }}
+                onMouseEnter={e => { if (m !== (addWho || currentUser)) (e.currentTarget as HTMLElement).style.background = "#f1f3f4"; }}
+                onMouseLeave={e => { if (m !== (addWho || currentUser)) (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
+                {m}
+                {m === (addWho || currentUser) && <CheckIcon style={{ width: 12, height: 12, marginLeft: "auto", color: "#1a73e8" }} />}
+              </div>
+            ))}
+          </div>
+        )}
+        {picker === "pri" && (
+          <div style={{ padding: "6px 8px", borderTop: "1px solid #f1f3f4", background: "#fafbfc", display: "flex", gap: 4, flexWrap: "wrap" as const }}>
+            {pris.map(p => (
+              <button key={p} onClick={() => { setAddPri(p); setPicker(null); }}
+                style={{ fontSize: 11, padding: "3px 10px", borderRadius: 99, border: `1px solid ${addPri === p ? "#1a73e8" : "#e2e8f0"}`, background: addPri === p ? "#e8f0fe" : "#fff", color: addPri === p ? "#1a73e8" : "#334155", cursor: "pointer", fontFamily: "inherit", fontWeight: addPri === p ? 600 : 400, display: "inline-flex", alignItems: "center", gap: 3 }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: priC[p] }} />{p}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── 사이드바 업무 편집 확장 UI — 등록 UI와 동일한 구조 ──────────────────────
+// todo 항목을 클릭해 확장했을 때 표시되는 편집 패널
+function SidebarEditExpanded({ t, visibleProj, visibleMembers, pris, priC, priBg, todayStr, updTodo, delTodo, sidebarExpand, detDivRefs, setSidebarDetId, taskDivRefs }: {
+  t: any; visibleProj: any[]; visibleMembers: string[];
+  pris: string[]; priC: Record<string,string>; priBg: Record<string,string>;
+  todayStr: string;
+  updTodo: (id: number, updates: any) => void;
+  delTodo: (id: number) => void;
+  sidebarExpand: (id: number|null) => void;
+  detDivRefs: React.MutableRefObject<Map<number, HTMLDivElement>>;
+  setSidebarDetId: (v: number|null) => void;
+  // 제목 contentEditable용 ref 추적
+  taskDivRefs: React.MutableRefObject<Map<number, HTMLDivElement>>;
+}) {
+  const [picker, setPicker] = useState<string|null>(null);
+  // 반복 편집 state — 기존 값으로 초기화
+  const [showRepeatDetail, setShowRepeatDetail] = useState(false);
+  const [repInterval, setRepInterval] = useState(1);
+  const [repUnit, setRepUnit] = useState<"일"|"주"|"월">("일");
+  const [repTime, setRepTime] = useState("");
+  const [repEndType, setRepEndType] = useState<"none"|"date"|"count">("none");
+  const [repEndDate, setRepEndDate] = useState("");
+  const [repEndCount, setRepEndCount] = useState(30);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const timePickerRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null); // 편집 패널 전체 ref (바깥 클릭 감지용)
+  // contentEditable innerHTML 초기화를 마운트 시 1회만 수행하기 위한 플래그
+  const detInitialized = useRef(false);
+  const taskInitialized = useRef(false);
+
+  // 날짜 빠른 선택 헬퍼
+  const qDays = (n: number) => { const d = new Date(); d.setDate(d.getDate() + n); return dateStr(d.getFullYear(), d.getMonth(), d.getDate()); };
+
+  // 반복 config 빌드
+  const buildRepeat = () => {
+    if (!showRepeatDetail) return "없음";
+    return { interval: repInterval, unit: repUnit, time: repTime || undefined, start: t.due || todayStr, endType: repEndType, endDate: repEndType === "date" ? repEndDate : undefined, endCount: repEndType === "count" ? repEndCount : undefined };
+  };
+
+  // 편집 패널 바깥 클릭 시 자동 축소 — Google Tasks 방식
+  // capture:false(버블링)로 등록 → panelRef div의 onMouseDown stopPropagation으로 내부 클릭 차단
+  useEffect(() => {
+    const h = (e: MouseEvent) => {
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+        sidebarExpand(null);
+      }
+    };
+    // 50ms 딜레이: 마운트 직후 클릭 이벤트로 즉시 닫히는 것 방지
+    const timer = setTimeout(() => document.addEventListener("mousedown", h, false), 50);
+    return () => { clearTimeout(timer); document.removeEventListener("mousedown", h, false); };
+  }, []);
+
+  // 시간 드롭다운 바깥 클릭 시 닫기
+  useEffect(() => {
+    if (!showTimePicker) return;
+    const h = (e: MouseEvent) => {
+      if (timePickerRef.current && !timePickerRef.current.contains(e.target as Node)) setShowTimePicker(false);
+    };
+    document.addEventListener("mousedown", h, true);
+    return () => document.removeEventListener("mousedown", h, true);
+  }, [showTimePicker]);
+
+  // 현재 날짜 표시 레이블 — Google Tasks 스타일
+  const dueDateStr = t.due?.split(" ")[0] || "";
+  const today = new Date();
+  const todayS = dateStr(today.getFullYear(), today.getMonth(), today.getDate());
+  const tmr = new Date(today); tmr.setDate(tmr.getDate() + 1);
+  const tmrS = dateStr(tmr.getFullYear(), tmr.getMonth(), tmr.getDate());
+  const dueLabel = !dueDateStr ? "날짜 추가"
+    : dueDateStr === todayS ? "오늘"
+    : dueDateStr === tmrS ? "내일"
+    : `${parseInt(dueDateStr.slice(5,7))}월 ${parseInt(dueDateStr.slice(8,10))}일(${fDow(dueDateStr)})`;
+  const isOd = isOD(t.due, t.st) && t.st !== "완료";
+
+  const optBtn = (active: boolean) => ({
+    display: "flex" as const, alignItems: "center" as const, justifyContent: "center" as const,
+    width: 28, height: 28, border: "none" as const, background: active ? "#e8f0fe" : "none",
+    cursor: "pointer" as const, borderRadius: "50%" as const, color: active ? "#1a73e8" : "#5f6368",
+    transition: "background .12s", padding: 0, flexShrink: 0,
+  });
+
+  return (
+    <div ref={panelRef}
+      onClick={ev => ev.stopPropagation()}
+      onMouseDown={ev => ev.stopPropagation()}
+      style={{ marginTop: 6 }}>
+
+      {/* 업무내용(제목) — contentEditable, 상세내용과 동일한 방식으로 동작 */}
+      <div
+        contentEditable
+        suppressContentEditableWarning
+        data-det-ph="업무내용"
+        ref={el => {
+          if (el) {
+            taskDivRefs.current.set(t.id, el);
+            // 마운트 시 1회만 초기화 — 리렌더링마다 덮어쓰면 편집 중 내용이 리셋됨
+            if (!taskInitialized.current) {
+              el.innerHTML = t.task || "";
+              taskInitialized.current = true;
+            }
+          } else {
+            taskDivRefs.current.delete(t.id);
+            taskInitialized.current = false;
+          }
+        }}
+        onBlur={e => {
+          // 빈 값이면 저장하지 않음 (제목은 필수)
+          const text = e.currentTarget.textContent?.trim() || "";
+          if (text && text !== t.task) updTodo(t.id, { task: text });
+          // 빈 값이면 원래 제목으로 복원
+          if (!text) e.currentTarget.innerHTML = t.task || "";
+        }}
+        onKeyDown={ev => {
+          // Enter는 줄바꿈 없이 포커스 이동
+          if (ev.key === "Enter") { ev.preventDefault(); ev.currentTarget.blur(); }
+          if (ev.key === "Escape") { ev.currentTarget.innerHTML = t.task || ""; ev.currentTarget.blur(); }
+        }}
+        style={{
+          fontSize: 13, fontWeight: 500, color: "#0f172a", outline: "none",
+          borderBottom: "1.5px solid #1a73e8", padding: "0 0 4px", marginBottom: 6,
+          fontFamily: "inherit", lineHeight: "1.4", minHeight: 20,
+          whiteSpace: "nowrap" as const, overflow: "hidden",
+        }}
+      />
+
+      {/* 상세내용 — contentEditable */}
+      <div
+        contentEditable
+        suppressContentEditableWarning
+        data-det-ph="상세내용"
+        ref={el => {
+          if (el) {
+            detDivRefs.current.set(t.id, el);
+            // 마운트 시 1회만 초기화 — 리렌더링마다 innerHTML을 덮어쓰면
+            // 클릭 직후(아직 포커스 이동 전) 커서·입력 내용이 초기화되어 편집 불가 현상 발생
+            if (!detInitialized.current) {
+              el.innerHTML = t.det || "";
+              detInitialized.current = true;
+            }
+          } else {
+            detDivRefs.current.delete(t.id);
+            detInitialized.current = false;
+          }
+        }}
+        onFocus={() => setSidebarDetId(t.id)}
+        onBlur={e => {
+          const html = e.currentTarget.innerHTML === "<br>" ? "" : e.currentTarget.innerHTML;
+          if (html !== (t.det || "")) updTodo(t.id, { det: html });
+          setSidebarDetId(null);
+        }}
+        onKeyDown={ev => {
+          if (!(ev.ctrlKey || ev.metaKey)) return;
+          const cmds: Record<string,string> = { b: "bold", i: "italic", u: "underline", s: "strikeThrough" };
+          const cmd = cmds[ev.key.toLowerCase()];
+          if (cmd) { ev.preventDefault(); (document as any).execCommand(cmd, false); }
+        }}
+        style={{ minHeight: 28, maxHeight: 80, overflowY: "auto" as const, padding: "4px 0 6px", fontSize: 12, outline: "none", color: "#5f6368", fontFamily: "inherit", lineHeight: 1.6, whiteSpace: "pre-wrap" as const, wordBreak: "break-word" as const, borderBottom: "1px solid #e2e8f0" }}
+      />
+
+      {/* 옵션 아이콘 버튼 행 — 등록 UI와 동일, hover 효과 포함 */}
+      <div style={{ display: "flex", alignItems: "center", gap: 2, marginTop: 6 }}>
+        {(["date","proj","who","pri"] as const).map(key => {
+          const active = picker === key;
+          const icons: Record<string, React.ReactNode> = {
+            date: <CalendarIcon style={{ width: 16, height: 16 }} />,
+            proj: <FolderIcon style={{ width: 16, height: 16 }} />,
+            who:  <UserIcon style={{ width: 16, height: 16 }} />,
+            pri:  <BoltIcon style={{ width: 16, height: 16 }} />,
+          };
+          const titles: Record<string, string> = { date: "날짜·반복", proj: "프로젝트", who: "담당자", pri: "우선순위" };
+          return (
+            <button key={key}
+              style={optBtn(active)}
+              title={titles[key]}
+              onClick={() => { setPicker(active ? null : key); }}
+              onMouseEnter={e => {
+                // hover 시: 비활성이면 회색 배경+파란 아이콘, 활성이면 진한 파란 배경
+                (e.currentTarget as HTMLElement).style.background = active ? "#d2e3fc" : "#f1f3f4";
+                (e.currentTarget as HTMLElement).style.color = "#1a73e8";
+              }}
+              onMouseLeave={e => {
+                // hover 해제 시 원래 상태로 복원
+                (e.currentTarget as HTMLElement).style.background = active ? "#e8f0fe" : "none";
+                (e.currentTarget as HTMLElement).style.color = active ? "#1a73e8" : "#5f6368";
+              }}>
+              {icons[key]}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* 선택 칩 — 아이콘 버튼과 별도 행으로 분리 (등록 UI와 동일) */}
+      {(() => {
+        const selProj = t.pid ? visibleProj.find((pr: any) => pr.id === t.pid) : null;
+        return (dueDateStr || t.pri !== "보통" || t.who || selProj) && (
+          <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 4, marginTop: 4, marginBottom: 2 }}>
+            {dueDateStr && (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, padding: "2px 8px", borderRadius: 99, background: isOd ? "#fef2f2" : "#e8f0fe", color: isOd ? "#e53e3e" : "#1a73e8", fontWeight: 500 }}>
+                {dueLabel}
+                <span onMouseDown={e => { e.preventDefault(); e.stopPropagation(); updTodo(t.id, { due: "" }); }} style={{ fontSize: 14, cursor: "pointer", lineHeight: 1, marginLeft: 2, color: "#80868b" }}>×</span>
+              </span>
+            )}
+            {/* 프로젝트 칩 — 선택된 프로젝트 색상 도트 + 이름 표시 */}
+            {selProj && (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, padding: "2px 8px", borderRadius: 99, background: "#f1f3f4", color: "#334155", fontWeight: 500 }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: selProj.color, flexShrink: 0 }} />
+                {selProj.name}
+                <span onMouseDown={e => { e.preventDefault(); e.stopPropagation(); updTodo(t.id, { pid: 0 }); }} style={{ fontSize: 14, cursor: "pointer", lineHeight: 1, marginLeft: 2, color: "#80868b" }}>×</span>
+              </span>
+            )}
+            {t.who && (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, padding: "2px 8px", borderRadius: 99, background: "#e8f0fe", color: "#1a73e8", fontWeight: 500 }}>
+                {t.who}
+              </span>
+            )}
+            {t.pri && t.pri !== "보통" && (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, padding: "2px 8px", borderRadius: 99, background: priBg[t.pri] || "#e8f0fe", color: priC[t.pri] || "#1a73e8", fontWeight: 500 }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: priC[t.pri], flexShrink: 0 }} />
+                {t.pri}
+              </span>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* 날짜 + 반복 패널 */}
+      {picker === "date" && (
+        <div style={{ background: "#fafbfc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "8px 10px", marginTop: 4 }}>
+          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" as const, marginBottom: 6 }}>
+            {([["오늘", todayStr], ["내일", qDays(1)], ["다음주", qDays(7)], ["없음", ""]] as [string,string][]).map(([l, v]) => (
+              <button key={l} onClick={() => updTodo(t.id, { due: v })}
+                style={{ fontSize: 11, padding: "3px 10px", borderRadius: 99, border: `1px solid ${dueDateStr === v ? "#1a73e8" : "#e2e8f0"}`, background: dueDateStr === v ? "#e8f0fe" : "#fff", color: dueDateStr === v ? "#1a73e8" : "#334155", cursor: "pointer", fontFamily: "inherit", fontWeight: dueDateStr === v ? 600 : 400 }}>{l}</button>
+            ))}
+          </div>
+          <input type="date" value={dueDateStr} onChange={e => updTodo(t.id, { due: e.target.value })}
+            style={{ width: "100%", fontSize: 11, padding: "4px 6px", border: "1px solid #e2e8f0", borderRadius: 6, outline: "none", fontFamily: "inherit", boxSizing: "border-box" as const, marginBottom: 8 }} />
+          {/* 반복 설정 */}
+          <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: 8 }}>
+            <div onClick={() => setShowRepeatDetail(p => !p)}
+              style={{ fontSize: 11, fontWeight: 600, color: "#334155", marginBottom: 6, display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
+              <ArrowPathIcon style={{ width: 13, height: 13 }} />
+              반복 {showRepeatDetail ? "▾" : "▸"}
+              {showRepeatDetail && <span style={{ marginLeft: "auto", fontSize: 10, color: "#1a73e8", fontWeight: 500 }}>{repInterval === 1 ? `매${repUnit}` : `${repInterval}${repUnit}마다`}</span>}
+            </div>
+            {showRepeatDetail && <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <input type="number" min={1} value={repInterval} onChange={e => setRepInterval(Math.max(1, parseInt(e.target.value) || 1))}
+                  style={{ width: 44, padding: "5px 6px", border: "1px solid #dadce0", borderRadius: 6, fontSize: 12, textAlign: "center" as const, outline: "none", fontFamily: "inherit" }} />
+                {(["일", "주", "월"] as const).map(u => (
+                  <button key={u} onClick={() => setRepUnit(u)}
+                    style={{ fontSize: 11, padding: "3px 10px", borderRadius: 99, border: `1px solid ${repUnit === u ? "#1a73e8" : "#e2e8f0"}`, background: repUnit === u ? "#e8f0fe" : "#fff", color: repUnit === u ? "#1a73e8" : "#334155", cursor: "pointer", fontFamily: "inherit", fontWeight: repUnit === u ? 600 : 400 }}>{u}</button>
+                ))}
+              </div>
+              {/* 시간 드롭다운 */}
+              <div style={{ position: "relative" as const }} ref={timePickerRef}>
+                <div style={{ fontSize: 10, color: "#94a3b8", marginBottom: 4 }}>시간</div>
+                <button onClick={() => setShowTimePicker(v => !v)}
+                  style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 10px", fontSize: 11, border: "1px solid #dadce0", borderRadius: 6, background: "#fff", color: repTime ? "#1a73e8" : "#5f6368", cursor: "pointer", fontFamily: "inherit", fontWeight: repTime ? 600 : 400 }}>
+                  <span>{repTime || "시간 설정"}</span>
+                  <span style={{ fontSize: 9, color: "#94a3b8" }}>▾</span>
+                </button>
+                {showTimePicker && (
+                  <div style={{ position: "absolute" as const, top: "100%", left: 0, right: 0, zIndex: 100, border: "1px solid #dadce0", borderRadius: 6, background: "#fff", boxShadow: "0 4px 12px rgba(0,0,0,0.12)", overflow: "hidden", marginTop: 2 }}>
+                    <div onMouseDown={e => { e.preventDefault(); e.stopPropagation(); setRepTime(""); setShowTimePicker(false); }}
+                      style={{ padding: "6px 12px", fontSize: 11, cursor: "pointer", background: !repTime ? "#e8f0fe" : "#fff", color: !repTime ? "#1a73e8" : "#334155", fontWeight: !repTime ? 600 : 400, borderBottom: "1px solid #f1f3f4" }}>없음</div>
+                    <div style={{ maxHeight: 150, overflowY: "auto" as const }}>
+                      {Array.from({ length: 48 }, (_, i) => {
+                        const hh = String(Math.floor(i / 2)).padStart(2, "0");
+                        const mm = i % 2 === 0 ? "00" : "30";
+                        const tv = `${hh}:${mm}`;
+                        return (
+                          <div key={tv} onMouseDown={e => { e.preventDefault(); e.stopPropagation(); setRepTime(tv); setShowTimePicker(false); }}
+                            style={{ padding: "6px 12px", fontSize: 11, cursor: "pointer", background: repTime === tv ? "#e8f0fe" : "transparent", color: repTime === tv ? "#1a73e8" : "#334155", fontWeight: repTime === tv ? 600 : 400 }}
+                            onMouseEnter={e => { if (repTime !== tv) (e.currentTarget as HTMLElement).style.background = "#f1f3f4"; }}
+                            onMouseLeave={e => { if (repTime !== tv) (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
+                            {tv}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+              {/* 종료 */}
+              <div>
+                <div style={{ fontSize: 10, color: "#94a3b8", marginBottom: 3 }}>종료</div>
+                <div style={{ display: "flex", flexDirection: "column" as const, gap: 4 }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, cursor: "pointer" }}>
+                    <input type="radio" name={`repEnd_${t.id}`} checked={repEndType === "none"} onChange={() => setRepEndType("none")} style={{ accentColor: "#1a73e8" }} /> 없음
+                  </label>
+                  <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, cursor: "pointer" }}>
+                    <input type="radio" name={`repEnd_${t.id}`} checked={repEndType === "date"} onChange={() => setRepEndType("date")} style={{ accentColor: "#1a73e8" }} /> 날짜
+                    {repEndType === "date" && <input type="date" value={repEndDate} onChange={e => setRepEndDate(e.target.value)}
+                      style={{ fontSize: 10, padding: "2px 6px", border: "1px solid #dadce0", borderRadius: 4, outline: "none", fontFamily: "inherit" }} />}
+                  </label>
+                  <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, cursor: "pointer" }}>
+                    <input type="radio" name={`repEnd_${t.id}`} checked={repEndType === "count"} onChange={() => setRepEndType("count")} style={{ accentColor: "#1a73e8" }} /> 반복
+                    {repEndType === "count" && <><input type="number" min={1} value={repEndCount} onChange={e => setRepEndCount(parseInt(e.target.value) || 1)}
+                      style={{ width: 40, fontSize: 10, padding: "2px 4px", border: "1px solid #dadce0", borderRadius: 4, textAlign: "center" as const, outline: "none", fontFamily: "inherit" }} /><span style={{ fontSize: 10, color: "#5f6368" }}>회</span></>}
+                  </label>
+                </div>
+              </div>
+            </div>}
+          </div>
+          <button onClick={() => { updTodo(t.id, { repeat: buildRepeat() }); setPicker(null); }}
+            style={{ width: "100%", marginTop: 8, padding: "5px", borderRadius: 6, border: "none", background: "#1a73e8", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>완료</button>
+        </div>
+      )}
+
+      {/* 프로젝트 패널 */}
+      {picker === "proj" && (
+        <div style={{ background: "#fafbfc", border: "1px solid #e2e8f0", borderRadius: 8, marginTop: 4, maxHeight: 140, overflowY: "auto" as const }}>
+          {visibleProj.map(pr => (
+            <div key={pr.id} onClick={() => { updTodo(t.id, { pid: pr.id }); setPicker(null); }}
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", cursor: "pointer", fontSize: 12, background: pr.id === t.pid ? "#e8f0fe" : "transparent", color: pr.id === t.pid ? "#1a73e8" : "#334155", fontWeight: pr.id === t.pid ? 600 : 400 }}
+              onMouseEnter={e => { if (pr.id !== t.pid) (e.currentTarget as HTMLElement).style.background = "#f1f3f4"; }}
+              onMouseLeave={e => { if (pr.id !== t.pid) (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: pr.color, flexShrink: 0 }} />
+              {pr.name}
+              {pr.id === t.pid && <CheckIcon style={{ width: 12, height: 12, marginLeft: "auto", color: "#1a73e8" }} />}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 담당자 패널 */}
+      {picker === "who" && (
+        <div style={{ background: "#fafbfc", border: "1px solid #e2e8f0", borderRadius: 8, marginTop: 4, maxHeight: 140, overflowY: "auto" as const }}>
+          {visibleMembers.map(m => (
+            <div key={m} onClick={() => { updTodo(t.id, { who: m }); setPicker(null); }}
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", cursor: "pointer", fontSize: 12, background: m === t.who ? "#e8f0fe" : "transparent", color: m === t.who ? "#1a73e8" : "#334155", fontWeight: m === t.who ? 600 : 400 }}
+              onMouseEnter={e => { if (m !== t.who) (e.currentTarget as HTMLElement).style.background = "#f1f3f4"; }}
+              onMouseLeave={e => { if (m !== t.who) (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
+              {m}
+              {m === t.who && <CheckIcon style={{ width: 12, height: 12, marginLeft: "auto", color: "#1a73e8" }} />}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 우선순위 패널 */}
+      {picker === "pri" && (
+        <div style={{ padding: "6px 8px", background: "#fafbfc", border: "1px solid #e2e8f0", borderRadius: 8, marginTop: 4, display: "flex", gap: 4, flexWrap: "wrap" as const }}>
+          {pris.map(pr => (
+            <button key={pr} onClick={() => { updTodo(t.id, { pri: pr }); setPicker(null); }}
+              style={{ fontSize: 11, padding: "3px 10px", borderRadius: 99, border: `1px solid ${t.pri === pr ? "#1a73e8" : "#e2e8f0"}`, background: t.pri === pr ? "#e8f0fe" : "#fff", color: t.pri === pr ? "#1a73e8" : "#334155", cursor: "pointer", fontFamily: "inherit", fontWeight: t.pri === pr ? 600 : 400, display: "inline-flex", alignItems: "center", gap: 3 }}>
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: priC[pr] }} />{pr}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* 접기 + 삭제 */}
+      <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <button onClick={ev => { ev.stopPropagation(); sidebarExpand(null); }}
+          style={{ fontSize: 11, padding: "3px 8px", borderRadius: 8, border: "1px solid #e2e8f0", background: "#f8fafc", color: "#94a3b8", cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 3, transition: "background .12s, color .12s" }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#e2e8f0"; (e.currentTarget as HTMLElement).style.color = "#475569"; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#f8fafc"; (e.currentTarget as HTMLElement).style.color = "#94a3b8"; }}>
+          <span style={{ fontSize: 10 }}>▲</span> 접기
+        </button>
+        <button onClick={ev => { ev.stopPropagation(); if (confirm(`"${t.task}" 업무를 삭제하시겠습니까?`)) {
+          // 삭제된 항목의 ref를 Map에서 제거해 메모리 누수 방지
+          detDivRefs.current.delete(t.id);
+          delTodo(t.id); sidebarExpand(null);
+        } }}
+          style={{ fontSize: 11, padding: "3px 10px", borderRadius: 8, border: "1px solid #fecaca", background: "#fef2f2", color: "#ef4444", cursor: "pointer", fontFamily: "inherit" }}>
+          삭제
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export function CalendarView(props: CalendarViewProps) {
@@ -145,12 +832,12 @@ export function CalendarView(props: CalendarViewProps) {
     sidebarOrder, setSidebarOrder, sidebarDragId, setSidebarDragId,
     sidebarDragOver, setSidebarDragOver, sidebarHoverId, setSidebarHoverId,
     sidebarEditId, setSidebarEditId, sidebarEditVal, setSidebarEditVal,
-    sidebarDateId, setSidebarDateId, sidebarExpandId, sidebarDetId, setSidebarDetId,
-    sidebarProjId, setSidebarProjId, sidebarExpand,
+    sidebarExpandId, sidebarDetId, setSidebarDetId,
+    sidebarExpand,
     sidebarDoneOpen, setSidebarDoneOpen, secNodateOpen, setSecNodateOpen,
     secTodayOpen, setSecTodayOpen, secWeekOpen, setSecWeekOpen,
     secLaterOpen, setSecLaterOpen, starredIds, toggleStar,
-    pendingComplete, handleSideComplete, detDivRefs,
+    pendingComplete, handleSideComplete, detDivRefs, taskDivRefs,
   } = props;
 
   return <div style={{display:"flex",gap:14,alignItems:"flex-start"}}>
@@ -528,329 +1215,261 @@ export function CalendarView(props: CalendarViewProps) {
           {label}<span style={{fontWeight:400,marginLeft:2}}>{count}</span>
         </button>;
 
-      const renderTodo=(t:any,isDoneSec=false)=>{
-        const p=gPr(t.pid);
-        const isAnim=pendingComplete.has(t.id);
-        const isDone=t.st==="완료"||isAnim;
-        const od=isOD(t.due,t.st);
-        const isHov=sidebarHoverId===t.id;
-        const isEd=sidebarEditId===t.id;
-        const isDragOv=sidebarDragOver===t.id;
-        const isDragging=sidebarDragId===t.id;
-        const isExp=sidebarExpandId===t.id&&!isDoneSec;
-        const isStarred=starredIds.has(t.id);
-        const dueDateStr=t.due?.split(" ")[0]||"";
+      // ── 할일 항목 컴포넌트 — 독립 컴포넌트로 분리해 hook을 안정적으로 사용
+      const SidebarTodoItem = ({ t, isDoneSec = false }: { t: any; isDoneSec?: boolean }) => {
+        const p = gPr(t.pid);
+        const isAnim = pendingComplete.has(t.id);
+        const isDone = t.st === "완료" || isAnim;
+        const od = isOD(t.due, t.st);
+        const isHov = sidebarHoverId === t.id;
+        const isEd = sidebarEditId === t.id;
+        const isDragOv = sidebarDragOver === t.id;
+        const isDragging = sidebarDragId === t.id;
+        const isExp = sidebarExpandId === t.id && !isDoneSec;
+        const isStarred = starredIds.has(t.id);
+        const dueDateStr = t.due?.split(" ")[0] || "";
 
-        // ★ 드래그 중에는 same element(key 동일)를 유지 → DOM unmount 방지
-        //   (다른 key로 early-return하면 드래그 소스가 사라져 브라우저가 drag 취소)
+        // 날짜 라벨 — Google Tasks 스타일
+        const today = new Date();
+        const todayS = dateStr(today.getFullYear(), today.getMonth(), today.getDate());
+        const tmr = new Date(today); tmr.setDate(tmr.getDate() + 1);
+        const tmrS = dateStr(tmr.getFullYear(), tmr.getMonth(), tmr.getDate());
+        const dueLabel = dueDateStr === todayS ? "오늘"
+          : dueDateStr === tmrS ? "내일"
+          : dueDateStr ? `${parseInt(dueDateStr.slice(5,7))}월 ${parseInt(dueDateStr.slice(8,10))}일(${fDow(dueDateStr)})` : "";
 
-        return <div key={t.id+"_sb"}
-          draggable={!isDoneSec&&!isEd&&!isExp}
-          onDragStart={e=>{
-            const ghost=document.createElement("div");
-            ghost.style.cssText=`position:absolute;top:${window.scrollY}px;left:-9999px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:9px 14px 9px 12px;font-size:13px;font-weight:500;color:#1e293b;box-shadow:0 8px 24px rgba(0,0,0,.18);width:220px;white-space:nowrap;overflow:hidden;font-family:Pretendard,system-ui,sans-serif;display:flex;align-items:center;gap:9px;box-sizing:border-box;pointer-events:none;`;
-            const circle=document.createElement("span");
-            circle.style.cssText="width:14px;height:14px;border-radius:50%;border:1.5px solid #d1d5db;flex-shrink:0;display:block;";
-            const label=document.createElement("span");
-            label.style.cssText="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;";
-            label.textContent=t.task;
-            ghost.appendChild(circle);ghost.appendChild(label);
-            document.body.appendChild(ghost);
-            ghost.getBoundingClientRect();
-            e.dataTransfer.setDragImage(ghost,16,22);
-            requestAnimationFrame(()=>{if(ghost.parentNode)ghost.parentNode.removeChild(ghost);});
-            setSidebarDragId(t.id);document.body.style.cursor="grabbing";
-          }}
-          onDragEnd={()=>{setSidebarDragId(null);setSidebarDragOver(null);setCalDragOverDs(null);setCalDragOverH(null);document.body.style.cursor="";}}
-          onDragOver={e=>{e.preventDefault();if(sidebarDragId!==t.id)setSidebarDragOver(t.id);}}
-          onDrop={e=>{
-            e.preventDefault();
-            if(sidebarDragId===null||sidebarDragId===t.id){setSidebarDragOver(null);return;}
-            const allIds=myAll.map(x=>x.id);
-            const base=[...new Set([...sidebarOrder.filter(id=>allIds.includes(id)),...allIds])];
-            const from=base.indexOf(sidebarDragId);const to=base.indexOf(t.id);
-            if(from<0||to<0){setSidebarDragOver(null);return;}
-            const neo=[...base];neo.splice(from,1);neo.splice(to,0,sidebarDragId);
-            setSidebarOrder(neo);
-            setSidebarDragId(null);setSidebarDragOver(null);document.body.style.cursor="";
-          }}
-          onMouseEnter={()=>setSidebarHoverId(t.id)}
-          onMouseLeave={()=>setSidebarHoverId(null)}
-          onClick={e=>{e.stopPropagation();if(!isDoneSec&&!isEd){sidebarExpand(isExp?null:t.id);setSidebarDateId(null);}}}
-          style={{
-            position:"relative" as const,
-            padding:isDoneSec?"8px 12px 8px 10px":`${isExp?"10px":"8px"} 36px ${isExp?"12px":"8px"} 22px`,
-            /* 드롭 타겟: 상단에 파란 선 (배경 변경 없이 레이아웃 유지) */
-            borderTop:isDragOv&&!isDragging?"2px solid #2563eb":"2px solid transparent",
-            borderBottom:`1px solid ${isExp?"#e8f0fe":"#f1f5f9"}`,
-            display:"flex",alignItems:"flex-start",gap:9,
-            cursor:isExp?"default":isHov&&!isDoneSec?"grab":"default",
-            background:isExp?"#f8fbff":isHov&&!isDoneSec&&!isDragging?"#fafafa":"#fff",
-            /* 드래그 중: 반투명하게 — DOM 유지로 drag 취소 방지 */
-            opacity:isDragging?0.25:isAnim?.35:1,
-            transition:"background .12s,opacity .2s,border-top-color .1s",
-          }}>
+        // 드래그 ghost 이미지 생성
+        const handleDragStart = (e: React.DragEvent) => {
+          const ghost = document.createElement("div");
+          ghost.style.cssText = `position:absolute;top:${window.scrollY}px;left:-9999px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:9px 14px 9px 12px;font-size:13px;font-weight:500;color:#1e293b;box-shadow:0 8px 24px rgba(0,0,0,.18);width:220px;white-space:nowrap;overflow:hidden;font-family:Pretendard,system-ui,sans-serif;display:flex;align-items:center;gap:9px;box-sizing:border-box;pointer-events:none;`;
+          const circle = document.createElement("span");
+          circle.style.cssText = "width:14px;height:14px;border-radius:50%;border:1.5px solid #d1d5db;flex-shrink:0;display:block;";
+          const lbl = document.createElement("span");
+          lbl.style.cssText = "overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;";
+          lbl.textContent = t.task;
+          ghost.appendChild(circle); ghost.appendChild(lbl);
+          document.body.appendChild(ghost);
+          ghost.getBoundingClientRect();
+          e.dataTransfer.setDragImage(ghost, 16, 22);
+          requestAnimationFrame(() => { if (ghost.parentNode) ghost.parentNode.removeChild(ghost); });
+          setSidebarDragId(t.id); document.body.style.cursor = "grabbing";
+        };
 
-          {/* 드래그 핸들 (비확장 상태에서만) */}
-          {!isDoneSec&&!isExp&&
-            <div style={{position:"absolute" as const,left:3,top:0,bottom:0,width:16,
-              display:"flex",alignItems:"center",justifyContent:"center",
-              color:"#c7d2db",fontSize:13,cursor:"grab",userSelect:"none" as const,letterSpacing:"-1px",
-              opacity:isHov?1:0,transition:"opacity .15s",pointerEvents:"none" as const}}>⠿</div>}
+        const handleDrop = (e: React.DragEvent) => {
+          e.preventDefault();
+          if (sidebarDragId === null || sidebarDragId === t.id) { setSidebarDragOver(null); return; }
+          const allIds = myAll.map((x: any) => x.id);
+          const base = [...new Set([...sidebarOrder.filter((id: number) => allIds.includes(id)), ...allIds])];
+          const from = base.indexOf(sidebarDragId); const to = base.indexOf(t.id);
+          if (from < 0 || to < 0) { setSidebarDragOver(null); return; }
+          const neo = [...base]; neo.splice(from, 1); neo.splice(to, 0, sidebarDragId);
+          setSidebarOrder(neo);
+          setSidebarDragId(null); setSidebarDragOver(null); document.body.style.cursor = "";
+        };
 
-          {/* 완료 토글 */}
-          <button onClick={e=>{e.stopPropagation();handleSideComplete(t.id,isDone);}}
-            style={{width:18,height:18,borderRadius:"50%",flexShrink:0,marginTop:2,
-              border:`1.5px solid ${isDone?"#22c55e":isHov&&!isDoneSec?"#4ade80":"#d1d5db"}`,
-              background:isDone?"#22c55e":"transparent",
-              cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",
-              fontSize:10,color:"#fff",padding:0,
-              transition:"border-color .2s,background .2s",boxSizing:"border-box" as const}}>
-            {isDone&&<CheckIcon style={{width:10,height:10}}/>}
-          </button>
+        return (
+          <div
+            draggable={!isDoneSec && !isEd && !isExp}
+            onDragStart={handleDragStart}
+            onDragEnd={() => { setSidebarDragId(null); setSidebarDragOver(null); setCalDragOverDs(null); setCalDragOverH(null); document.body.style.cursor = ""; }}
+            onDragOver={e => { e.preventDefault(); if (sidebarDragId !== t.id) setSidebarDragOver(t.id); }}
+            onDrop={handleDrop}
+            onMouseEnter={() => setSidebarHoverId(t.id)}
+            onMouseLeave={() => setSidebarHoverId(null)}
+            // 항목 전체 클릭: 접힌 상태면 펼치기, 펼쳐진 상태면 아무것도 안 함
+            onClick={e => {
+              e.stopPropagation();
+              if (isDoneSec || isEd || isExp) return;
+              sidebarExpand(t.id);
+            }}
+            style={{
+              position: "relative" as const,
+              padding: isDoneSec ? "8px 12px 8px 10px" : `${isExp ? "10px" : "8px"} 30px ${isExp ? "12px" : "8px"} 12px`,
+              borderTop: isDragOv && !isDragging ? "2px solid #2563eb" : "2px solid transparent",
+              borderBottom: `1px solid ${isExp ? "#e8f0fe" : "#f1f5f9"}`,
+              display: "flex", alignItems: "flex-start", gap: 9,
+              cursor: isDoneSec ? "default" : isExp ? "default" : isHov ? "pointer" : "default",
+              background: isExp ? "#f8fbff" : isHov && !isDoneSec && !isDragging ? "#f1f3f4" : "#fff",
+              opacity: isDragging ? 0.25 : isAnim ? 0.35 : 1,
+              transition: "background .12s,opacity .2s,border-top-color .1s",
+            }}
+          >
+            {/* 완료 토글 버튼 */}
+            <button
+              onClick={e => { e.stopPropagation(); handleSideComplete(t.id, isDone); }}
+              style={{
+                width: 18, height: 18, borderRadius: "50%", flexShrink: 0, marginTop: 2,
+                border: `1.5px solid ${isDone ? "#22c55e" : isHov && !isDoneSec ? "#4ade80" : "#d1d5db"}`,
+                background: isDone ? "#22c55e" : "transparent",
+                cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 10, color: "#fff", padding: 0,
+                transition: "border-color .2s,background .2s", boxSizing: "border-box" as const,
+              }}
+            >
+              {isDone && <CheckIcon style={{ width: 10, height: 10 }} />}
+            </button>
 
-          {/* 내용 */}
-          <div style={{flex:1,minWidth:0}} onClick={e=>e.stopPropagation()}>
-            {/* 제목 */}
-            {isEd
-              ?<input autoFocus value={sidebarEditVal}
-                onChange={e=>setSidebarEditVal(e.target.value)}
-                onBlur={()=>{if(sidebarEditVal.trim())updTodo(t.id,{task:sidebarEditVal.trim()});setSidebarEditId(null);}}
-                onKeyDown={e=>{if(e.key==="Enter"){if(sidebarEditVal.trim())updTodo(t.id,{task:sidebarEditVal.trim()});setSidebarEditId(null);}else if(e.key==="Escape")setSidebarEditId(null);}}
-                onClick={ev=>ev.stopPropagation()}
-                style={{width:"100%",border:"none",borderBottom:"1.5px solid #2563eb",outline:"none",fontSize:13,fontWeight:500,color:"#0f172a",background:"transparent",padding:"0 0 2px",fontFamily:"inherit"}}
-              />
-              :<div style={{display:"flex",alignItems:"center",gap:4}}>
-                <div
-                  onClick={ev=>{ev.stopPropagation();if(!isDoneSec){sidebarExpand(isExp?null:t.id);setSidebarDateId(null);}}}
-                  title={isExp?"접기 (클릭)":"펼치기"}
-                  style={{fontSize:13,fontWeight:isDone?400:500,flex:1,minWidth:0,
-                    color:isDone?"#b0bec5":od&&!isDone?"#c0392b":"#1e293b",
-                    textDecoration:isDone?"line-through":"none",
-                    overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,
-                    cursor:isDoneSec?"default":"pointer",
-                    display:"flex",alignItems:"center",gap:4,lineHeight:"1.4"}}>
-                  {t.repeat&&t.repeat!=="없음"&&<RepeatBadge repeat={t.repeat}/>}
-                  {t.task}
-                </div>
-                {isExp&&!isDoneSec&&<button
-                  onClick={ev=>{ev.stopPropagation();setSidebarEditId(t.id);setSidebarEditVal(t.task);}}
-                  title="이름 수정"
-                  style={{background:"none",border:"none",cursor:"pointer",color:"#c7d2db",fontSize:12,padding:"1px 3px",borderRadius:3,flexShrink:0,lineHeight:1,fontFamily:"inherit"}}
-                  onMouseEnter={e=>(e.currentTarget as HTMLButtonElement).style.color="#2563eb"}
-                  onMouseLeave={e=>(e.currentTarget as HTMLButtonElement).style.color="#c7d2db"}><PencilSquareIcon style={ICON_SM}/></button>}
-              </div>}
+            {/* 제목 + 메타 + 확장 패널 */}
+            <div style={{ flex: 1, minWidth: 0 }}>
 
-            {/* 비확장: 메타 (날짜 / 프로젝트 + 우선순위) */}
-            {!isExp&&<div style={{display:"flex",flexDirection:"column",gap:2,marginTop:3}}>
-              {dueDateStr&&<span style={{fontSize:11,color:od&&!isDone?"#e53e3e":"#94a3b8",lineHeight:"16px"}}>
-                {od&&!isDone&&<ExclamationTriangleIcon style={{...ICON_SM,display:"inline"}}/>}{dueDateStr}
-              </span>}
-              <div style={{display:"flex",alignItems:"center",gap:5}}>
-                <span style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:11,color:"#b0bec5"}}>
-                  <span style={{width:5,height:5,borderRadius:"50%",background:p.color||"#94a3b8",display:"inline-block",flexShrink:0}}/>
-                  {p.name}
-                </span>
-                {t.pri&&t.pri!=="보통"&&<span style={{...S.badge(priBg[t.pri],priC[t.pri]),fontSize:10}}>{t.pri}</span>}
-              </div>
-            </div>}
-
-            {/* 확장: 세부정보 + 날짜 컨트롤 */}
-            {isExp&&<div onClick={ev=>ev.stopPropagation()}>
-              {/* 세부정보 */}
-              <div style={{marginTop:6,display:"flex",alignItems:"flex-start",gap:6}}>
-                <span style={{color:"#94a3b8",marginTop:2,flexShrink:0}}><Bars3Icon style={ICON_SM}/></span>
-                <div
-                  contentEditable
-                  suppressContentEditableWarning
-                  data-det-ph="세부정보 추가"
-                  ref={el=>{
-                    if(el){
-                      detDivRefs.current.set(t.id,el);
-                      if(document.activeElement!==el) el.innerHTML=t.det||"";
-                    } else {
-                      detDivRefs.current.delete(t.id);
-                    }
-                  }}
-                  onFocus={()=>setSidebarDetId(t.id)}
-                  onBlur={e=>{
-                    const html=e.currentTarget.innerHTML==="<br>"?"":e.currentTarget.innerHTML;
-                    if(html!==(t.det||"")) updTodo(t.id,{det:html});
-                    setSidebarDetId(null);
-                  }}
-                  onKeyDown={ev=>{
-                    if(!(ev.ctrlKey||ev.metaKey)) return;
-                    const cmds: Record<string,string>={b:"bold",i:"italic",u:"underline",s:"strikeThrough"};
-                    const cmd=cmds[ev.key.toLowerCase()];
-                    if(cmd){ev.preventDefault();(document as any).execCommand(cmd,false);}
-                  }}
-                  onClick={ev=>ev.stopPropagation()}
-                  style={{flex:1,minHeight:36,outline:"none",fontSize:12,color:"#475569",
-                    lineHeight:1.6,borderBottom:"1px solid #e2e8f0",paddingBottom:2,
-                    wordBreak:"break-word" as const,fontFamily:"inherit"}}
-                />
-              </div>
-              {/* 날짜 */}
-              <div style={{marginTop:8}}>
-                <button onClick={()=>setSidebarDateId(sidebarDateId===t.id?null:t.id)}
-                  style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,
-                    padding:"3px 8px",borderRadius:10,
-                    border:`1px solid ${od&&!isDone?"#fecaca":"#e2e8f0"}`,
-                    background:od&&!isDone?"#fef2f2":"#f8fafc",
-                    color:od&&!isDone?"#e53e3e":"#475569",
-                    cursor:"pointer",fontFamily:"inherit"}}>
-                  <CalendarIcon style={ICON_SM}/> {dueDateStr||"날짜 추가"}
-                  {dueDateStr&&<span onClick={ev=>{ev.stopPropagation();updTodo(t.id,{due:""});setSidebarDateId(null);}}
-                    style={{marginLeft:2,color:"#94a3b8",fontSize:12,lineHeight:1}}>×</span>}
-                </button>
-              </div>
-              {/* 프로젝트 + 우선순위 (날짜 아래) */}
-              <div style={{display:"flex",alignItems:"center",gap:5,marginTop:6}}>
-                <div style={{position:"relative" as const}}>
-                  <button onClick={ev=>{ev.stopPropagation();setSidebarProjId(sidebarProjId===t.id?null:t.id);setSidebarDateId(null);}}
-                    style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:11,color:"#64748b",
-                      border:"1px solid #e2e8f0",borderRadius:8,padding:"2px 7px",
-                      background:"#f8fafc",cursor:"pointer",fontFamily:"inherit"}}>
-                    <span style={{width:6,height:6,borderRadius:"50%",background:p.color||"#94a3b8",display:"inline-block",flexShrink:0}}/>
-                    {p.name}<span style={{fontSize:8,color:"#94a3b8",marginLeft:1}}>▾</span>
-                  </button>
-                  {sidebarProjId===t.id&&<div onClick={ev=>ev.stopPropagation()}
-                    style={{position:"absolute" as const,top:"calc(100% + 2px)",left:0,zIndex:200,
-                      background:"#fff",border:"1px solid #e2e8f0",borderRadius:10,
-                      boxShadow:"0 4px 16px rgba(0,0,0,.12)",minWidth:140,overflow:"hidden"}}>
-                    {visibleProj.map(pr=><div key={pr.id}
-                      onClick={()=>{updTodo(t.id,{pid:pr.id});setSidebarProjId(null);}}
-                      style={{display:"flex",alignItems:"center",gap:6,padding:"7px 10px",
-                        cursor:"pointer",fontSize:12,color:"#334155",
-                        background:pr.id===t.pid?"#eff6ff":"transparent"}}
-                      onMouseEnter={e=>(e.currentTarget as HTMLDivElement).style.background=pr.id===t.pid?"#eff6ff":"#f8fafc"}
-                      onMouseLeave={e=>(e.currentTarget as HTMLDivElement).style.background=pr.id===t.pid?"#eff6ff":"transparent"}>
-                      <span style={{width:8,height:8,borderRadius:"50%",background:pr.color,display:"inline-block",flexShrink:0}}/>
-                      {pr.name}
-                      {pr.id===t.pid&&<span style={{marginLeft:"auto",display:"inline-flex"}}><CheckIcon style={{width:12,height:12,color:"#2563eb"}}/></span>}
-                    </div>)}
-                  </div>}
-                </div>
-                {t.pri&&t.pri!=="보통"&&<span style={{...S.badge(priBg[t.pri],priC[t.pri]),fontSize:10}}>{t.pri}</span>}
-              </div>
-              {/* 날짜 선택 모달 */}
-              {sidebarDateId===t.id&&
-                <div onClick={ev=>ev.stopPropagation()} style={{marginTop:6,background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:10,padding:"8px 10px"}}>
-                  <div style={{display:"flex",gap:4,marginBottom:6,flexWrap:"wrap" as const}}>
-                    {([["오늘",0],["내일",1],["다음 주",7]] as [string,number][]).map(([l,n])=>
-                      <button key={l} onClick={()=>{updTodo(t.id,{due:qDays(n)});setSidebarDateId(null);}}
-                        style={{fontSize:10,padding:"2px 8px",borderRadius:10,border:"1px solid #e2e8f0",background:"#fff",cursor:"pointer",color:"#334155",fontFamily:"inherit"}}>{l}</button>)}
+              {/* 접힌 상태: 제목 텍스트 + 메타 */}
+              {!isExp && (
+                <>
+                  {/* 제목 — 클릭하면 펼치기 */}
+                  <div
+                    onClick={e => { e.stopPropagation(); if (!isDoneSec) sidebarExpand(t.id); }}
+                    style={{
+                      fontSize: 13, fontWeight: isDone ? 400 : 500,
+                      color: isDone ? "#b0bec5" : od && !isDone ? "#c0392b" : "#1e293b",
+                      textDecoration: isDone ? "line-through" : "none",
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const,
+                      cursor: isDoneSec ? "default" : "pointer",
+                      display: "flex", alignItems: "center", gap: 4, lineHeight: "1.4",
+                    }}
+                  >
+                    {t.repeat && t.repeat !== "없음" && <RepeatBadge repeat={t.repeat} />}
+                    {t.task}
                   </div>
-                  <input type="date"
-                    defaultValue={t.due?.split(" ")[0]||""}
-                    onChange={e=>{if(e.target.value){updTodo(t.id,{due:e.target.value});setSidebarDateId(null);}}}
-                    style={{width:"100%",fontSize:11,padding:"3px 6px",border:"1px solid #e2e8f0",borderRadius:8,outline:"none",fontFamily:"inherit",boxSizing:"border-box" as const,background:"#fff"}}
-                  />
-                </div>}
-              {/* 접기 + 삭제 */}
-              <div style={{marginTop:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <button onClick={ev=>{ev.stopPropagation();sidebarExpand(null);setSidebarDateId(null);}}
-                  style={{fontSize:11,padding:"3px 8px",borderRadius:8,border:"1px solid #e2e8f0",
-                    background:"#f8fafc",color:"#94a3b8",cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:3}}>
-                  <span style={{fontSize:10}}>▲</span> 접기
-                </button>
-                <button onClick={ev=>{ev.stopPropagation();if(confirm(`"${t.task}" 삭제?`)){delTodo(t.id);sidebarExpand(null);}}}
-                  style={{fontSize:11,padding:"3px 10px",borderRadius:8,border:"1px solid #fecaca",
-                    background:"#fef2f2",color:"#ef4444",cursor:"pointer",fontFamily:"inherit"}}>
-                  삭제
-                </button>
-              </div>
-            </div>}
-          </div>
+                  {/* 날짜 + 프로젝트 메타 */}
+                  <div style={{ display: "flex", flexDirection: "column" as const, gap: 2, marginTop: 3 }}>
+                    {dueDateStr && (
+                      <span style={{ fontSize: 11, color: od && !isDone ? "#e53e3e" : "#94a3b8", lineHeight: "16px", display: "inline-flex", alignItems: "center", gap: 3 }}>
+                        {od && !isDone && <ExclamationTriangleIcon style={ICON_SM} />}
+                        <CalendarIcon style={{ width: 12, height: 12 }} />
+                        {dueLabel}
+                      </span>
+                    )}
+                    <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, color: "#b0bec5" }}>
+                        <span style={{ width: 5, height: 5, borderRadius: "50%", background: p.color || "#94a3b8", display: "inline-block", flexShrink: 0 }} />
+                        {p.name}
+                      </span>
+                      {t.pri && t.pri !== "보통" && <span style={{ ...S.badge(priBg[t.pri], priC[t.pri]), fontSize: 10 }}>{t.pri}</span>}
+                    </div>
+                  </div>
+                </>
+              )}
 
-          {/* ★ 즐겨찾기 — 항상 우상단 표시 */}
-          {!isDoneSec&&
-            <button onClick={e=>{e.stopPropagation();toggleStar(t.id);}}
-              title={isStarred?"즐겨찾기 해제":"즐겨찾기"}
-              style={{position:"absolute" as const,right:5,top:isExp?10:9,
-                width:24,height:24,border:"none",background:"transparent",
-                cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",
-                fontSize:14,color:isStarred?"#f59e0b":"#d1d5db",padding:0,
-                transition:"color .15s,transform .15s",
-                transform:isStarred?"scale(1.1)":"scale(1)"}}
-              onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.color=isStarred?"#d97706":"#94a3b8";}}
-              onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.color=isStarred?"#f59e0b":"#d1d5db";}}>
-              {isStarred?<StarIcon style={ICON_SM}/>:<StarOutlineIcon style={ICON_SM}/>}
-            </button>}
-        </div>;
+              {/* 펼쳐진 상태: 편집 패널 (제목 contentEditable 포함) */}
+              {isExp && (
+                <SidebarEditExpanded
+                  t={t}
+                  visibleProj={visibleProj}
+                  visibleMembers={visibleMembers}
+                  pris={pris}
+                  priC={priC}
+                  priBg={priBg}
+                  todayStr={todayStr}
+                  updTodo={updTodo}
+                  delTodo={delTodo}
+                  sidebarExpand={sidebarExpand}
+                  detDivRefs={detDivRefs}
+                  setSidebarDetId={setSidebarDetId}
+                  taskDivRefs={taskDivRefs}
+                />
+              )}
+            </div>
+
+            {/* 즐겨찾기 버튼 — 우상단 고정 */}
+            {!isDoneSec && (
+              <button
+                onClick={e => { e.stopPropagation(); toggleStar(t.id); }}
+                title={isStarred ? "즐겨찾기 해제" : "즐겨찾기"}
+                style={{
+                  position: "absolute" as const, right: 5, top: isExp ? 10 : 9,
+                  width: 24, height: 24, border: "none", background: "transparent",
+                  cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 14, color: isStarred ? "#f59e0b" : "#d1d5db", padding: 0,
+                  transition: "color .15s,transform .15s",
+                  transform: isStarred ? "scale(1.1)" : "scale(1)",
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = isStarred ? "#d97706" : "#94a3b8"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = isStarred ? "#f59e0b" : "#d1d5db"; }}
+              >
+                {isStarred ? <StarIcon style={ICON_SM} /> : <StarOutlineIcon style={ICON_SM} />}
+              </button>
+            )}
+          </div>
+        );
       };
 
-      return <div style={{width:268,flexShrink:0,background:"#fff",borderRadius:12,boxShadow:"0 2px 8px rgba(0,0,0,.10)",border:"1px solid #e2e8f0",position:"sticky",top:102,alignSelf:"flex-start",display:"flex",flexDirection:"column",maxHeight:"calc(100vh - 112px)"}}>
-        {/* 헤더: 진행률 바 포함 */}
-        <div style={{padding:"12px 14px 8px",borderBottom:"1px solid #f1f5f9",background:"#f8fafc",flexShrink:0}}>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:myAll.length>0?7:0}}>
-            <div>
-              <div style={{fontSize:12,fontWeight:700,color:"#1e293b"}}>나의 할 일</div>
-              <div style={{fontSize:10,color:"#94a3b8",marginTop:1}}>{currentUser} · {active.length}건 진행 · {done.length}건 완료</div>
-            </div>
-            <div style={{width:32,height:32,borderRadius:"50%",background:`linear-gradient(135deg,${avColor(currentUser||"")},${avColor2(currentUser||"")})`,fontSize:14,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,flexShrink:0}}>{(currentUser||"?").slice(-1)}</div>
-          </div>
-          {/* 진행률 바 */}
-          {myAll.length>0&&<div style={{height:3,borderRadius:99,background:"#e2e8f0",overflow:"hidden"}} title={`${pct}% 완료`}>
-            <div style={{height:"100%",width:`${pct}%`,background:pct===100?"#22c55e":"#2563eb",borderRadius:99,transition:"width .4s"}}/>
-          </div>}
-        </div>
-        {/* 업무 추가 — 인라인 입력 */}
-        <div style={{padding:"8px 12px",borderBottom:"1px solid #f1f5f9",flexShrink:0}}>
-          {calSidebarAdding
-            ?<div onClick={e=>e.stopPropagation()}>
-              <input autoFocus value={calSidebarAddTitle}
-                onChange={e=>setCalSidebarAddTitle(e.target.value)}
-                onKeyDown={e=>{
-                  if(e.key==="Enter"&&calSidebarAddTitle.trim()){
-                    addTodo({pid:0,task:calSidebarAddTitle.trim(),who:currentUser||"",due:todayStr,pri:"보통",st:"대기",det:"",repeat:"없음"});
-                    setCalSidebarAddTitle("");setCalSidebarAdding(false);flash("업무가 등록되었습니다");
-                  }
-                  if(e.key==="Escape"){setCalSidebarAdding(false);setCalSidebarAddTitle("");}
-                }}
-                placeholder="업무 제목 입력 후 Enter..."
-                style={{width:"100%",padding:"7px 10px",border:"1.5px solid #2563eb",borderRadius:8,fontSize:12,outline:"none",boxSizing:"border-box" as const,fontFamily:"inherit"}}/>
-              <div style={{display:"flex",justifyContent:"flex-end",gap:4,marginTop:5}}>
-                <button onClick={()=>{setCalSidebarAdding(false);setCalSidebarAddTitle("");}}
-                  style={{fontSize:11,padding:"4px 8px",borderRadius:6,border:"1px solid #e2e8f0",background:"#fff",cursor:"pointer",color:"#64748b",fontFamily:"inherit"}}>취소</button>
-                <button onClick={()=>{if(calSidebarAddTitle.trim()){addTodo({pid:0,task:calSidebarAddTitle.trim(),who:currentUser||"",due:todayStr,pri:"보통",st:"대기",det:"",repeat:"없음"});setCalSidebarAddTitle("");setCalSidebarAdding(false);flash("업무가 등록되었습니다");}}}
-                  style={{fontSize:11,padding:"3px 12px",borderRadius:6,border:"none",background:"#2563eb",cursor:"pointer",color:"#fff",fontFamily:"inherit",fontWeight:600}}>추가</button>
+      return (
+        <div style={{ width: 268, flexShrink: 0, background: "#fff", borderRadius: 12, boxShadow: "0 2px 8px rgba(0,0,0,.10)", border: "1px solid #e2e8f0", position: "sticky", top: 102, alignSelf: "flex-start", display: "flex", flexDirection: "column" as const, maxHeight: "calc(100vh - 112px)" }}>
+
+          {/* 헤더: 사용자 정보 + 진행률 바 */}
+          <div style={{ padding: "12px 14px 8px", borderBottom: "1px solid #f1f5f9", background: "#f8fafc", flexShrink: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: myAll.length > 0 ? 7 : 0 }}>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#1e293b" }}>나의 할 일</div>
+                <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 1 }}>{currentUser} · {active.length}건 진행 · {done.length}건 완료</div>
+              </div>
+              <div style={{ width: 32, height: 32, borderRadius: "50%", background: `linear-gradient(135deg,${avColor(currentUser || "")},${avColor2(currentUser || "")})`, fontSize: 14, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, flexShrink: 0 }}>
+                {(currentUser || "?").slice(-1)}
               </div>
             </div>
-            :<button onClick={()=>setCalSidebarAdding(true)}
-              style={{width:"100%",padding:"8px",border:"1.5px dashed #e2e8f0",borderRadius:8,background:"#f8fafc",cursor:"pointer",fontSize:12,color:"#94a3b8",display:"flex",alignItems:"center",justifyContent:"center",gap:4,fontFamily:"inherit",transition:"all .2s"}}
-              onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.borderColor="#93c5fd";(e.currentTarget as HTMLButtonElement).style.color="#2563eb";(e.currentTarget as HTMLButtonElement).style.background="#eff6ff";}}
-              onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.borderColor="#e2e8f0";(e.currentTarget as HTMLButtonElement).style.color="#94a3b8";(e.currentTarget as HTMLButtonElement).style.background="#f8fafc";}}>
-              + 업무 추가
-            </button>}
+            {myAll.length > 0 && (
+              <div style={{ height: 3, borderRadius: 99, background: "#e2e8f0", overflow: "hidden" }} title={`${pct}% 완료`}>
+                <div style={{ height: "100%", width: `${pct}%`, background: pct === 100 ? "#22c55e" : "#2563eb", borderRadius: 99, transition: "width .4s" }} />
+              </div>
+            )}
+          </div>
+
+          {/* 업무 추가 폼 */}
+          <SidebarAddTask
+            adding={calSidebarAdding} setAdding={setCalSidebarAdding}
+            title={calSidebarAddTitle} setTitle={setCalSidebarAddTitle}
+            visibleProj={visibleProj} visibleMembers={visibleMembers} pris={pris} priC={priC}
+            currentUser={currentUser} todayStr={todayStr}
+            addTodo={addTodo} flash={flash}
+          />
+
+          {/* 목록 스크롤 영역 */}
+          <div style={{ flex: 1, overflowY: "auto" as const }}>
+
+            {/* 완료 애니메이션 중인 항목 */}
+            {animating.map((t: any) => <SidebarTodoItem key={t.id + "_sb"} t={t} />)}
+
+            {/* 날짜 없음 섹션 */}
+            {secNoDate.length > 0 && <SecHdr label="날짜 없음" count={secNoDate.length} open={secNodateOpen} onToggle={() => setSecNodateOpen(v => !v)} />}
+            {secNodateOpen && secNoDate.map((t: any) => <SidebarTodoItem key={t.id + "_sb"} t={t} />)}
+
+            {/* 오늘 섹션 */}
+            {secToday.length > 0 && <SecHdr label="오늘" count={secToday.length} open={secTodayOpen} onToggle={() => setSecTodayOpen(v => !v)} />}
+            {secTodayOpen && secToday.map((t: any) => <SidebarTodoItem key={t.id + "_sb"} t={t} />)}
+
+            {/* 이번 주 섹션 */}
+            {secWeek.length > 0 && <SecHdr label="이번 주" count={secWeek.length} open={secWeekOpen} onToggle={() => setSecWeekOpen(v => !v)} />}
+            {secWeekOpen && secWeek.map((t: any) => <SidebarTodoItem key={t.id + "_sb"} t={t} />)}
+
+            {/* 나중에 섹션 */}
+            {secLater.length > 0 && <SecHdr label="나중에" count={secLater.length} open={secLaterOpen} onToggle={() => setSecLaterOpen(v => !v)} />}
+            {secLaterOpen && secLater.map((t: any) => <SidebarTodoItem key={t.id + "_sb"} t={t} />)}
+
+            {/* 빈 상태 */}
+            {active.length === 0 && animating.length === 0 && (
+              <div style={{ padding: "28px 16px 12px", textAlign: "center", color: "#cbd5e1", fontSize: 12, lineHeight: 1.8 }}>
+                <div style={{ marginBottom: 6 }}><CheckCircleIcon style={{ width: 26, height: 26 }} /></div>
+                <div>할일이 없습니다</div>
+                <div style={{ fontSize: 10, marginTop: 3, color: "#d1d5db" }}>위 버튼으로 추가하세요 ↑</div>
+              </div>
+            )}
+
+            {/* 완료됨 섹션 */}
+            {done.length > 0 && (
+              <>
+                <button
+                  onClick={() => setSidebarDoneOpen(v => !v)}
+                  style={{ width: "100%", padding: "10px 12px", border: "none", borderTop: "1px solid #f1f5f9", background: "#fafafa", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 600, color: "#64748b", textAlign: "left" as const, fontFamily: "inherit" }}
+                >
+                  <span style={{ fontSize: 8, display: "inline-block", transform: sidebarDoneOpen ? "rotate(90deg)" : "none", transition: "transform .2s" }}>▶</span>
+                  완료됨 <span style={{ color: "#94a3b8", fontWeight: 400 }}>{done.length}</span>
+                </button>
+                {sidebarDoneOpen && done.map((t: any) => <SidebarTodoItem key={t.id + "_sb_done"} t={t} isDoneSec />)}
+              </>
+            )}
+          </div>
         </div>
-        {/* 목록 — flex:1 + overflowY:auto 로 남은 높이 채움 */}
-        <div style={{flex:1,overflowY:"auto"}}>
-          {animating.map(t=>renderTodo(t))}
-          {secNoDate.length>0&&<SecHdr label="날짜 없음" count={secNoDate.length} open={secNodateOpen} onToggle={()=>setSecNodateOpen(v=>!v)}/>}
-          {secNodateOpen&&secNoDate.map(t=>renderTodo(t))}
-          {secToday.length>0&&<SecHdr label="오늘" count={secToday.length} open={secTodayOpen} onToggle={()=>setSecTodayOpen(v=>!v)}/>}
-          {secTodayOpen&&secToday.map(t=>renderTodo(t))}
-          {secWeek.length>0&&<SecHdr label="이번 주" count={secWeek.length} open={secWeekOpen} onToggle={()=>setSecWeekOpen(v=>!v)}/>}
-          {secWeekOpen&&secWeek.map(t=>renderTodo(t))}
-          {secLater.length>0&&<SecHdr label="나중에" count={secLater.length} open={secLaterOpen} onToggle={()=>setSecLaterOpen(v=>!v)}/>}
-          {secLaterOpen&&secLater.map(t=>renderTodo(t))}
-          {active.length===0&&animating.length===0&&
-            <div style={{padding:"28px 16px 12px",textAlign:"center",color:"#cbd5e1",fontSize:12,lineHeight:1.8}}>
-              <div style={{marginBottom:6}}><CheckCircleIcon style={{width:26,height:26}}/></div>
-              <div>할일이 없습니다</div>
-              <div style={{fontSize:10,marginTop:3,color:"#d1d5db"}}>위 버튼으로 추가하세요 ↑</div>
-            </div>}
-          {done.length>0&&<>
-            <button onClick={()=>setSidebarDoneOpen(v=>!v)}
-              style={{width:"100%",padding:"10px 12px",border:"none",borderTop:"1px solid #f1f5f9",background:"#fafafa",cursor:"pointer",display:"flex",alignItems:"center",gap:6,fontSize:11,fontWeight:600,color:"#64748b",textAlign:"left" as const,fontFamily:"inherit"}}>
-              <span style={{fontSize:8,display:"inline-block",transform:sidebarDoneOpen?"rotate(90deg)":"none",transition:"transform .2s"}}>▶</span>
-              완료됨 <span style={{color:"#94a3b8",fontWeight:400}}>{done.length}</span>
-            </button>
-            {sidebarDoneOpen&&done.map(t=>renderTodo(t,true))}
-          </>}
-        </div>
-      </div>;
+      );
     })()}
 
     {/* ── 이벤트 상세 팝오버 ─────────────────────────────────── */}
@@ -897,7 +1516,7 @@ export function CalendarView(props: CalendarViewProps) {
         <div style={{padding:"12px 14px 8px"}}>
           <input autoFocus value={calQATitle} onChange={e=>setCalQATitle(e.target.value)}
             onKeyDown={e=>{if(e.key==="Enter")saveQA();if(e.key==="Escape"){setCalQA(null);setCalQATitle("");}}}
-            placeholder="업무 제목 입력..."
+            placeholder="업무내용 입력..."
             style={{width:"100%",padding:"8px 10px",border:"1.5px solid #2563eb",borderRadius:7,fontSize:13,outline:"none",boxSizing:"border-box" as const}}/>
           {/* 아이콘 빠른선택 */}
           <div style={{display:"flex",gap:4,marginTop:8,flexWrap:"wrap" as const}}>

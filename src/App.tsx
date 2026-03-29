@@ -2,7 +2,7 @@ import { useRef, useEffect, useState } from "react";
 import { useTodoApp } from "./hooks/useTodoApp";
 import { PermissionProvider } from "./auth/PermissionContext";
 import { S } from "./styles";
-import { REPEAT_OPTS } from "./constants";
+import { REPEAT_OPTS, INIT_ST } from "./constants";
 import { FolderIcon, Cog6ToothIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, TrashIcon, KeyboardIcon, ChartBarIcon, ListBulletIcon, CalendarIcon, ViewColumnsIcon, ArrowPathIcon, UserIcon, BoltIcon, CheckCircleIcon, DocumentTextIcon, StarIcon as StarSolidIcon, StarOutlineIcon, PlusIcon, ClipboardDocumentIcon, CheckIcon, PencilSquareIcon, XMarkIcon, ICON_SM } from "./components/ui/Icons";
 
 import { Toast } from "./components/ui/Toast";
@@ -28,7 +28,7 @@ export default function App() {
     members, setMembers, pris, setPris, stats, setStats,
     priC, setPriC, priBg, setPriBg, stC, setStC, stBg, setStBg,
     view, setView, toast, filters, setFilters, favSidebar, togFavSidebar,
-    search, setSearch, editCell, setEditCell, sortCol, sortDir,
+    search, setSearch, editCell, setEditCell, sortCol, sortDir, setSortCol, setSortDir, customSortOrders, setCustomSortOrders, activeSortFields, setActiveSortFields,
     newRows, setNewRows, kbF, setKbF, kbFWho, setKbFWho,
     dragId, setDragId, dragOver, setDragOver,
     calF, setCalF, calFWho, setCalFWho, calY, calM, calD,
@@ -40,7 +40,7 @@ export default function App() {
     detPopup, setDetPopup, notePopup, setNotePopup,
     datePop, setDatePop, nrDatePop, setNrDatePop,
     hoverRow, setHoverRow, currentUser, setCurrentUser,
-    userFavs, isFav, toggleFav, userSettings, setUserSettings,
+    userFavs, isFav, toggleFav: toggleFavBase, userSettings, setUserSettings,
     expandMode, setExpandMode, todoView, setTodoView, showDone, setShowDone, memoCols, setMemoCols,
     selectedIds, lastSelRef, addSecRef, tblDivRef,
     clrSel, movePop, setMovePop, bulkPop, setBulkPop,
@@ -59,9 +59,11 @@ export default function App() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName;
+      // 텍스트 입력 중(노트, 검색창 등)에는 브라우저 기본 Ctrl+Z(텍스트 되돌리기)를 허용
+      const isEditing = tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement).isContentEditable;
+      if (isEditing) return;
       if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) { e.preventDefault(); undo(); return; }
       if ((e.ctrlKey || e.metaKey) && (e.key === "y" || (e.key === "Z" && e.shiftKey))) { e.preventDefault(); redo(); return; }
-      if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement).isContentEditable) return;
       // ? 키로 단축키 도움말 팝업 열기/닫기
       if (e.key === "?") { e.preventDefault(); setShowShortcuts(p => !p); return; }
       // 선택된 항목 Delete 키 삭제
@@ -119,6 +121,8 @@ export default function App() {
   };
   // ── 사이드바 인터랙션 상태 ──────────────────────────────────────
   const [pendingComplete, setPendingComplete] = useState<Set<number>>(new Set()); // 완료 애니메이션 중인 ID
+  // 완료 애니메이션 타이머 — 탭 전환/언마운트 시 메모리 누수 방지용 cleanup 대상
+  const completeTimers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
   const [sidebarDoneOpen, setSidebarDoneOpen] = useState(false); // 완료됨 섹션 열림
   const [secNodateOpen, setSecNodateOpen] = useState(true); // 날짜 없음 섹션
   const [secTodayOpen, setSecTodayOpen] = useState(true);   // 오늘 섹션
@@ -135,14 +139,14 @@ export default function App() {
   const [sidebarHoverId, setSidebarHoverId] = useState<number|null>(null); // 호버 중인 ID
   const [sidebarDragId, setSidebarDragId] = useState<number|null>(null); // 드래그 중인 ID
   const [sidebarDragOver, setSidebarDragOver] = useState<number|null>(null); // 드래그 오버 중인 ID
-  const [sidebarDateId, setSidebarDateId] = useState<number|null>(null); // 날짜 빠른 변경 팝업 ID
   const [sidebarExpandId, setSidebarExpandId] = useState<number|null>(null); // 확장(클릭) 중인 ID
   const [sidebarDetId, setSidebarDetId] = useState<number|null>(null);       // 세부정보 편집 중인 ID
-  const [sidebarProjId, setSidebarProjId] = useState<number|null>(null);    // 프로젝트 선택 팝업 ID
   const detDivRefs = useRef<Map<number, HTMLDivElement>>(new Map());
-  // 별표 — userSettings 기반 (Firestore 동기화)
-  const starredIds: Set<number> = new Set(currentUser ? (userSettings[currentUser]?.starredIds ?? []) : []);
-  const toggleStar = (id: number) => {
+  // 제목 contentEditable ref 추적 — detDivRefs와 동일한 패턴
+  const taskDivRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  // 즐겨찾기 통합 토글 — userFavs(localStorage, 리스트뷰 필터용) + userSettings.starredIds(캘린더 사이드바) 동시 반영
+  const toggleFav = (id: number) => {
+    toggleFavBase(id);
     if (!currentUser) return;
     setUserSettings((prev: any) => {
       const cur: number[] = prev[currentUser]?.starredIds ?? [];
@@ -150,6 +154,10 @@ export default function App() {
       return { ...prev, [currentUser]: { ...prev[currentUser], starredIds: n } };
     });
   };
+  // starredIds — userFavs 기반으로 통일 (두 저장소를 하나로 읽기)
+  const starredIds: Set<number> = new Set(currentUser ? (userFavs[currentUser] || []) : []);
+  // toggleStar는 toggleFav와 동일 (캘린더 사이드바에서 호출)
+  const toggleStar = toggleFav;
   // 숨겨진 프로젝트 — userSettings 기반 (Firestore 동기화)
   const hiddenProjects: number[] = currentUser ? (userSettings[currentUser]?.hiddenProjects ?? []) : [];
   const toggleHideProject = (id: number) => {
@@ -176,7 +184,8 @@ export default function App() {
     // 다른 항목으로 전환 전 현재 세부정보 자동저장 (DOM에서 직접 읽기)
     if (sidebarDetId !== null) {
       const el = detDivRefs.current.get(sidebarDetId);
-      if (el) {
+      // el이 DOM에 실제로 연결되어 있는지 확인 후 저장 (언마운트된 ref 참조 방지)
+      if (el && document.contains(el)) {
         const html = el.innerHTML === "<br>" ? "" : el.innerHTML;
         const cur = todos.find(x => x.id === sidebarDetId);
         if (cur && html !== (cur.det||"")) updTodo(sidebarDetId, {det: html});
@@ -203,7 +212,7 @@ export default function App() {
   useEffect(() => {
     const close = () => {
       if (justOpenedPopup.current) { justOpenedPopup.current = false; return; }
-      setCalEvPop(null); setCalQA(null); setCalDayPop(null); setSidebarProjId(null); setSidebarDateId(null);
+      setCalEvPop(null); setCalQA(null); setCalDayPop(null);
     };
     window.addEventListener("click", close);
     return () => window.removeEventListener("click", close);
@@ -284,17 +293,33 @@ export default function App() {
   // A1: 완료 체크 시 취소선 애니메이션 후 완료 섹션으로 이동
   const handleSideComplete = (id: number, isDone: boolean) => {
     if (!isDone) {
+      // 이미 진행 중인 타이머가 있으면 취소 (빠른 연속 클릭 방지)
+      const existing = completeTimers.current.get(id);
+      if (existing) clearTimeout(existing);
       setPendingComplete(s => new Set([...s, id]));
-      setTimeout(() => {
+      // 타이머를 Map에 저장해 언마운트 시 cleanup 가능하게 함
+      const timer = setTimeout(() => {
         updTodo(id, {st: "완료"});
         setPendingComplete(s => { const n = new Set(s); n.delete(id); return n; });
+        completeTimers.current.delete(id);
         flash("완료 처리되었습니다");
       }, 600);
+      completeTimers.current.set(id, timer);
     } else {
-      updTodo(id, {st: "대기"});
+      // 완료 해제 시 진행 중인 애니메이션 타이머도 취소
+      const existing = completeTimers.current.get(id);
+      if (existing) { clearTimeout(existing); completeTimers.current.delete(id); }
+      setPendingComplete(s => { const n = new Set(s); n.delete(id); return n; });
+      // INIT_ST[0] = "대기" — 상태명이 바뀌어도 자동 반영됨
+      updTodo(id, {st: INIT_ST[0]});
       flash("완료 해제되었습니다");
     }
   };
+
+  // 컴포넌트 언마운트 시 모든 완료 애니메이션 타이머 정리
+  useEffect(() => {
+    return () => { completeTimers.current.forEach(t => clearTimeout(t)); };
+  }, []);
 
   if (!currentUser) return (
     <PermissionProvider currentUser={null}>
@@ -369,7 +394,9 @@ export default function App() {
         memoCols={memoCols} setMemoCols={setMemoCols}
         showDone={showDone} setShowDone={setShowDone}
         expandMode={expandMode} setExpandMode={setExpandMode}
-        sortCol={sortCol} sortDir={sortDir} sortIcon={sortIcon} toggleSort={toggleSort}
+        sortCol={sortCol} sortDir={sortDir} setSortCol={setSortCol} setSortDir={setSortDir} sortIcon={sortIcon} toggleSort={toggleSort}
+        customSortOrders={customSortOrders} setCustomSortOrders={setCustomSortOrders}
+        activeSortFields={activeSortFields} setActiveSortFields={setActiveSortFields}
         selectedIds={selectedIds} allVisibleSelected={allVisibleSelected}
         someVisibleSelected={someVisibleSelected}
         handleCheck={handleCheck} toggleSelectAll={toggleSelectAll}
@@ -420,10 +447,8 @@ export default function App() {
         sidebarHoverId={sidebarHoverId} setSidebarHoverId={setSidebarHoverId}
         sidebarEditId={sidebarEditId} setSidebarEditId={setSidebarEditId}
         sidebarEditVal={sidebarEditVal} setSidebarEditVal={setSidebarEditVal}
-        sidebarDateId={sidebarDateId} setSidebarDateId={setSidebarDateId}
         sidebarExpandId={sidebarExpandId}
         sidebarDetId={sidebarDetId} setSidebarDetId={setSidebarDetId}
-        sidebarProjId={sidebarProjId} setSidebarProjId={setSidebarProjId}
         sidebarExpand={sidebarExpand}
         sidebarDoneOpen={sidebarDoneOpen} setSidebarDoneOpen={setSidebarDoneOpen}
         secNodateOpen={secNodateOpen} setSecNodateOpen={setSecNodateOpen}
@@ -432,12 +457,12 @@ export default function App() {
         secLaterOpen={secLaterOpen} setSecLaterOpen={setSecLaterOpen}
         starredIds={starredIds} toggleStar={toggleStar}
         pendingComplete={pendingComplete} handleSideComplete={handleSideComplete}
-        detDivRefs={detDivRefs}
+        detDivRefs={detDivRefs} taskDivRefs={taskDivRefs}
       />}
     </main>
 
     <DateTimePicker datePop={datePop} onSave={(id,val)=>{
-      // AI 일괄배정 마감일 — id -9999
+      // AI 일괄배정 마감기한 — id -9999
       if(id===-9999){setAiParsed((p:any[])=>p.map((t:any)=>t._chk?{...t,due:val}:t));setDatePop(null);return;}
       // AI 결과 개별 행 날짜 선택 — id가 -1000 이하이면 aiParsed 업데이트
       if(id<=-1000){const idx=-(id+1000);setAiParsed((p:any[])=>{const n=[...p];if(n[idx])n[idx]={...n[idx],due:val};return n;});setDatePop(null);return;}

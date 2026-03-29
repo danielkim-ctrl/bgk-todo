@@ -6,8 +6,35 @@ export const INIT_PRI_BG: Record<string,string> = {긴급:"#fef2f2",높음:"#fff
 export const INIT_ST_C: Record<string,string> = {대기:"#64748b",진행중:"#2563eb",검토:"#d97706",완료:"#16a34a"};
 export const INIT_ST_BG: Record<string,string> = {대기:"#f1f5f9",진행중:"#dbeafe",검토:"#fef3c7",완료:"#dcfce7"};
 export const REPEAT_OPTS = ["없음","매일","매주","매월"];
+export const REPEAT_UNITS = ["일","주","월"] as const;
 export const PROJ_PALETTE = ["#8b5cf6","#14b8a6","#2563eb","#f59e0b","#f43f5e","#10b981","#f97316","#ec4899","#6366f1","#84cc16","#06b6d4","#0d9488","#0ea5e9","#d946ef","#f43f5e","#64748b"];
 export const REPEAT_LABEL: Record<string,string> = {없음:"",매일:"매일",매주:"매주",매월:"매월"};
+
+// 레거시 문자열 → RepeatConfig 변환 (읽기 시)
+import type { RepeatConfig } from "./types";
+const LEGACY_MAP: Record<string, {interval:number; unit:"일"|"주"|"월"}> = {
+  "매일": {interval:1, unit:"일"},
+  "매주": {interval:1, unit:"주"},
+  "매월": {interval:1, unit:"월"},
+};
+// repeat 필드를 정규화 — 문자열이면 객체로, 이미 객체면 그대로
+export function normalizeRepeat(val: any, due?: string): RepeatConfig | "없음" {
+  if (!val || val === "없음") return "없음";
+  if (typeof val === "object" && val.interval) return val as RepeatConfig;
+  const m = LEGACY_MAP[val as string];
+  if (m) return { ...m, start: due || "", endType: "none" };
+  return "없음";
+}
+// RepeatConfig → 사용자 표시 문자열 (배지용)
+export function repeatLabel(val: any): string {
+  if (!val || val === "없음") return "";
+  if (typeof val === "string") return REPEAT_LABEL[val] || "";
+  const c = val as RepeatConfig;
+  const n = c.interval;
+  const u = c.unit;
+  if (n === 1) return `매${u}`;
+  return `${n}${u}마다`;
+}
 
 export const AVATAR_COLORS = ["#2563eb","#16a34a","#d97706","#9333ea","#dc2626","#0d9488","#db2777","#ea580c"];
 
