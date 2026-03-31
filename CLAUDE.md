@@ -56,12 +56,13 @@ src/
 
 ## CSS Zoom 설정
 
-- 앱 전체에 `zoom: 1.5`가 적용되어 있음 (모든 요소가 1.5배 확대 렌더링)
-- 크기/좌표 관련 코딩 시 반드시 zoom 배율을 고려해야 함:
-  - `getBoundingClientRect()`, `clientX/Y`, `window.innerWidth/Height` 등 브라우저 API가 반환하는 값은 zoom 미적용 원본 좌표이므로, 실제 화면 위치와 매칭하려면 zoom 비율(1.5)로 나누거나 곱해야 할 수 있음
+- 앱 전체에 `zoom: 1.0`이 적용되어 있음 (기본값, 별도 확대 없음)
+- zoom 값이 1.0이므로 좌표 관련 코딩 시 별도 zoom 보정이 필요 없음
+- 단, 추후 zoom 값이 변경될 경우 아래 사항을 주의:
+  - `getBoundingClientRect()`, `clientX/Y`, `window.innerWidth/Height` 등은 zoom 미적용 원본 좌표를 반환하므로, zoom ≠ 1.0이면 실제 화면 위치와 매칭 시 보정 필요
   - `position: fixed/absolute` 요소의 `top/left` 계산 시 zoom 보정 필요
   - 드래그앤드롭, 팝업/드롭다운 위치 계산, 마우스 좌표 기반 로직에서 zoom 오차 주의
-- 새 컴포넌트나 위치 계산 로직 작성 시 항상 zoom 1.5 환경에서 테스트할 것
+- zoom 값 변경 시 이 항목과 코드 내 zoom 보정 로직을 함께 업데이트할 것
 
 ## 팝업/드롭다운 위치 규칙
 
