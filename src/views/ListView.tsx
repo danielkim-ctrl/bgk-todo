@@ -10,8 +10,9 @@ import { SectionLabel } from "../components/ui/SectionLabel";
 import { DropPanel } from "../components/ui/DropPanel";
 import { RepeatBadge } from "../components/ui/RepeatBadge";
 import { ColumnFilterDropdown } from "../components/ui/ColumnFilterDropdown";
-import { Bars3Icon, ListBulletIcon, FolderIcon, UserIcon, ArrowPathIcon, MagnifyingGlassIcon, ExclamationTriangleIcon, CheckIcon, CheckCircleIcon, FlagIcon, PencilSquareIcon, TrashIcon, InboxIcon, StarIcon, StarOutlineIcon, XMarkIcon, ICON_SM } from "../components/ui/Icons";
+import { Bars3Icon, ListBulletIcon, FolderIcon, UserIcon, ArrowPathIcon, MagnifyingGlassIcon, ExclamationTriangleIcon, CheckIcon, CheckCircleIcon, FlagIcon, PencilSquareIcon, TrashIcon, InboxIcon, StarIcon, StarOutlineIcon, XMarkIcon, BookmarkIcon, ICON_SM } from "../components/ui/Icons";
 import { Chip } from "../components/ui/Chip";
+import { SavedFilter, Filters } from "../types";
 
 // ── hover 플로팅 액션 팝업 (mouseLeave 없이 document mousemove로 좌표 감지) ──
 // DateTimePicker처럼 mouseEnter/mouseLeave를 사용하지 않고,
@@ -139,6 +140,8 @@ interface ListViewProps {
   setAiParsed: (v: any) => void;
   parseAI: () => void;
   confirmAI: () => void;
+  aiHistory?: any[];
+  restoreAiHistory?: () => void;
   sorted: any[];
   currentUser: string|null;
   // list view controls
@@ -187,6 +190,10 @@ interface ListViewProps {
   // refs
   addSecRef: React.RefObject<HTMLDivElement>;
   tblDivRef: React.RefObject<HTMLDivElement>;
+  // 저장된 필터
+  savedFilters: SavedFilter[];
+  saveCurrentFilter: (name: string, filters: Filters, search: string) => void;
+  deleteSavedFilter: (id: string) => void;
 }
 
 export function ListView(props: ListViewProps) {
@@ -198,7 +205,7 @@ export function ListView(props: ListViewProps) {
     visibleProj, visibleMembers,
     addTab, setAddTab, newRows, setNewRows, addNR, saveNRs, saveOneNR, isNREmpty,
     setNotePopup, setNrDatePop, aiText, setAiText, aiFiles, setAiFiles,
-    aiLoad, aiSt, setAiSt, aiParsed, setAiParsed, parseAI, confirmAI,
+    aiLoad, aiSt, setAiSt, aiParsed, setAiParsed, parseAI, confirmAI, aiHistory, restoreAiHistory,
     sorted, currentUser,
     todoView, setTodoView, memoCols, setMemoCols, showDone, setShowDone,
     expandMode, setExpandMode, sortCol, sortDir, setSortCol, setSortDir, sortIcon, toggleSort,
@@ -209,7 +216,43 @@ export function ListView(props: ListViewProps) {
     editCell, setEditCell, datePop, setDatePop,
     hoverRow, setHoverRow, hoverRowRect, setHoverRowRect, hoverLeaveTimer,
     addSecRef, tblDivRef,
+    savedFilters, saveCurrentFilter, deleteSavedFilter,
   } = props;
+
+  // ── 저장 필터 이름 입력 상태 ────────────────────────────────────────────────
+  const [sfSaving, setSfSaving] = useState(false);
+  const [sfName, setSfName] = useState("");
+  const sfInputRef = useRef<HTMLInputElement>(null);
+
+  // sfSaving 활성화 시 입력 필드에 포커스
+  useEffect(() => { if (sfSaving) sfInputRef.current?.focus(); }, [sfSaving]);
+
+  // 현재 필터+검색어가 저장된 필터와 완전히 일치하는지 비교
+  // 배열 순서가 달라도 동일 판단이 되도록 정렬 후 JSON 비교
+  const normF = (f: Filters) => JSON.stringify({
+    proj: [...f.proj].sort(), who: [...f.who].sort(),
+    pri: [...f.pri].sort(), st: [...f.st].sort(),
+    repeat: [...f.repeat].sort(), fav: f.fav || "",
+  });
+  const isSfActive = (sf: SavedFilter) =>
+    normF(filters) === normF(sf.filters) && search === (sf.search || "");
+
+  // 현재 필터 조합이 이미 저장되어 있는지 확인 (이름 무관, 내용 기준)
+  const isDuplicateSf = () =>
+    savedFilters.some(sf => normF(filters) === normF(sf.filters) && search === (sf.search || ""));
+
+  // 저장된 필터 클릭 — 현재 적용 중이면 초기화, 아니면 적용
+  const toggleSavedFilter = (sf: SavedFilter) => {
+    if (isSfActive(sf)) {
+      setFilters({ proj: [], who: [], pri: [], st: [], repeat: [], fav: "" });
+      setSearch("");
+    } else {
+      setFilters(sf.filters);
+      setSearch(sf.search || "");
+      setSfSaving(false);
+      setSfName("");
+    }
+  };
 
   // ── 리스트 드래그 정렬 상태 (정렬 미적용 시에만 활성) ────────────────────────
   const [dragRowId, setDragRowId] = useState<number|null>(null);
@@ -340,6 +383,7 @@ export function ListView(props: ListViewProps) {
       aiFiles={aiFiles} setAiFiles={setAiFiles}
       aiLoad={aiLoad} aiSt={aiSt} setAiSt={setAiSt} aiParsed={aiParsed}
       setAiParsed={setAiParsed} parseAI={parseAI} confirmAI={confirmAI}
+      aiHistory={aiHistory} restoreAiHistory={restoreAiHistory}
       priC={priC} priBg={priBg} currentUser={currentUser}
       setDatePop={setDatePop}
     />
@@ -390,8 +434,23 @@ export function ListView(props: ListViewProps) {
           {expandMode?"상세 접기":"상세 펼치기"}
         </button>
       </div>
+      {/* 저장된 필터 칩 행 — 저장된 필터가 있을 때 항상 표시 (현재 적용 중이면 진한 색으로 강조) */}
+      {savedFilters.length > 0 && <div style={{display:"flex",flexWrap:"wrap" as const,alignItems:"center",gap:6,padding:"4px 12px 8px",paddingBottom:(filters.proj.length||filters.who.length||filters.pri.length||filters.st.length||filters.repeat.length||search||filters.fav||sortCol||activeSortFields.length>0)?2:8}}>
+        <BookmarkIcon style={{...ICON_SM, color:"#94a3b8", flexShrink:0}}/>
+        {savedFilters.map(sf=>{
+          const on = isSfActive(sf);
+          return (
+            <Chip key={sf.id} active
+              bg={on ? "#2563eb" : "#f1f5f9"} fg={on ? "#fff" : "#64748b"} borderColor={on ? "#2563eb" : "#e2e8f0"}
+              icon={<BookmarkIcon style={ICON_SM}/>}
+              onClick={()=>toggleSavedFilter(sf)}
+              onRemove={()=>deleteSavedFilter(sf.id)}
+            >{sf.name}</Chip>
+          );
+        })}
+      </div>}
       {/* Row 2: 필터 칩 + 정렬 칩 — active 항목 있을 때만 표시 */}
-      {(filters.proj.length||filters.who.length||filters.pri.length||filters.st.length||filters.repeat.length||search||filters.fav||sortCol||activeSortFields.length>0)&&<div style={{display:"flex",flexWrap:"wrap" as const,alignItems:"center",gap:6,padding:"6px 12px 8px"}}>
+      {(filters.proj.length||filters.who.length||filters.pri.length||filters.st.length||filters.repeat.length||search||filters.fav||sortCol||activeSortFields.length>0)&&<div style={{display:"flex",flexWrap:"wrap" as const,alignItems:"center",gap:6,padding:"6px 12px 8px",paddingLeft:savedFilters.length>0?32:12,paddingTop:savedFilters.length>0?2:6}}>
         {/* 검색어 칩 */}
         {search&&<Chip active bg="#dbeafe" fg="#1d4ed8" borderColor="#bfdbfe" icon={<MagnifyingGlassIcon style={ICON_SM}/>} onRemove={()=>setSearch("")}>"{search}"</Chip>}
         {/* 즐겨찾기 칩 */}
@@ -413,21 +472,77 @@ export function ListView(props: ListViewProps) {
         })}
         {/* 단일 정렬 칩 (누적 정렬 미사용 시 sortCol 표시) */}
         {sortCol&&activeSortFields.length===0&&<Chip active bg="#eef2ff" fg="#4338ca" borderColor="#c7d2fe" onRemove={()=>setSortCol(null)}>{({pid:"프로젝트",task:"업무내용",who:"담당자",due:"마감기한",pri:"우선순위",st:"상태",repeat:"반복",id:"기본"} as Record<string,string>)[sortCol]||sortCol}{sortDir==="asc"?" ↑":" ↓"}</Chip>}
+        {/* 현재 필터 저장 — 이름 입력 인라인 or 저장 아이콘 버튼 */}
+        {sfSaving ? (
+          <>
+            <input ref={sfInputRef} value={sfName} onChange={e=>setSfName(e.target.value)}
+              onKeyDown={e=>{
+                if(e.key==="Enter"&&sfName.trim()){if(savedFilters.length>=10){setSfSaving(false);setSfName("");flash("필터는 최대 10개까지 저장할 수 있습니다","err");}else if(isDuplicateSf()){setSfSaving(false);setSfName("");flash("동일한 필터 조합이 이미 저장되어 있습니다","err");}else{saveCurrentFilter(sfName.trim(),filters,search);setSfSaving(false);setSfName("");}}
+                if(e.key==="Escape"){setSfSaving(false);setSfName("");}
+              }}
+              placeholder="필터 이름" maxLength={20}
+              style={{fontSize:11,padding:"3px 8px",border:"1px solid #dadce0",borderRadius:6,outline:"none",fontFamily:"inherit",width:100}}
+            />
+            <button onClick={()=>{if(sfName.trim()){if(savedFilters.length>=10){setSfSaving(false);setSfName("");flash("필터는 최대 10개까지 저장할 수 있습니다","err");}else if(isDuplicateSf()){setSfSaving(false);setSfName("");flash("동일한 필터 조합이 이미 저장되어 있습니다","err");}else{saveCurrentFilter(sfName.trim(),filters,search);setSfSaving(false);setSfName("");}}}}
+              style={{fontSize:11,padding:"3px 8px",borderRadius:6,border:"none",background:"#1a73e8",color:"#fff",cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>저장</button>
+            <button onClick={()=>{setSfSaving(false);setSfName("");}}
+              style={{fontSize:11,padding:"3px 6px",borderRadius:6,border:"1px solid #e2e8f0",background:"#fff",color:"#64748b",cursor:"pointer",fontFamily:"inherit"}}>취소</button>
+          </>
+        ) : (
+          <button onClick={()=>setSfSaving(true)} title="현재 필터 조합 저장"
+            style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:10,color:"#94a3b8",background:"none",border:"none",cursor:"pointer",padding:"2px 6px",borderRadius:4,flexShrink:0,transition:"color .12s"}}
+            onMouseEnter={e=>{e.currentTarget.style.color="#334155";}}
+            onMouseLeave={e=>{e.currentTarget.style.color="#94a3b8";}}>
+            <BookmarkIcon style={ICON_SM}/>저장
+          </button>
+        )}
         {/* 필터 초기화 — 필터, 검색어, 정렬 모두 리셋 */}
-        <button onClick={()=>{setSearch("");setFilters({proj:[],who:[],pri:[],st:[],repeat:[],fav:""});setActiveSortFields([]);setSortCol(null);}} style={{marginLeft:"auto",fontSize:10,color:"#94a3b8",background:"none",border:"none",cursor:"pointer",padding:"2px 6px",borderRadius:4,flexShrink:0}}>필터 초기화</button>
+        <button onClick={()=>{setSearch("");setFilters({proj:[],who:[],pri:[],st:[],repeat:[],fav:""});setActiveSortFields([]);setSortCol(null);setSfSaving(false);setSfName("");}} style={{marginLeft:"auto",fontSize:10,color:"#94a3b8",background:"none",border:"none",cursor:"pointer",padding:"2px 6px",borderRadius:4,flexShrink:0}}>필터 초기화</button>
       </div>}
     </div>}
-    {/* 메모뷰: 필터 칩만 표시 (검색은 리스트뷰 통합 바에 있으므로 칩으로만 확인) */}
-    {todoView==="memo"&&(filters.proj.length||filters.who.length||filters.pri.length||filters.st.length||filters.repeat.length||search||filters.fav)&&<div style={{display:"flex",flexWrap:"wrap" as const,alignItems:"center",gap:6,padding:"8px 12px",marginBottom:8,borderRadius:8,background:"#f0f7ff",border:"1px solid #dbeafe"}}>
-      <span style={{fontSize:11,color:"#64748b",fontWeight:600,flexShrink:0}}>적용된 필터</span>
-      {search&&<Chip active bg="#dbeafe" fg="#1d4ed8" borderColor="#bfdbfe" icon={<MagnifyingGlassIcon style={ICON_SM}/>} onRemove={()=>setSearch("")}>"{search}"</Chip>}
-      {filters.fav&&<Chip active bg="#fef9c3" fg="#854d0e" borderColor="#fde68a" icon={<StarIcon style={ICON_SM}/>} onRemove={()=>togF("fav","")}>즐겨찾기</Chip>}
-      {filters.proj.map((v:string)=><Chip key={v} active bg="#ede9fe" fg="#6d28d9" borderColor="#ddd6fe" icon={<FolderIcon style={ICON_SM}/>} onRemove={()=>togF("proj",v)}>{v==="__none__"?"미배정":aProj.find(p=>String(p.id)===v)?.name||v}</Chip>)}
-      {filters.who.map((v:string)=><Chip key={v} active bg="#fce7f3" fg="#9d174d" borderColor="#fbcfe8" icon={<UserIcon style={ICON_SM}/>} onRemove={()=>togF("who",v)}>{v}</Chip>)}
-      {filters.pri.map((v:string)=><Chip key={v} active bg={priBg[v]} fg={priC[v]} borderColor={`${priC[v]}44`} icon={<FlagIcon style={ICON_SM}/>} onRemove={()=>togF("pri",v)}>{v}</Chip>)}
-      {filters.st.map((v:string)=><Chip key={v} active bg={stBg[v]} fg={stC[v]} borderColor={`${stC[v]}44`} icon={<CheckCircleIcon style={ICON_SM}/>} onRemove={()=>togF("st",v)}>{v}</Chip>)}
-      {filters.repeat.map((v:string)=><Chip key={v} active bg="#f0fdf4" fg="#15803d" borderColor="#bbf7d0" icon={<ArrowPathIcon style={ICON_SM}/>} onRemove={()=>togF("repeat",v)}>{v}</Chip>)}
-      <button onClick={()=>{setSearch("");setFilters({proj:[],who:[],pri:[],st:[],repeat:[],fav:""});}} style={{marginLeft:"auto",fontSize:10,color:"#94a3b8",background:"none",border:"none",cursor:"pointer",padding:"2px 6px",borderRadius:4}}>필터 초기화</button>
+    {/* 메모뷰 헤더 — 리스트뷰와 동일한 흰 카드 구조로 통일 */}
+    {todoView==="memo"&&<div style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:8,marginBottom:8}}>
+      {/* Row 1: 검색 pill + 정렬 버튼 + 건수 — 리스트뷰와 동일한 레이아웃 */}
+      <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",borderBottom:(savedFilters.length>0||filters.proj.length||filters.who.length||filters.pri.length||filters.st.length||filters.repeat.length||search||filters.fav)?"1px solid #f1f5f9":"none"}}>
+        <div style={{position:"relative",display:"flex",alignItems:"center",background:"#f1f3f4",borderRadius:24,padding:"6px 12px 6px 34px",flex:1,maxWidth:320}}>
+          <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",color:"#5f6368",display:"flex",pointerEvents:"none"}}><MagnifyingGlassIcon style={ICON_SM}/></span>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="업무명, 상세내용 검색..." style={{width:"100%",border:"none",outline:"none",background:"transparent",fontSize:12,color:"#202124",fontFamily:"inherit"}}/>
+          {search&&<button onClick={()=>setSearch("")} style={{background:"#80868b",border:"none",borderRadius:"50%",width:14,height:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0,flexShrink:0}}><XMarkIcon style={{width:9,height:9,color:"#fff"}}/></button>}
+        </div>
+        {/* 메모뷰 정렬 버튼 */}
+        <div style={{display:"flex",gap:4,alignItems:"center",flexShrink:0}}><MemoSortButtons/></div>
+        <span style={{fontSize:12,color:"#64748b",marginLeft:"auto",flexShrink:0,whiteSpace:"nowrap" as const}}>
+          <span style={{fontWeight:700,color:"#334155"}}>{sorted.filter(t=>t.st!=="완료").length}건 미완료</span>
+          <span style={{margin:"0 6px",color:"#cbd5e1"}}>·</span>
+          <span>{sorted.filter(t=>t.st==="완료").length}건 완료</span>
+        </span>
+      </div>
+      {/* 저장된 필터 칩 — 리스트뷰와 동일 */}
+      {savedFilters.length>0&&<div style={{display:"flex",flexWrap:"wrap" as const,alignItems:"center",gap:6,padding:"4px 12px 8px",paddingBottom:(filters.proj.length||filters.who.length||filters.pri.length||filters.st.length||filters.repeat.length||search||filters.fav)?2:8}}>
+        <BookmarkIcon style={{...ICON_SM, color:"#94a3b8", flexShrink:0}}/>
+        {savedFilters.map(sf=>{
+          const on = isSfActive(sf);
+          return (
+            <Chip key={sf.id} active
+              bg={on?"#2563eb":"#f1f5f9"} fg={on?"#fff":"#64748b"} borderColor={on?"#2563eb":"#e2e8f0"}
+              icon={<BookmarkIcon style={ICON_SM}/>}
+              onClick={()=>toggleSavedFilter(sf)}
+              onRemove={()=>deleteSavedFilter(sf.id)}
+            >{sf.name}</Chip>
+          );
+        })}
+      </div>}
+      {/* 활성 필터 칩 — 리스트뷰와 동일한 스타일 */}
+      {(filters.proj.length||filters.who.length||filters.pri.length||filters.st.length||filters.repeat.length||search||filters.fav)&&<div style={{display:"flex",flexWrap:"wrap" as const,alignItems:"center",gap:6,padding:"6px 12px 8px",paddingLeft:savedFilters.length>0?32:12,paddingTop:savedFilters.length>0?2:6}}>
+        {search&&<Chip active bg="#dbeafe" fg="#1d4ed8" borderColor="#bfdbfe" icon={<MagnifyingGlassIcon style={ICON_SM}/>} onRemove={()=>setSearch("")}>"{search}"</Chip>}
+        {filters.fav&&<Chip active bg="#fef9c3" fg="#854d0e" borderColor="#fde68a" icon={<StarIcon style={ICON_SM}/>} onRemove={()=>togF("fav","")}>즐겨찾기</Chip>}
+        {filters.proj.map((v:string)=><Chip key={v} active bg="#ede9fe" fg="#6d28d9" borderColor="#ddd6fe" icon={<FolderIcon style={ICON_SM}/>} onRemove={()=>togF("proj",v)}>{v==="__none__"?"미배정":aProj.find(p=>String(p.id)===v)?.name||v}</Chip>)}
+        {filters.who.map((v:string)=><Chip key={v} active bg="#fce7f3" fg="#9d174d" borderColor="#fbcfe8" icon={<UserIcon style={ICON_SM}/>} onRemove={()=>togF("who",v)}>{v}</Chip>)}
+        {filters.pri.map((v:string)=><Chip key={v} active bg={priBg[v]} fg={priC[v]} borderColor={`${priC[v]}44`} icon={<FlagIcon style={ICON_SM}/>} onRemove={()=>togF("pri",v)}>{v}</Chip>)}
+        {filters.st.map((v:string)=><Chip key={v} active bg={stBg[v]} fg={stC[v]} borderColor={`${stC[v]}44`} icon={<CheckCircleIcon style={ICON_SM}/>} onRemove={()=>togF("st",v)}>{v}</Chip>)}
+        {filters.repeat.map((v:string)=><Chip key={v} active bg="#f0fdf4" fg="#15803d" borderColor="#bbf7d0" icon={<ArrowPathIcon style={ICON_SM}/>} onRemove={()=>togF("repeat",v)}>{v}</Chip>)}
+        <button onClick={()=>{setSearch("");setFilters({proj:[],who:[],pri:[],st:[],repeat:[],fav:""});}} style={{marginLeft:"auto",fontSize:10,color:"#94a3b8",background:"none",border:"none",cursor:"pointer",padding:"2px 6px",borderRadius:4,flexShrink:0}}>필터 초기화</button>
+      </div>}
     </div>}
 
     {/* 테이블 헤더 — 리스트뷰일 때 sticky 안에 포함 */}
@@ -526,19 +641,8 @@ export function ListView(props: ListViewProps) {
 
     </div>{/* sticky div 끝 */}
 
-    {/* 메모뷰용 건수+정렬 바 */}
-    {todoView==="memo"&&sorted.length>0&&<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 14px",borderRadius:8,background:"#fafbfc",border:"1px solid #f1f5f9",marginBottom:8}}>
-      <span style={{fontSize:12,color:"#64748b"}}>
-        <span style={{fontWeight:700,color:"#334155"}}>{sorted.filter(t=>t.st!=="완료").length}건 미완료</span>
-        <span style={{margin:"0 6px",color:"#cbd5e1"}}>·</span>
-        <span>{sorted.filter(t=>t.st==="완료").length}건 완료</span>
-      </span>
-      <div style={{display:"flex",gap:4,alignItems:"center"}}>
-        <MemoSortButtons/>
-      </div>
-    </div>}
 
-    {todoView==="memo"&&<MemoView sorted={sorted} showDone={showDone} setShowDone={setShowDone} gPr={gPr} aProj={visibleProj} members={visibleMembers} pris={pris} stats={stats} priC={priC} priBg={priBg} stC={stC} stBg={stBg} updTodo={updTodo} addTodo={addTodo} currentUser={currentUser} delTodo={delTodo} isFav={isFav} toggleFav={toggleFav} flash={flash} setDatePop={setDatePop} cols={memoCols}/>}
+{todoView==="memo"&&<MemoView sorted={sorted} showDone={showDone} setShowDone={setShowDone} gPr={gPr} aProj={visibleProj} members={visibleMembers} pris={pris} stats={stats} priC={priC} priBg={priBg} stC={stC} stBg={stBg} updTodo={updTodo} addTodo={addTodo} currentUser={currentUser} delTodo={delTodo} isFav={isFav} toggleFav={toggleFav} flash={flash} setDatePop={setDatePop} cols={memoCols}/>}
     {todoView==="list"&&sorted.length===0&&(()=>{
       // 필터/검색이 적용된 경우와 아닌 경우를 구분해 다른 안내 메시지와 CTA를 표시
       const hasFilter = filters.proj.length||filters.who.length||filters.pri.length||filters.st.length||filters.repeat.length||filters.fav||search;

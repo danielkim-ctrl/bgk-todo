@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Filters, CustomSortOrders, SortField } from "../types";
+import { Filters, CustomSortOrders, SortField, SavedFilter } from "../types";
 
 // ── 뷰 설정 기본값 ────────────────────────────────────────────────────────────
 const DEFAULT_VIEW_SETTINGS = {
@@ -50,6 +50,32 @@ export function useUserSettings() {
   const [activeSortFields, setActiveSortFields] = useState<SortField[]>(
     _init.activeSortFields || []
   );
+
+  // ── 저장된 필터 조합 (유저별 localStorage) ───────────────────────────────────
+  const [savedFilters, setSavedFilters] = useState<SavedFilter[]>(() => {
+    const u = localStorage.getItem("todo-current-user");
+    if (!u) return [];
+    try { return JSON.parse(localStorage.getItem(`todo-saved-filters-${u}`) || "[]"); } catch { return []; }
+  });
+
+  const saveCurrentFilter = (name: string, flt: Filters, s: string) => {
+    if (!currentUser) return;
+    const nf: SavedFilter = { id: Date.now().toString(), name, filters: flt, search: s };
+    setSavedFilters(prev => {
+      const next = [...prev, nf];
+      localStorage.setItem(`todo-saved-filters-${currentUser}`, JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const deleteSavedFilter = (id: string) => {
+    if (!currentUser) return;
+    setSavedFilters(prev => {
+      const next = prev.filter(f => f.id !== id);
+      localStorage.setItem(`todo-saved-filters-${currentUser}`, JSON.stringify(next));
+      return next;
+    });
+  };
 
   // ── 즐겨찾기 사이드바 ─────────────────────────────────────────────────────
   const [favSidebar, setFavSidebar] = useState<{ [k: string]: string[] }>(() => {
@@ -113,8 +139,11 @@ export function useUserSettings() {
       setFilters(s.filters);
       setCustomSortOrders(s.customSortOrders || {});
       setActiveSortFields(s.activeSortFields || []);
+      // 유저 전환 시 해당 유저의 저장된 필터 목록 로드
+      try { setSavedFilters(JSON.parse(localStorage.getItem(`todo-saved-filters-${currentUser}`) || "[]")); } catch { setSavedFilters([]); }
     } else {
       localStorage.removeItem("todo-current-user");
+      setSavedFilters([]);
     }
   }, [currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -155,5 +184,6 @@ export function useUserSettings() {
     customSortOrders, setCustomSortOrders,
     activeSortFields, setActiveSortFields,
     userSettings, setUserSettings,
+    savedFilters, setSavedFilters, saveCurrentFilter, deleteSavedFilter,
   };
 }

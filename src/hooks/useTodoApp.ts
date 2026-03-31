@@ -6,7 +6,7 @@ import {
   initTodos, initProj
 } from "../constants";
 import { td, gP, stripHtml, isOD } from "../utils";
-import { Filters, NewRow, AiParsed, DatePopState, NotePopupState, Project, Todo, DeletedTodo } from "../types";
+import { Filters, NewRow, AiParsed, DatePopState, NotePopupState, Project, Todo, DeletedTodo, SavedFilter } from "../types";
 import { useAI } from "./useAI";
 import { useCalendar } from "./useCalendar";
 import { useUserSettings } from "./useUserSettings";
@@ -40,6 +40,7 @@ export function useTodoApp() {
     customSortOrders, setCustomSortOrders,
     activeSortFields, setActiveSortFields,
     userSettings, setUserSettings,
+    savedFilters, setSavedFilters, saveCurrentFilter, deleteSavedFilter,
   } = userSets;
 
   const guard = () => { pendingWrite.current = true; };
@@ -59,6 +60,7 @@ export function useTodoApp() {
     stBg: Record<string,string>;
     memberColors: Record<string,string>;
     filters: Filters;
+    savedFilters: SavedFilter[];
   };
 
   // 현재 앱 상태의 스냅샷을 생성하는 함수
@@ -74,6 +76,7 @@ export function useTodoApp() {
     stBg: { ...stBg },
     memberColors: { ...memberColors },
     filters: { ...filters },
+    savedFilters: [...savedFilters],
   });
 
   // 스냅샷을 앱 상태에 복원하는 함수
@@ -89,6 +92,12 @@ export function useTodoApp() {
     setStBg(snap.stBg);
     setMemberColors(snap.memberColors || {});
     if (snap.filters) setFilters(snap.filters);
+    // 저장된 필터도 복원 — localStorage도 함께 동기화
+    if (snap.savedFilters !== undefined) {
+      setSavedFilters(snap.savedFilters);
+      const u = localStorage.getItem("todo-current-user");
+      if (u) localStorage.setItem(`todo-saved-filters-${u}`, JSON.stringify(snap.savedFilters));
+    }
   };
 
   // 변경 전 스냅샷을 히스토리에 저장하고 redo 스택을 비우는 함수
@@ -636,6 +645,9 @@ export function useTodoApp() {
     ...userSets,
     // setFilters를 히스토리 포함 버전으로 덮어쓰기 — 필터 변경도 undo 가능
     setFilters: ((fn: any) => { pushHistory(); setFilters(fn); }) as typeof setFilters,
+    // 저장 필터 저장/삭제도 undo 가능하도록 pushHistory 포함 버전으로 덮어쓰기
+    saveCurrentFilter: (name: string, flt: Filters, s: string) => { pushHistory(); saveCurrentFilter(name, flt, s); },
+    deleteSavedFilter: (id: string) => { pushHistory(); deleteSavedFilter(id); },
     selectedIds, lastSelRef, addSecRef, tblDivRef,
     clrSel, selAll, movePop, setMovePop, bulkPop, setBulkPop,
     historyRef, redoRef,

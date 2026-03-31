@@ -40,6 +40,9 @@ interface AddTodoSectionProps {
   currentUser: string | null;
   // AI 결과 행 날짜 선택용 DateTimePicker 연동
   setDatePop?: (v: DatePopState | null) => void;
+  // 이전 분석 결과 복원 (⑤ 히스토리)
+  aiHistory?: any[];
+  restoreAiHistory?: () => void;
 }
 
 const readAsBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
@@ -82,7 +85,7 @@ export function AddTodoSection({
   addTab, setAddTab, newRows, setNewRows, addNR, saveNRs, saveOneNR, isNREmpty,
   aProj, members, pris, setNotePopup, setNrDatePop, aiText, setAiText,
   aiFiles, setAiFiles, aiLoad, aiSt, setAiSt, aiParsed, setAiParsed, parseAI, confirmAI,
-  priC, priBg, currentUser, setDatePop
+  priC, priBg, currentUser, setDatePop, aiHistory, restoreAiHistory
 }: AddTodoSectionProps) {
   const addSecRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -92,6 +95,9 @@ export function AddTodoSection({
   // 직접 입력 테이블의 반복 팝오버 — 몇 번째 행이 열려 있는지 + 팝업 위치
   const [repPop, setRepPop] = useState<{idx: number; rect: DOMRect}|null>(null);
   const repPopRef = useRef<HTMLDivElement>(null);
+  // AI 결과 행 반복 팝오버 — 직접 입력 행의 repPop과 동일한 패턴으로 별도 관리
+  const [aiRepPop, setAiRepPop] = useState<{idx: number; rect: DOMRect}|null>(null);
+  const aiRepPopRef = useRef<HTMLDivElement>(null);
   const applyBulk = (field: string, value: string) => { setAiParsed((p: any[]) => p.map((t: any) => t._chk ? {...t, [field]: value} : t)); setBulkOpen(null); };
   useEffect(() => { if (!bulkOpen) return; const close = () => setBulkOpen(null); document.addEventListener("mousedown", close); return () => document.removeEventListener("mousedown", close); }, [bulkOpen]);
   // 반복 팝오버 바깥 클릭 시 닫기
@@ -103,6 +109,15 @@ export function AddTodoSection({
     const t = setTimeout(() => document.addEventListener("mousedown", h, true), 50);
     return () => { clearTimeout(t); document.removeEventListener("mousedown", h, true); };
   }, [repPop]);
+  // AI 결과 행 반복 팝오버 바깥 클릭 시 닫기
+  useEffect(() => {
+    if (!aiRepPop) return;
+    const h = (e: MouseEvent) => {
+      if (aiRepPopRef.current && !aiRepPopRef.current.contains(e.target as Node)) setAiRepPop(null);
+    };
+    const t = setTimeout(() => document.addEventListener("mousedown", h, true), 50);
+    return () => { clearTimeout(t); document.removeEventListener("mousedown", h, true); };
+  }, [aiRepPop]);
 
   // 탭 클릭 — 다른 탭이면 전환+펼치기, 같은 탭이면 접기/펼치기 토글
   const handleTab = (tab: string) => {
@@ -141,6 +156,51 @@ export function AddTodoSection({
       }
     }
     if (results.length) setAiFiles((p: AiFile[]) => [...p, ...results]);
+  };
+
+  // ① 클립보드 붙여넣기 — textarea에서 이미지를 붙여넣을 때 사용 (텍스트는 기본 동작 유지)
+  // stopPropagation으로 전역 핸들러와의 중복 처리를 방지
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const imageFiles: File[] = [];
+    Array.from(e.clipboardData.items).forEach(item => {
+      if (item.type.startsWith("image/")) {
+        const f = item.getAsFile();
+        if (f) imageFiles.push(f);
+      }
+    });
+    if (imageFiles.length > 0) {
+      e.preventDefault();
+      e.stopPropagation(); // 전역 document 핸들러로 이벤트가 버블링되지 않도록 차단
+      handleFiles(imageFiles);
+    }
+  };
+
+  // ① AI 탭이 열린 동안 전역 paste 이벤트 감지 — 드롭존을 클릭하지 않아도 어디서든 Ctrl+V 동작
+  useEffect(() => {
+    if (addTab !== "ai" || collapsed) return;
+    const onDocPaste = (e: ClipboardEvent) => {
+      const imageFiles: File[] = [];
+      Array.from(e.clipboardData?.items || []).forEach(item => {
+        if (item.type.startsWith("image/")) {
+          const f = item.getAsFile();
+          if (f) imageFiles.push(f);
+        }
+      });
+      if (imageFiles.length > 0) {
+        e.preventDefault();
+        handleFiles(imageFiles);
+      }
+    };
+    document.addEventListener("paste", onDocPaste);
+    return () => document.removeEventListener("paste", onDocPaste);
+  }, [addTab, collapsed]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ③ 재분석 전 기존 결과 보존 확인 — 실수로 결과를 잃는 것을 방지
+  const handleParseAI = () => {
+    if (aiParsed.length > 0) {
+      if (!confirm(`분석 결과 ${aiParsed.length}건이 있습니다.\n다시 분석하면 현재 결과가 사라집니다. 계속하시겠습니까?`)) return;
+    }
+    parseAI();
   };
 
   // 전체 취소 — 내용이 있으면 확인 요청 (UB-10)
@@ -283,13 +343,18 @@ export function AddTodoSection({
 
       {/* ── AI 자동 입력 패널 ── */}
       {!collapsed&&addTab==="ai"&&<div style={{padding:"14px 16px"}}>
-        {/* UB-9: 핵심 키워드 강조 */}
+        {/* ② API 키 미설정 경고 — localStorage에 키가 없으면 설정 안내 배너 표시 */}
+        {!localStorage.getItem("team-todo-apikey")&&<div style={{display:"flex",alignItems:"center",gap:8,background:"#fef9c3",border:"1px solid #fde68a",borderRadius:8,padding:"8px 12px",marginBottom:10,fontSize:11,color:"#92400e"}}>
+          <span style={{fontWeight:700}}>API 키 미설정</span>
+          <span>설정 메뉴에서 Anthropic API 키를 먼저 등록해야 AI 분석이 가능합니다.</span>
+        </div>}
+        {/* 안내 문구 — 형식 없이 자연어로 써도 된다는 것을 강조 */}
         <p style={{fontSize:11,color:"#64748b",margin:"0 0 10px",lineHeight:1.6}}>
-          자유롭게 업무를 입력하거나 파일·이미지를 첨부하면 AI가 자동으로 TODO를 생성합니다.<br/>
-          담당자는 <b style={{color:"#334155"}}>@이름</b>, 마감기한은 <b style={{color:"#334155"}}>"4월 10일"</b>, 반복은 <b style={{color:"#334155"}}>"매일/매주/매월"</b>처럼 입력하세요.
+          회의록, 메모, 카카오톡 내용 등 <b style={{color:"#334155"}}>형식 없이 그대로</b> 붙여넣으면 AI가 업무를 뽑아냅니다.<br/>
+          이미지·PDF·텍스트 파일도 첨부 가능하고, 스크린샷은 <b style={{color:"#334155"}}>Ctrl+V</b>로 바로 붙여넣을 수 있습니다.
         </p>
 
-        {/* 파일 첨부 영역 */}
+        {/* 파일 첨부 영역 — ① 클립보드 붙여넣기(Ctrl+V)도 지원 */}
         <input ref={fileInputRef} type="file" multiple accept={ACCEPT_TYPES} style={{display:"none"}}
           onChange={e=>{if(e.target.files)handleFiles(e.target.files);e.target.value="";}}/>
         <div
@@ -324,20 +389,22 @@ export function AddTodoSection({
           <p style={{fontSize:10,color:"#94a3b8",margin:"0 0 8px"}}>첨부 파일과 아래 텍스트를 함께 분석합니다.</p>
         </>}
 
-        <textarea value={aiText} onChange={e=>setAiText(e.target.value)} rows={3} placeholder={"예시:\n1. 일일 바이어 문의 확인 @박정찬 매일\n2. 주간 진행상황 공유 @김대윤 매주 월요일\n3. 중국 시안 확인 @김현지 4월 5일 긴급"} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #ddd6fe",borderRadius:8,fontSize:12,outline:"none",resize:"vertical",lineHeight:1.7,boxSizing:"border-box" as const,background:"#fdfcff",fontFamily:"inherit"}}/>
+        {/* 이미지 붙여넣기는 전역 핸들러가 처리하고, textarea 포커스 중에는 stopPropagation으로 중복 방지 */}
+        <textarea value={aiText} onChange={e=>setAiText(e.target.value)} onPaste={handlePaste} rows={3} placeholder={"회의 내용이나 메모를 그대로 붙여넣어 보세요.\n\n예) 오늘 회의에서 나온 내용 —\n\n바이어관리\n박정찬이 중국 바이어 문의 매일 확인하기로 함.\n\n디자인\n김현지가 시안 3개 4월 5일까지 긴급 처리.\n\n주간보고\n김대윤이 보고서 월요일마다 올리기로 함."} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #ddd6fe",borderRadius:8,fontSize:12,outline:"none",resize:"vertical",lineHeight:1.7,boxSizing:"border-box" as const,background:"#fdfcff",fontFamily:"inherit"}}/>
         <div style={{display:"flex",alignItems:"center",gap:8,marginTop:10}}>
           {/* UB-5: 로딩 시 스피너 아이콘 회전 */}
-          <button style={{background:"linear-gradient(135deg,#7c3aed,#6d28d9)",color:"#fff",border:"none",padding:"8px 20px",borderRadius:8,fontSize:12,fontWeight:700,cursor:aiLoad?"default":"pointer",opacity:aiLoad?.7:1,display:"inline-flex",alignItems:"center",gap:5}} onClick={parseAI} disabled={aiLoad}>
+          {/* ③ 기존 결과 있을 때 재분석 전 확인 — handleParseAI가 confirm 처리 */}
+          <button style={{background:"linear-gradient(135deg,#7c3aed,#6d28d9)",color:"#fff",border:"none",padding:"8px 20px",borderRadius:8,fontSize:12,fontWeight:700,cursor:aiLoad?"default":"pointer",opacity:aiLoad?.7:1,display:"inline-flex",alignItems:"center",gap:5}} onClick={handleParseAI} disabled={aiLoad}>
             {aiLoad
               ? <><ArrowPathIcon style={{width:14,height:14,animation:"spin 1s linear infinite"}}/> 분석 중...</>
               : <>TODO 자동 생성</>}
           </button>
-          {/* 상태 메시지 + UB-6: 오류 시 재시도 버튼 */}
+          {/* 상태 메시지 + 오류 시 재시도 버튼 */}
           {aiSt&&<>
-            <span style={{fontSize:11,fontWeight:600,color:aiSt.startsWith("ok:")?"#16a34a":"#dc2626"}}>
+            <span style={{fontSize:11,fontWeight:600,color:aiSt.startsWith("ok:")?"#16a34a":aiSt.startsWith("err:")?"#dc2626":"#64748b"}}>
               {aiSt.startsWith("ok:")||aiSt.startsWith("err:")?aiSt.slice(aiSt.indexOf(":")+1):aiSt}
             </span>
-            {aiSt.startsWith("err:")&&<button onClick={parseAI} style={{fontSize:10,fontWeight:600,color:"#7c3aed",background:"#ede9fe",border:"1px solid #c4b5fd",borderRadius:6,padding:"3px 10px",cursor:"pointer"}}>다시 시도</button>}
+            {aiSt.startsWith("err:")&&<button onClick={handleParseAI} style={{fontSize:10,fontWeight:600,color:"#7c3aed",background:"#ede9fe",border:"1px solid #c4b5fd",borderRadius:6,padding:"3px 10px",cursor:"pointer"}}>다시 시도</button>}
           </>}
           {(aiText||aiFiles.length>0)&&<button style={{...S.bs,fontSize:10,marginLeft:"auto"}} onClick={()=>{setAiText("");setAiSt("");setAiParsed([]);setAiFiles([]);}}>초기화</button>}
         </div>
@@ -395,7 +462,14 @@ export function AddTodoSection({
                 </div>
               </div>
             </div>
-            <div style={{display:"flex",gap:6}}>
+            <div style={{display:"flex",gap:6,alignItems:"center"}}>
+              {/* ⑤ 이전 분석 결과 복원 버튼 — 히스토리가 있을 때만 표시 */}
+              {aiHistory&&aiHistory.length>0&&restoreAiHistory&&(
+                <button onClick={restoreAiHistory} title="이전 분석 결과 복원"
+                  style={{fontSize:10,fontWeight:600,color:"#7c3aed",background:"#ede9fe",border:"1px solid #c4b5fd",borderRadius:6,padding:"4px 10px",cursor:"pointer",display:"inline-flex",alignItems:"center",gap:3}}>
+                  <ArrowPathIcon style={{width:11,height:11}}/> 이전 결과 ({aiHistory.length}건)
+                </button>
+              )}
               <button style={{background:"linear-gradient(135deg,#7c3aed,#6d28d9)",color:"#fff",border:"none",padding:"5px 18px",borderRadius:7,fontSize:12,fontWeight:700,cursor:"pointer"}} onClick={confirmAI}>등록</button>
               <button style={{...S.bs,fontSize:11}} onClick={()=>setAiParsed([])}>취소</button>
             </div>
@@ -441,10 +515,12 @@ export function AddTodoSection({
                       style={{...aiSelBase,borderColor:prc+"55",background:prBg,color:prc}}>
                       {pris.map(p=><option key={p}>{p}</option>)}
                     </select>
-                    <select value={t.repeat&&t.repeat!=="없음"?repeatLabel(t.repeat):"없음"} onChange={e=>{const n=[...aiParsed];n[i].repeat=e.target.value;setAiParsed(n);}}
-                      style={{...aiSelBase,borderColor:"#e2e8f0",background:"#f1f5f9",color:t.repeat&&t.repeat!=="없음"?"#7c3aed":"#94a3b8"}}>
-                      {["없음","매일","매주","매월"].map(r=><option key={r}>{r}</option>)}
-                    </select>
+                    {/* ④ 반복 설정 — RepeatPicker 팝업으로 교체 (직접 입력 행과 동일한 패턴) */}
+                    <div onClick={e=>{const rect=(e.currentTarget as HTMLElement).getBoundingClientRect();setAiRepPop({idx:i,rect});}}
+                      style={{...aiSelBase,borderColor:t.repeat&&t.repeat!=="없음"?"#a78bfa":"#e2e8f0",background:t.repeat&&t.repeat!=="없음"?"#f3f0ff":"#f1f5f9",color:t.repeat&&t.repeat!=="없음"?"#7c3aed":"#94a3b8",display:"inline-flex",alignItems:"center",gap:3,cursor:"pointer"}}>
+                      <ArrowPathIcon style={{width:10,height:10,flexShrink:0}}/>
+                      {t.repeat&&t.repeat!=="없음"?repeatLabel(t.repeat):"반복"}
+                    </div>
                   </div>
                   <input value={t.detail||""} onChange={e=>{const n=[...aiParsed];n[i].detail=e.target.value;setAiParsed(n);}} placeholder="상세내용 입력..."
                     style={{width:"100%",border:"none",borderBottom:"1.5px solid transparent",fontSize:10,padding:"3px 0",marginTop:5,outline:"none",background:"transparent",color:"#64748b",boxSizing:"border-box" as const,transition:"border-color .15s",fontFamily:"inherit"}}
@@ -462,6 +538,39 @@ export function AddTodoSection({
       </div>}
     </div>
     </div>
+
+    {/* ── AI 결과 행 반복 팝오버 — 직접 입력 행의 repPop과 동일한 구조 ── */}
+    {aiRepPop && (
+      <div
+        ref={aiRepPopRef}
+        style={{
+          position: "fixed",
+          top: aiRepPop.rect.bottom + 4,
+          left: aiRepPop.rect.left,
+          zIndex: 300,
+          background: "#fff",
+          border: "1px solid #ddd6fe",
+          borderRadius: 10,
+          boxShadow: "0 4px 20px rgba(124,58,237,.15)",
+          padding: "10px 14px",
+          minWidth: 200,
+          maxWidth: 260,
+        }}
+      >
+        <RepeatPicker
+          value={aiParsed[aiRepPop.idx]?.repeat || "없음"}
+          onChange={v => {
+            const n = [...aiParsed];
+            if (n[aiRepPop.idx]) { n[aiRepPop.idx] = { ...n[aiRepPop.idx], repeat: v }; setAiParsed(n); }
+          }}
+          startDate={aiParsed[aiRepPop.idx]?.due || ""}
+        />
+        <button
+          onClick={() => setAiRepPop(null)}
+          style={{ width: "100%", marginTop: 10, padding: "5px", borderRadius: 6, border: "none", background: "#7c3aed", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+        >완료</button>
+      </div>
+    )}
 
     {/* ── 반복 팝오버 — 직접 입력 행의 반복 셀 클릭 시 표시 ── */}
     {repPop && (

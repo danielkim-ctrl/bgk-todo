@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Todo, Project, DatePopState } from "../../types";
 import { isOD, dDay, fD } from "../../utils";
+import { avColor, avColor2, avInitials } from "../../utils/avatarUtils";
 import { ListBulletIcon, CalendarIcon, FolderIcon, StarIcon, StarOutlineIcon, CheckIcon, XMarkIcon, TrashIcon, ICON_SM } from "../ui/Icons";
+import { DateTimePicker } from "../editor/DateTimePicker";
 
 interface MemoViewProps {
   sorted: Todo[];
@@ -345,7 +347,7 @@ function MemoCard({
         contentEditable={!isDone}
         suppressContentEditableWarning
         onInput={() => { if (editorRef.current) updTodo(t.id, { det: editorRef.current.innerHTML }); }}
-        data-placeholder="기억할 항목 입력"
+        data-placeholder="상세내용 입력"
         style={{
           flex: 1, padding: "4px 10px 6px 14px", fontSize: 12, lineHeight: 1.7,
           outline: "none", fontFamily: "inherit", color: "#334155",
@@ -381,11 +383,11 @@ function MemoCard({
 
           <div style={{ width: 1, height: 14, background: note.border, margin: "0 3px" }} />
 
-          {/* 담당자 */}
+          {/* 담당자 — 리스트뷰와 동일하게 avColor/avColor2/avInitials 사용 */}
           <div style={{ position: "relative", marginLeft: "auto" }}>
             <div onClick={e => toggle("who", e)} style={{ display: "flex", alignItems: "center", gap: 3, cursor: "pointer" }}>
-              <span style={{ width: 16, height: 16, borderRadius: "50%", background: "linear-gradient(135deg,#60a5fa,#818cf8)", color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 7, fontWeight: 700, flexShrink: 0 }}>
-                {(t.who || "?")[0]}
+              <span style={{ width: 16, height: 16, borderRadius: "50%", background: `linear-gradient(135deg,${avColor(t.who||"")},${avColor2(t.who||"")})`, color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 7, fontWeight: 700, flexShrink: 0, letterSpacing: "-0.5px" }}>
+                {avInitials(t.who || "?")}
               </span>
               <span style={{ fontSize: 10, color: "#475569" }}>{t.who || "미배정"} ▾</span>
             </div>
@@ -393,7 +395,7 @@ function MemoCard({
               <div style={{ ...dropStyle, bottom: "calc(100% + 4px)", top: "auto", left: "auto", right: 0 }} onClick={e => e.stopPropagation()}>
                 {members.map(m => (
                   <div key={m} style={dropItem(t.who === m)} onClick={() => { updTodo(t.id, { who: m }); setOpenDrop(null); }}>
-                    <span style={{ width: 14, height: 14, borderRadius: "50%", background: "linear-gradient(135deg,#60a5fa,#818cf8)", color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 6, fontWeight: 700 }}>{m[0]}</span>
+                    <span style={{ width: 14, height: 14, borderRadius: "50%", background: `linear-gradient(135deg,${avColor(m)},${avColor2(m)})`, color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 7, fontWeight: 700, flexShrink: 0, letterSpacing: "-0.5px" }}>{avInitials(m)}</span>
                     {m}
                   </div>
                 ))}
@@ -417,7 +419,7 @@ function MemoCard({
       {/* 완료 시 하단 바 */}
       {isDone && (
         <div style={{ padding: "4px 8px 6px", display: "flex", alignItems: "center", gap: 4, borderTop: "1px solid #e2e8f0", background: "#f1f5f9" }}>
-          <span style={{ width: 14, height: 14, borderRadius: "50%", background: "linear-gradient(135deg,#60a5fa,#818cf8)", color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 6, fontWeight: 700 }}>{(t.who||"?")[0]}</span>
+          <span style={{ width: 14, height: 14, borderRadius: "50%", background: `linear-gradient(135deg,${avColor(t.who||"")},${avColor2(t.who||"")})`, color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 6, fontWeight: 700, letterSpacing: "-0.5px" }}>{avInitials(t.who || "?")}</span>
           <span style={{ fontSize: 10, color: "#94a3b8" }}>{t.who}</span>
           <button onClick={() => toggleFav(t.id)} title={isFav(t.id) ? "즐겨찾기 해제" : "즐겨찾기"}
             style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, padding: "2px 4px", color: isFav(t.id) ? "#f59e0b" : "#94a3b8", lineHeight: 1, marginLeft: "auto" }}>
@@ -431,27 +433,96 @@ function MemoCard({
   );
 }
 
-function AddCard({ addTodo, currentUser, flash, onDragOver, onDrop }: {
+function AddCard({ addTodo, currentUser, flash, onDragOver, onDrop, aProj, members, pris, stats, priC, priBg, stC, stBg }: {
   addTodo: (t: any) => void;
   currentUser: string;
   flash: (m: string, t?: string) => void;
   onDragOver: (e: React.DragEvent) => void;
   onDrop: (e: React.DragEvent) => void;
+  aProj: Project[];
+  members: string[];
+  pris: string[];
+  stats: string[];
+  priC: Record<string, string>;
+  priBg: Record<string, string>;
+  stC: Record<string, string>;
+  stBg: Record<string, string>;
 }) {
   const [active, setActive] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  // 상세내용 입력 ref — contentEditable 사용 (MemoCard 상세내용과 동일한 방식)
+  const detRef = useRef<HTMLDivElement>(null);
+
+  // 신규 카드 초안 필드 — 열릴 때 기본값으로 초기화, 저장 시 addTodo로 전달
+  const [pid, setPid] = useState(0);
+  const [who, setWho] = useState(currentUser || "미배정");
+  const [pri, setPri] = useState("보통");
+  const [st, setSt] = useState("대기");
+  const [due, setDue] = useState("");
+  // 헤더 배지 드롭다운 — 한 번에 하나만 열림
+  const [openField, setOpenField] = useState<string | null>(null);
+  // 마감기한 DateTimePicker — AddCard 전용 로컬 상태
+  const [localDatePop, setLocalDatePop] = useState<DatePopState | null>(null);
+
+  // 카드 열릴 때 초안 필드 초기화 (담당자는 현재 사용자 기본값)
+  const activate = () => {
+    setPid(0);
+    setWho(currentUser || members[0] || "미배정");
+    setPri(pris.includes("보통") ? "보통" : pris[0] || "보통");
+    setSt(stats.includes("대기") ? "대기" : stats[0] || "대기");
+    setDue("");
+    setOpenField(null);
+    setActive(true);
+    // 상세내용 초기화
+    if (detRef.current) detRef.current.innerHTML = "";
+    setTimeout(() => inputRef.current?.focus(), 50);
+  };
 
   const save = () => {
     const v = inputRef.current?.value.trim();
     if (!v) { setActive(false); return; }
-    addTodo({ task: v, who: currentUser || "미배정", pid: 0, due: "", pri: "보통", st: "대기", det: "", repeat: "없음" });
+    const det = detRef.current?.innerHTML || "";
+    addTodo({ task: v, who: who || "미배정", pid, due, pri, st, det, repeat: "없음" });
     flash("업무가 추가되었습니다");
     setActive(false);
   };
 
+  const cancel = () => {
+    setOpenField(null);
+    setActive(false);
+  };
+
+  // MemoCard와 동일한 배지 기본 스타일 — 높이·폰트·정렬 통일
+  const badgeBase: React.CSSProperties = {
+    fontSize: 10, fontWeight: 600, padding: "0 6px",
+    borderRadius: 99, height: 20, lineHeight: "20px",
+    display: "inline-flex", alignItems: "center", gap: 2,
+    boxSizing: "border-box", whiteSpace: "nowrap", cursor: "pointer",
+    border: "1px solid transparent",
+  };
+
+  // MemoCard와 동일한 드롭다운 스타일
+  const dropStyle: React.CSSProperties = {
+    position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 400,
+    background: "#fff", border: "1.5px solid #e2e8f0", borderRadius: 8,
+    boxShadow: "0 6px 20px rgba(0,0,0,.13)", minWidth: 140, padding: "4px 0",
+  };
+  const dropItem = (isActive: boolean): React.CSSProperties => ({
+    padding: "7px 12px", fontSize: 11, cursor: "pointer",
+    background: isActive ? "#eff6ff" : "transparent",
+    color: isActive ? "#2563eb" : "#334155",
+    fontWeight: isActive ? 700 : 400,
+    display: "flex", alignItems: "center", gap: 6,
+    // 프로젝트명 등 긴 텍스트가 줄바꿈되지 않도록
+    whiteSpace: "nowrap",
+  });
+
+  // 선택된 프로젝트 객체
+  const selProj = aProj.find(p => p.id === pid);
+
   if (!active) return (
     <div
-      onClick={() => { setActive(true); setTimeout(() => inputRef.current?.focus(), 50); }}
+      onClick={activate}
       onDragOver={onDragOver}
       onDrop={onDrop}
       style={{ minHeight: 240, border: "2px dashed #cbd5e1", borderRadius: 6, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, cursor: "pointer", color: "#94a3b8", transition: "all .15s", background: "transparent" }}
@@ -463,16 +534,163 @@ function AddCard({ addTodo, currentUser, flash, onDragOver, onDrop }: {
     </div>
   );
 
+  // 활성 카드: 흰 배경 + 파란 테두리 — 기존 메모 카드(색상 배경)와 명확히 구분되는 "신규 입력" 모드
   return (
-    <div style={{ minHeight: 240, border: "2px solid #2563eb", borderRadius: 6, display: "flex", flexDirection: "column", background: "#f8fbff", boxShadow: "0 2px 12px rgba(37,99,235,.12)" }}>
-      <div style={{ padding: "10px 10px 6px", flex: 1, display: "flex", flexDirection: "column" }}>
-        <textarea ref={inputRef} rows={6} placeholder="업무내용을 입력하세요..."
-          onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); save(); } if (e.key === "Escape") setActive(false); }}
-          style={{ flex: 1, width: "100%", background: "transparent", border: "none", outline: "none", resize: "none", fontFamily: "inherit", fontSize: 13, fontWeight: 600, color: "#1a2332", lineHeight: 1.6, boxSizing: "border-box", padding: 0 }} />
+    <div
+      style={{ minHeight: 240, border: "2px solid #2563eb", borderRadius: 6, display: "flex", flexDirection: "column", background: "#fff", boxShadow: "0 4px 20px rgba(37,99,235,.15)", overflow: "hidden" }}
+      onClick={() => setOpenField(null)}
+    >
+      {/* AddCard 전용 DateTimePicker — 마감기한 선택 */}
+      <DateTimePicker
+        datePop={localDatePop}
+        onSave={(_, val) => { setDue(val); setLocalDatePop(null); }}
+        onClose={() => setLocalDatePop(null)}
+      />
+
+      {/* ── 헤더: "신규" 뱃지 + 메타 필드 배지들 ── */}
+      {/* 흰 카드의 헤더는 연파랑으로 — 색상 카드 헤더(노랑/핑크 등)와 확실히 다른 톤 */}
+      <div style={{ background: "#eff6ff", padding: "6px 8px", display: "flex", alignItems: "center", gap: 3, flexWrap: "wrap", borderBottom: "1px solid #dbeafe" }}>
+
+        {/* 신규 표시 배지 — 이 카드가 작성 중임을 시각적으로 명시 */}
+        <span style={{ fontSize: 9, fontWeight: 800, color: "#2563eb", background: "#dbeafe", borderRadius: 4, padding: "1px 5px", letterSpacing: 0.3, marginRight: 2, flexShrink: 0 }}>
+          신규
+        </span>
+
+        {/* 프로젝트 선택 */}
+        <div style={{ position: "relative" }}>
+          <span
+            onClick={e => { e.stopPropagation(); setOpenField(openField === "proj" ? null : "proj"); }}
+            style={{ ...badgeBase, fontWeight: 700, background: selProj ? selProj.color + "33" : "rgba(0,0,0,.07)", color: selProj ? selProj.color : "#64748b" }}
+          >
+            {selProj ? selProj.name : <><FolderIcon style={{ width: 10, height: 10, flexShrink: 0 }} /> ▾</>}
+          </span>
+          {openField === "proj" && (
+            <div style={dropStyle} onClick={e => e.stopPropagation()}>
+              <div style={dropItem(!pid)} onClick={() => { setPid(0); setOpenField(null); }}>미배정</div>
+              {aProj.map(pr => (
+                <div key={pr.id} style={dropItem(pid === pr.id)} onClick={() => { setPid(pr.id); setOpenField(null); }}>
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: pr.color, display: "inline-block", flexShrink: 0 }} />
+                  {pr.name}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* 마감기한 — DateTimePicker 연동 (항상 아래 방향으로 열리도록 rect.bottom 상한 적용) */}
+        <span
+          onClick={e => {
+            e.stopPropagation();
+            const raw = (e.currentTarget as HTMLElement).getBoundingClientRect();
+            // AddCard는 그리드 맨 끝에 위치해 화면 하단에 있는 경우가 많음
+            // DateTimePicker는 rect.bottom+4 위치에서 팝업을 열고, 공간 부족 시 위로 열림
+            // bottom을 뷰포트 40% 이내로 제한 → 항상 아래 방향으로 팝업이 열림
+            const bottom = Math.min(raw.bottom, window.innerHeight * 0.4);
+            const adjRect = { ...raw.toJSON(), top: bottom - raw.height, bottom } as unknown as DOMRect;
+            setLocalDatePop({ id: 0, rect: adjRect, value: due });
+            setOpenField(null);
+          }}
+          style={{ ...badgeBase, background: due ? "#dbeafe" : "rgba(0,0,0,.07)", color: due ? "#2563eb" : "#64748b" }}
+        >
+          <CalendarIcon style={{ width: 10, height: 10, flexShrink: 0 }} />
+          {due ? fD(due) : "날짜 ▾"}
+        </span>
+
+        {/* 우선순위 선택 */}
+        <div style={{ position: "relative" }}>
+          <span
+            onClick={e => { e.stopPropagation(); setOpenField(openField === "pri" ? null : "pri"); }}
+            style={{ ...badgeBase, background: priBg[pri] ? priBg[pri] + "cc" : "rgba(0,0,0,.07)", color: priC[pri] || "#64748b" }}
+          >
+            {pri} ▾
+          </span>
+          {openField === "pri" && (
+            <div style={dropStyle} onClick={e => e.stopPropagation()}>
+              {pris.map(pr => (
+                <div key={pr} style={dropItem(pri === pr)} onClick={() => { setPri(pr); setOpenField(null); }}>
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: priC[pr] || "#94a3b8", display: "inline-block", flexShrink: 0 }} />
+                  {pr}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* 상태 선택 */}
+        <div style={{ position: "relative" }}>
+          <span
+            onClick={e => { e.stopPropagation(); setOpenField(openField === "st" ? null : "st"); }}
+            style={{ ...badgeBase, background: stBg[st] ? stBg[st] + "cc" : "rgba(0,0,0,.07)", color: stC[st] || "#64748b" }}
+          >
+            {st} ▾
+          </span>
+          {openField === "st" && (
+            <div style={dropStyle} onClick={e => e.stopPropagation()}>
+              {stats.map(s => (
+                <div key={s} style={dropItem(st === s)} onClick={() => { setSt(s); setOpenField(null); }}>
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: stC[s] || "#94a3b8", display: "inline-block", flexShrink: 0 }} />
+                  {s}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
-      <div style={{ display: "flex", gap: 6, padding: "8px 10px", borderTop: "1px solid #dbeafe" }}>
-        <button onClick={save} style={{ flex: 1, padding: "6px 0", background: "#2563eb", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>추가</button>
-        <button onClick={() => setActive(false)} style={{ flex: 1, padding: "6px 0", background: "#f1f5f9", color: "#64748b", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer" }}>취소</button>
+
+      {/* ── 업무내용 입력 ── */}
+      <div style={{ padding: "8px 10px 4px" }}>
+        <textarea
+          ref={inputRef}
+          rows={2}
+          placeholder="업무내용을 입력하세요..."
+          onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); save(); } if (e.key === "Escape") cancel(); }}
+          style={{ width: "100%", background: "transparent", border: "none", outline: "none", resize: "none", fontFamily: "inherit", fontSize: 13, fontWeight: 700, color: "#1a2332", lineHeight: 1.5, boxSizing: "border-box", padding: 0 }}
+        />
+      </div>
+
+      {/* ── 구분선 ── */}
+      <div style={{ margin: "0 10px", borderTop: "1px dashed #dbeafe" }} />
+
+      {/* ── 상세내용 입력 — MemoCard의 contentEditable 영역과 동일한 방식 ── */}
+      <div
+        ref={detRef}
+        contentEditable
+        suppressContentEditableWarning
+        data-placeholder="상세내용 입력"
+        style={{ flex: 1, padding: "6px 10px 8px", fontSize: 12, lineHeight: 1.7, outline: "none", fontFamily: "inherit", color: "#334155", minHeight: 60, cursor: "text" }}
+        onClick={e => e.stopPropagation()}
+      />
+
+      {/* ── 하단: 담당자 + 저장/취소 버튼 ── */}
+      <div
+        style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 8px", borderTop: "1px solid #dbeafe", background: "#eff6ff" }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* 담당자 선택 — 리스트뷰 아바타 스타일과 통일 (avColor/avColor2/avInitials) */}
+        <div style={{ position: "relative", flex: 1 }}>
+          <div
+            onClick={() => setOpenField(openField === "who" ? null : "who")}
+            style={{ display: "inline-flex", alignItems: "center", gap: 4, cursor: "pointer" }}
+          >
+            <span style={{ width: 18, height: 18, borderRadius: "50%", background: `linear-gradient(135deg,${avColor(who)},${avColor2(who)})`, color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 700, flexShrink: 0, letterSpacing: "-0.5px" }}>
+              {avInitials(who || "?")}
+            </span>
+            <span style={{ fontSize: 10, color: "#475569" }}>{who || "미배정"} ▾</span>
+          </div>
+          {openField === "who" && (
+            <div style={{ ...dropStyle, bottom: "calc(100% + 4px)", top: "auto", left: 0 }} onClick={e => e.stopPropagation()}>
+              {members.map(m => (
+                <div key={m} style={dropItem(who === m)} onClick={() => { setWho(m); setOpenField(null); }}>
+                  <span style={{ width: 16, height: 16, borderRadius: "50%", background: `linear-gradient(135deg,${avColor(m)},${avColor2(m)})`, color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 7, fontWeight: 700, flexShrink: 0, letterSpacing: "-0.5px" }}>{avInitials(m)}</span>
+                  {m}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <button onClick={save} style={{ padding: "5px 14px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>추가</button>
+        <button onClick={cancel} style={{ padding: "5px 10px", background: "rgba(37,99,235,.08)", color: "#64748b", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer" }}>취소</button>
       </div>
     </div>
   );
@@ -621,6 +839,14 @@ export function MemoView({
           flash={flash}
           onDragOver={e => { e.preventDefault(); if (insertPos !== "end") setInsertPos("end"); }}
           onDrop={handleDrop}
+          aProj={aProj}
+          members={members}
+          pris={pris}
+          stats={stats}
+          priC={priC}
+          priBg={priBg}
+          stC={stC}
+          stBg={stBg}
         />
       </div>
 

@@ -132,6 +132,15 @@ export interface SortField {
   dir: "asc" | "desc";
 }
 
+// ─── 저장된 필터 조합 ──────────────────────────────────────────────────────────
+// 사용자가 자주 쓰는 필터 조합을 이름과 함께 저장해두고 칩으로 빠르게 재적용
+export interface SavedFilter {
+  id: string;       // Date.now() 기반 고유 ID
+  name: string;     // 사용자가 지정한 필터 이름
+  filters: Filters; // 저장 시점의 필터 상태
+  search: string;   // 저장 시점의 검색어
+}
+
 // ─── 삭제된 업무 기록 ──────────────────────────────────────────────────────────
 
 // 삭제된 업무 기록 (localStorage에 보관, 데일리 활동 로그에서 사용)

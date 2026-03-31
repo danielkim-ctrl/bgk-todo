@@ -53,18 +53,20 @@ export default function App() {
     toggleSort, togF, handleCheck, toggleSelectAll,
     calDate, setCalDate, calToday, calNav, calTitle, weekDates, customDates, agendaItems, evStyle,
     saveMod, addNR, isNREmpty, saveOneNR, saveNRs,
-    parseAI, confirmAI, addChip,
+    parseAI, confirmAI, addChip, aiHistory, restoreAiHistory,
     deletedLog, restoreTodo,
+    savedFilters, saveCurrentFilter, deleteSavedFilter,
   } = app;
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName;
-      // 텍스트 입력 중(노트, 검색창 등)에는 브라우저 기본 Ctrl+Z(텍스트 되돌리기)를 허용
-      const isEditing = tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement).isContentEditable;
-      if (isEditing) return;
+      // Ctrl+Z / Ctrl+Y는 입력 중 여부와 무관하게 항상 앱 undo/redo를 실행
       if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) { e.preventDefault(); undo(); return; }
       if ((e.ctrlKey || e.metaKey) && (e.key === "y" || (e.key === "Z" && e.shiftKey))) { e.preventDefault(); redo(); return; }
+      // Ctrl+Z/Y 이외의 단축키는 텍스트 입력 중에는 무시 (브라우저 기본 동작 유지)
+      const isEditing = tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement).isContentEditable;
+      if (isEditing) return;
       // ? 키로 단축키 도움말 팝업 열기/닫기
       if (e.key === "?") { e.preventDefault(); setShowShortcuts(p => !p); return; }
       // 선택된 항목 Delete 키 삭제
@@ -389,7 +391,7 @@ export default function App() {
         setNotePopup={setNotePopup} setNrDatePop={setNrDatePop}
         aiText={aiText} setAiText={setAiText} aiFiles={aiFiles} setAiFiles={setAiFiles}
         aiLoad={aiLoad} aiSt={aiSt} setAiSt={setAiSt} aiParsed={aiParsed}
-        setAiParsed={setAiParsed} parseAI={parseAI} confirmAI={confirmAI}
+        setAiParsed={setAiParsed} parseAI={parseAI} confirmAI={confirmAI} aiHistory={aiHistory} restoreAiHistory={restoreAiHistory}
         sorted={sorted} currentUser={currentUser}
         todoView={todoView} setTodoView={setTodoView}
         memoCols={memoCols} setMemoCols={setMemoCols}
@@ -409,6 +411,7 @@ export default function App() {
         hoverRowRect={hoverRowRect} setHoverRowRect={setHoverRowRect}
         hoverLeaveTimer={hoverLeaveTimer}
         addSecRef={addSecRef} tblDivRef={tblDivRef}
+        savedFilters={savedFilters} saveCurrentFilter={saveCurrentFilter} deleteSavedFilter={deleteSavedFilter}
       />}
 
       {view==="calendar"&&<CalendarView
