@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>팀 TODO — 개발 기획 대시보드</title>
+
+  <!-- Firebase compat SDK (인증 + Firestore 실시간 동기화) -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+  <!-- React + Babel (JSX 변환) -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Pretendard', system-ui, sans-serif; background: #f0f4f8; }
+    input, select, button, textarea { font-family: inherit; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner { width: 32px; height: 32px; border: 3px solid #e2e8f0; border-top-color: #2563eb; border-radius: 50%; animation: spin .7s linear infinite; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!--
+    ★ Firestore 보안 규칙에 아래 항목 추가 필요 (Firebase Console → Firestore → 규칙):
+    match /plan/{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  -->
+
+  <!-- Firebase 초기화 — Babel보다 먼저 실행되어야 함 -->
+  <script>
+    // file:// 프로토콜에서는 Google 로그인 불가 → 안내 메시지 표시
+    if (location.protocol === 'file:') {
+      document.getElementById('root').innerHTML =
+        '<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:system-ui">' +
+        '<div style="background:#fff;border-radius:16px;padding:36px 40px;box-shadow:0 4px 24px rgba(0,0,0,.1);max-width:480px;text-align:center">' +
+        '<div style="font-size:40px;margin-bottom:14px">⚠️</div>' +
+        '<div style="font-size:17px;font-weight:700;color:#dc2626;margin-bottom:10px">file:// 에서는 Google 로그인이 불가합니다</div>' +
+        '<div style="font-size:13px;color:#64748b;line-height:1.8;margin-bottom:18px">아래 방법 중 하나로 실행해 주세요.</div>' +
+        '<div style="background:#f8fafc;border-radius:10px;padding:16px 18px;text-align:left;font-size:12px;color:#334155;line-height:2.2">' +
+        '<b>방법 1</b> — 터미널에서 <code style="background:#e2e8f0;padding:1px 5px;border-radius:4px">npx serve .</code> 실행 후<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code style="background:#e2e8f0;padding:1px 5px;border-radius:4px">http://localhost:3000/plan-dashboard.html</code> 접속<br>' +
+        '<b>방법 2</b> — GitHub Pages 등 HTTPS 환경에 업로드 후 접속' +
+        '</div></div></div>';
+    } else {
+      firebase.initializeApp({
+        apiKey:            "AIzaSyDr2eCn2t2dIgh4OY_RI5KbkEycAcYxgdU",
+        authDomain:        "bgk-todo.firebaseapp.com",
+        projectId:         "bgk-todo",
+        storageBucket:     "bgk-todo.firebasestorage.app",
+        messagingSenderId: "901604230553",
+        appId:             "1:901604230553:web:0dd2377cef7fdce99eff08"
+      });
+      window._db   = firebase.firestore();
+      window._auth = firebase.auth();
+    }
+  </script>
+
+  <script type="text/babel">
+    // file:// 케이스는 위에서 이미 처리됨
+    if (!window._db) throw new Error('skip');
+
+    const { useState, useEffect, useRef, useCallback } = React;
+    const db   = window._db;
+    const auth = window._auth;
+
+    // ── 상수 ─────────────────────────────────────────────────────
+    const PLAN_DOC = db.collection('plan').doc('dashboard');
+
+    const INIT = [
+      { id:"B-1", cat:"bug",     priority:"high",   status:"todo", title:"완료 항목 행 컬럼 불일치",        desc:"완료 행 구분선 colSpan={10}인데 실제 열은 11개 — 진행률 컬럼 추가 후 미반영" },
+      { id:"B-2", cat:"bug",     priority:"high",   status:"todo", title:"완료 항목 진행률 컬럼 누락",      desc:"완료 행 JSX에서 progress 셀이 생략됨" },
+      { id:"B-3", cat:"bug",     priority:"medium", status:"todo", title:"NotePopup 스크롤 위치 틀어짐",    desc:"페이지 스크롤 후 클릭하면 팝업 위치가 어긋남" },
+      { id:"U-1", cat:"ux",      priority:"high",   status:"todo", title:"캘린더 날짜 클릭 → 업무 추가",    desc:"날짜 클릭 시 해당 마감일로 추가 모달 열기" },
+      { id:"U-2", cat:"ux",      priority:"medium", status:"todo", title:"칸반 카드 인라인 편집",           desc:"칸반 상세 모달에서 읽기 전용 → 직접 편집 가능" },
+      { id:"U-3", cat:"ux",      priority:"low",    status:"todo", title:"리스트 행 드래그 순서 변경",       desc:"드래그로 행 순서 재정렬 기능 추가" },
+      { id:"U-4", cat:"ux",      priority:"low",    status:"todo", title:"반응형 레이아웃",                 desc:"모바일·좁은 화면 대응 (900px 이하 현재 가로 스크롤만)" },
+      { id:"F-1", cat:"feature", priority:"high",   status:"todo", title:"엑셀/CSV 내보내기",               desc:"현재 필터 적용된 목록을 파일로 다운로드" },
+      { id:"F-2", cat:"feature", priority:"medium", status:"todo", title:"마감 임박 알림 뱃지",             desc:"헤더에 D-3 이내 업무 카운트 노출" },
+      { id:"F-3", cat:"feature", priority:"medium", status:"todo", title:"담당자별 업무량 차트",            desc:"대시보드에 per-person 로드 시각화" },
+      { id:"F-4", cat:"feature", priority:"low",    status:"todo", title:"업무 간 의존성 (선후행)",         desc:"A 완료 후 B 시작 연결 기능" },
+      { id:"F-5", cat:"feature", priority:"medium", status:"todo", title:"비활성 프로젝트 아카이브 뷰",     desc:"비활성 프로젝트의 todo 별도 탭으로 분리" },
+      { id:"T-1", cat:"tech",    priority:"low",    status:"todo", title:"단일 파일 컴포넌트 분리",         desc:"team-todo.tsx 1파일 ~1000줄 → 컴포넌트별 파일로 분리" },
+      { id:"T-2", cat:"tech",    priority:"medium", status:"todo", title:"localStorage 버전 마이그레이션", desc:"스키마 변경 시 기존 데이터 유실 방지 로직" },
+      { id:"T-3", cat:"tech",    priority:"medium", status:"todo", title:"데이터 백업/복원 UI",             desc:"설정에서 JSON export/import" },
+      { id:"U-5", cat:"ux",      priority:"medium", status:"todo", title:"team-todo 모바일 UI/UX 반응형",    desc:"사이드바→바텀시트, 테이블→카드 레이아웃, 터치 최적화(44px 터치 영역, 스와이프 제스처). 현재 UI 마무리 후 진행." },
+    ];
+
+    const CAT = {
+      bug:     { emoji:"🔴", label:"버그",       color:"#dc2626", bg:"#fef2f2", border:"#fecaca" },
+      ux:      { emoji:"🟡", label:"UX 개선",    color:"#d97706", bg:"#fffbeb", border:"#fde68a" },
+      feature: { emoji:"🟢", label:"신규 기능",  color:"#16a34a", bg:"#f0fdf4", border:"#bbf7d0" },
+      tech:    { emoji:"🔵", label:"기술 개선",  color:"#2563eb", bg:"#eff6ff", border:"#bfdbfe" },
+    };
+    const PRI = {
+      high:   { label:"긴급", color:"#dc2626", bg:"#fef2f2" },
+      medium: { label:"보통", color:"#d97706", bg:"#fff7ed" },
+      low:    { label:"낮음", color:"#94a3b8", bg:"#f8fafc" },
+    };
+    const STATUS = {
+      todo:       { label:"대기",   color:"#64748b", bg:"#f1f5f9", next:"inprogress" },
+      inprogress: { label:"진행중", color:"#2563eb", bg:"#dbeafe", next:"done"       },
+      done:       { label:"완료",   color:"#16a34a", bg:"#dcfce7", next:"hold"       },
+      hold:       { label:"보류",   color:"#9333ea", bg:"#f3e8ff", next:"todo"       },
+    };
+    const ST_KEYS = ["todo","inprogress","done","hold"];
+    const today = new Date().toISOString().slice(0,10);
+    const genId = (cat, items) => {
+      const prefix = cat==="bug"?"B":cat==="ux"?"U":cat==="feature"?"F":"T";
+      const nums = items.filter(i=>i.cat===cat).map(i=>parseInt(i.id.split("-")[1])||0);
+      return `${prefix}-${Math.max(0,...nums)+1}`;
+    };
+
+    // Firestore에 items 배열 전체를 저장
+    const saveToFirestore = (newItems) =>
+      PLAN_DOC.set({ items: newItems, updatedAt: new Date() }).catch(e => console.error("저장 실패:", e));
+
+    // ── 로그인 화면 ────────────────────────────────────────────────
+    function LoginScreen() {
+      const [loading, setLoading] = useState(false);
+      const signIn = async () => {
+        setLoading(true);
+        try { await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); }
+        catch(e) { alert("로그인 실패: " + e.message); setLoading(false); }
+      };
+      return (
+        <div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:"#f0f4f8"}}>
+          <div style={{background:"#fff",borderRadius:20,padding:"40px 48px",boxShadow:"0 4px 24px rgba(0,0,0,.1)",textAlign:"center",minWidth:320}}>
+            <div style={{width:56,height:56,background:"linear-gradient(135deg,#1e3a8a,#2563eb)",borderRadius:14,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 18px"}}>🗺️</div>
+            <div style={{fontSize:18,fontWeight:800,color:"#0f172a",marginBottom:6}}>개발 기획 대시보드</div>
+            <div style={{fontSize:12,color:"#94a3b8",marginBottom:28}}>Firebase 실시간 동기화 · 어디서든 접속</div>
+            <button onClick={signIn} disabled={loading}
+              style={{display:"flex",alignItems:"center",gap:10,padding:"12px 24px",border:"1.5px solid #e2e8f0",borderRadius:10,background:"#fff",cursor:"pointer",fontSize:13,fontWeight:600,color:"#334155",margin:"0 auto",transition:"box-shadow .15s",boxShadow:"0 1px 3px rgba(0,0,0,.07)"}}>
+              {loading
+                ? <span className="spinner" style={{width:18,height:18,borderWidth:2}}/>
+                : <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" style={{width:18,height:18}}/>
+              }
+              Google로 로그인
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // ── 로딩 화면 ────────────────────────────────────────────────
+    function LoadingScreen() {
+      return (
+        <div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:"#f0f4f8"}}>
+          <div className="spinner"/>
+        </div>
+      );
+    }
+
+    // ── 메인 대시보드 ──────────────────────────────────────────────
+    function PlanDashboard({ user, items, onSave }) {
+      const [fCat,  setFCat]  = useState("");
+      const [fSt,   setFSt]   = useState("");
+      const [fPri,  setFPri]  = useState("");
+      const [noteId, setNoteId] = useState(null);
+      const [noteVal, setNoteVal] = useState("");
+      const [addingCat, setAddingCat] = useState(null);
+      const [addForm, setAddForm] = useState({title:"",desc:"",priority:"medium"});
+      const noteRef = useRef(null);
+      const [autoText, setAutoText] = useState("");
+      const [autoLoad, setAutoLoad] = useState(false);
+      const [autoLog, setAutoLog] = useState([]);
+      const [showAuto, setShowAuto] = useState(false);
+      const apiKey = "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";
+
+      useEffect(()=>{ if(noteId&&noteRef.current) noteRef.current.focus(); },[noteId]);
+
+      // items를 변경하고 Firestore에 저장
+      const mutate = (updater) => {
+        const next = updater(items);
+        onSave(next);
+      };
+
+      const cycleStatus = (id) => mutate(p=>p.map(it=>
+        it.id===id ? {...it, status:STATUS[it.status].next, updatedAt:today} : it
+      ));
+      const saveNote = (id) => {
+        mutate(p=>p.map(it=>it.id===id?{...it,note:noteVal}:it));
+        setNoteId(null);
+      };
+      const addItem = () => {
+        if(!addForm.title.trim()||!addingCat) return;
+        mutate(p=>[...p,{id:genId(addingCat,p),cat:addingCat,title:addForm.title.trim(),desc:addForm.desc.trim(),priority:addForm.priority,status:"todo",updatedAt:today}]);
+        setAddForm({title:"",desc:"",priority:"medium"});
+        setAddingCat(null);
+      };
+      const deleteItem = (id) => mutate(p=>p.filter(it=>it.id!==id));
+      const resetToInit = () => { if(confirm("초기 데이터로 되돌리겠습니까?")) onSave(INIT); };
+
+      const autoProcess = async () => {
+        if(!autoText.trim()) return;
+        setAutoLoad(true);
+        setAutoLog(["🔍 Claude가 내용을 분석 중..."]);
+        try {
+          const r = await fetch("https://api.anthropic.com/v1/messages", {
+            method:"POST",
+            headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+            body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:1500,
+              system:`You are a development task parser. Return ONLY a JSON array. Each item: {"title":string,"desc":string,"category":"bug"|"ux"|"feature"|"tech","priority":"high"|"medium"|"low"}.`,
+              messages:[{role:"user",content:`아래 내용을 개발 태스크로 분류해줘:\n${autoText}`}]})
+          });
+          if(!r.ok) throw new Error(`API ${r.status}`);
+          const d = await r.json();
+          const raw = d.content.map(c=>c.text||"").join("").replace(/```json|```/g,"").trim();
+          const parsed = JSON.parse(raw);
+          setAutoLog(prev=>[...prev,`✅ ${parsed.length}건 추출 완료 — 순차 등록 시작...`]);
+          // 순차 등록 — 각 항목을 Firestore에 누적 저장
+          let current = [...items];
+          for(let i=0; i<parsed.length; i++) {
+            await new Promise(res=>setTimeout(res,350));
+            const t = parsed[i];
+            current = [...current, {id:genId(t.category,current),cat:t.category,title:t.title,desc:t.desc,priority:t.priority,status:"todo",updatedAt:today}];
+            onSave(current);
+            setAutoLog(prev=>[...prev,`📝 [${i+1}/${parsed.length}] [${t.category.toUpperCase()}] "${t.title}" 등록 완료`]);
+          }
+          setAutoLog(prev=>[...prev,`🎉 총 ${parsed.length}건 자동 처리 완료!`]);
+          setAutoText("");
+        } catch(e) {
+          setAutoLog(prev=>[...prev,`❌ 오류: ${e.message}`]);
+        }
+        setAutoLoad(false);
+      };
+
+      const total = items.length;
+      const doneCount = items.filter(i=>i.status==="done").length;
+      const progress = total ? Math.round(doneCount/total*100) : 0;
+      const stCounts = ST_KEYS.map(st=>({st,count:items.filter(i=>i.status===st).length}));
+      const filtered = items.filter(i=>(!fCat||i.cat===fCat)&&(!fSt||i.status===fSt)&&(!fPri||i.priority===fPri));
+      const anyFilter = fCat||fSt||fPri;
+
+      return (
+        <div style={{fontFamily:"'Pretendard',system-ui,sans-serif",background:"#f0f4f8",minHeight:"100vh",fontSize:13,color:"#1a2332"}}>
+          <header style={{background:"linear-gradient(135deg,#1e3a8a,#2563eb)",color:"#fff",padding:"0 28px",height:56,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 8px rgba(0,0,0,.15)"}}>
+            <div style={{display:"flex",alignItems:"center",gap:12}}>
+              <div style={{width:36,height:36,background:"rgba(255,255,255,.18)",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>🗺️</div>
+              <div>
+                <div style={{fontSize:15,fontWeight:800,letterSpacing:"-.3px"}}>팀 TODO — 개발 기획 대시보드</div>
+                <div style={{fontSize:10,opacity:.65,marginTop:1}}>Firebase 실시간 동기화 중 · 기준일 {today}</div>
+              </div>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <button onClick={()=>{setShowAuto(v=>!v);setAutoLog([]);}} style={{background:showAuto?"rgba(255,255,255,.3)":"rgba(255,255,255,.12)",border:"1px solid rgba(255,255,255,.2)",color:"#fff",fontSize:10,padding:"4px 12px",borderRadius:14,cursor:"pointer",fontWeight:showAuto?700:400}}>🚀 자동 처리</button>
+              <button onClick={resetToInit} style={{background:"rgba(255,255,255,.12)",border:"1px solid rgba(255,255,255,.2)",color:"rgba(255,255,255,.75)",fontSize:10,padding:"4px 12px",borderRadius:14,cursor:"pointer"}}>초기화</button>
+              <div style={{background:"rgba(255,255,255,.15)",border:"1px solid rgba(255,255,255,.2)",padding:"4px 14px",borderRadius:14,fontSize:12,fontWeight:700}}>
+                {doneCount} / {total} 완료 ({progress}%)
+              </div>
+              {/* 사용자 아바타 + 로그아웃 */}
+              <div style={{display:"flex",alignItems:"center",gap:8,marginLeft:4}}>
+                {user.photoURL
+                  ? <img src={user.photoURL} style={{width:28,height:28,borderRadius:"50%",border:"2px solid rgba(255,255,255,.4)"}}/>
+                  : <div style={{width:28,height:28,borderRadius:"50%",background:"rgba(255,255,255,.25)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700}}>{(user.displayName||"?").slice(0,1)}</div>
+                }
+                <button onClick={()=>auth.signOut()} style={{background:"rgba(255,255,255,.12)",border:"1px solid rgba(255,255,255,.2)",color:"rgba(255,255,255,.8)",fontSize:10,padding:"4px 10px",borderRadius:14,cursor:"pointer"}}>로그아웃</button>
+              </div>
+            </div>
+          </header>
+
+          <main style={{padding:"20px 28px",maxWidth:1100,margin:"0 auto"}}>
+
+            {showAuto&&(
+              <div style={{background:"#fff",borderRadius:14,padding:"16px 20px",marginBottom:16,boxShadow:"0 1px 4px rgba(0,0,0,.07)",border:"1.5px solid #6ee7b7"}}>
+                <div style={{fontSize:12,fontWeight:700,color:"#059669",marginBottom:8}}>🚀 자동 처리 — 내용을 입력하면 Claude가 분류해서 자동 등록합니다</div>
+                <textarea value={autoText} onChange={e=>setAutoText(e.target.value)} rows={4}
+                  placeholder={"예시:\n로그인 버튼 클릭 시 500 에러 발생\n모바일에서 레이아웃 깨짐\n엑셀 내보내기 기능 필요\nLocalStorage 버전 마이그레이션 처리"}
+                  style={{width:"100%",padding:"10px 12px",border:"1.5px solid #6ee7b7",borderRadius:8,fontSize:12,outline:"none",resize:"vertical",lineHeight:1.7,background:"#f0fdf4",marginBottom:10}}/>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <button onClick={autoProcess} disabled={autoLoad||!autoText.trim()}
+                    style={{background:autoLoad?"#6ee7b7":"linear-gradient(135deg,#059669,#047857)",color:"#fff",border:"none",padding:"8px 20px",borderRadius:8,fontSize:12,fontWeight:700,cursor:autoLoad?"not-allowed":"pointer",opacity:(autoLoad||!autoText.trim())?0.6:1}}>
+                    {autoLoad?"⏳ 처리 중...":"🚀 자동 처리 시작"}
+                  </button>
+                  {!autoLoad&&autoText&&<button onClick={()=>{setAutoText("");setAutoLog([]);}} style={{padding:"7px 14px",borderRadius:8,border:"1px solid #e2e8f0",background:"#f8fafc",color:"#64748b",fontSize:11,cursor:"pointer"}}>초기화</button>}
+                </div>
+                {autoLog.length>0&&(
+                  <div style={{marginTop:12,background:"#022c22",borderRadius:10,padding:"12px 14px",maxHeight:180,overflowY:"auto",fontFamily:"monospace"}}>
+                    {autoLog.map((line,i)=><div key={i} style={{fontSize:11,color:line.startsWith("❌")?"#f87171":line.startsWith("🎉")?"#34d399":line.startsWith("📝")?"#6ee7b7":"#a7f3d0",marginBottom:3,lineHeight:1.5}}>{line}</div>)}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 요약 카드 */}
+            <div style={{background:"#fff",borderRadius:14,padding:"18px 22px",marginBottom:16,boxShadow:"0 1px 4px rgba(0,0,0,.07)"}}>
+              <div style={{display:"flex",alignItems:"center",gap:20,marginBottom:16}}>
+                {stCounts.map(({st,count})=>{
+                  const m=STATUS[st]; const active=fSt===st;
+                  return (
+                    <div key={st} onClick={()=>setFSt(active?"":st)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4,cursor:"pointer",opacity:fSt&&!active?0.4:1,transition:"opacity .15s"}}>
+                      <div style={{fontSize:26,fontWeight:900,color:m.color,lineHeight:1}}>{count}</div>
+                      <div style={{fontSize:10,padding:"2px 10px",borderRadius:99,background:active?m.color:m.bg,color:active?"#fff":m.color,fontWeight:700,transition:"all .15s"}}>{m.label}</div>
+                    </div>
+                  );
+                })}
+                <div style={{flex:1,marginLeft:12}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
+                    <span style={{fontSize:11,fontWeight:600,color:"#64748b"}}>전체 진행률</span>
+                    <span style={{fontSize:14,fontWeight:900,color:progress===100?"#16a34a":"#2563eb"}}>{progress}%</span>
+                  </div>
+                  <div style={{height:10,background:"#e2e8f0",borderRadius:99,overflow:"hidden"}}>
+                    <div style={{height:"100%",background:progress===100?"linear-gradient(90deg,#16a34a,#4ade80)":"linear-gradient(90deg,#2563eb,#60a5fa)",borderRadius:99,width:`${progress}%`,transition:"width .4s ease"}}/>
+                  </div>
+                </div>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                {Object.keys(CAT).map(cat=>{
+                  const m=CAT[cat]; const cnt=items.filter(i=>i.cat===cat).length;
+                  const doneCnt=items.filter(i=>i.cat===cat&&i.status==="done").length; const active=fCat===cat;
+                  return (
+                    <button key={cat} onClick={()=>setFCat(active?"":cat)}
+                      style={{padding:"6px 16px",borderRadius:8,border:`1.5px solid ${active?m.color:m.border}`,background:active?m.bg:"#fff",color:active?m.color:"#64748b",cursor:"pointer",fontSize:11,fontWeight:700,display:"flex",alignItems:"center",gap:6,transition:"all .15s"}}>
+                      {m.emoji} {m.label} <span style={{fontSize:10,opacity:.7,fontWeight:400}}>{doneCnt}/{cnt}</span>
+                    </button>
+                  );
+                })}
+                <div style={{width:1,height:24,background:"#e2e8f0",margin:"0 4px"}}/>
+                {Object.keys(PRI).map(pri=>{
+                  const m=PRI[pri]; const active=fPri===pri;
+                  return (
+                    <button key={pri} onClick={()=>setFPri(active?"":pri)}
+                      style={{padding:"4px 12px",borderRadius:99,border:`1.5px solid ${active?m.color:"#e2e8f0"}`,background:active?m.bg:"#fff",color:active?m.color:"#94a3b8",fontSize:10,fontWeight:700,cursor:"pointer",transition:"all .15s"}}>
+                      {m.label}
+                    </button>
+                  );
+                })}
+                {anyFilter&&(
+                  <button onClick={()=>{setFCat("");setFSt("");setFPri("");}}
+                    style={{padding:"4px 12px",borderRadius:99,border:"1.5px solid #e2e8f0",background:"#fff",color:"#94a3b8",fontSize:10,cursor:"pointer",marginLeft:4}}>
+                    ✕ 필터 초기화
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* 카테고리별 목록 */}
+            {Object.keys(CAT).map(cat=>{
+              const catItems=filtered.filter(i=>i.cat===cat);
+              if(!catItems.length&&fCat&&fCat!==cat) return null;
+              const m=CAT[cat];
+              const catTotal=items.filter(i=>i.cat===cat).length;
+              const catDone=items.filter(i=>i.cat===cat&&i.status==="done").length;
+              const isAdding=addingCat===cat;
+              return (
+                <div key={cat} style={{marginBottom:20}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                    <div style={{fontSize:14,fontWeight:900,color:m.color}}>{m.emoji} {m.label}</div>
+                    <div style={{flex:1,height:1.5,background:`linear-gradient(90deg,${m.border},transparent)`}}/>
+                    <div style={{fontSize:11,color:m.color,fontWeight:700,marginRight:8}}>{catDone}/{catTotal}</div>
+                    <button onClick={()=>setAddingCat(isAdding?null:cat)}
+                      style={{padding:"3px 12px",borderRadius:99,border:`1.5px solid ${isAdding?m.color:m.border}`,background:isAdding?m.bg:"#fff",color:isAdding?m.color:"#94a3b8",fontSize:10,fontWeight:700,cursor:"pointer",transition:"all .15s"}}>
+                      {isAdding?"취소":"＋ 추가"}
+                    </button>
+                  </div>
+
+                  {isAdding&&(
+                    <div style={{background:m.bg,border:`1.5px dashed ${m.color}`,borderRadius:10,padding:"12px 16px",marginBottom:8}}>
+                      <div style={{display:"flex",gap:8,marginBottom:8}}>
+                        <input value={addForm.title} onChange={e=>setAddForm(f=>({...f,title:e.target.value}))}
+                          placeholder="항목 제목 *"
+                          onKeyDown={e=>{if(e.key==="Enter")addItem();if(e.key==="Escape")setAddingCat(null);}}
+                          autoFocus
+                          style={{flex:2,padding:"6px 10px",border:`1.5px solid ${m.color}`,borderRadius:6,fontSize:12,fontWeight:600,outline:"none",background:"#fff"}}/>
+                        <select value={addForm.priority} onChange={e=>setAddForm(f=>({...f,priority:e.target.value}))}
+                          style={{padding:"6px 8px",border:`1.5px solid ${m.color}`,borderRadius:6,fontSize:11,background:"#fff",outline:"none"}}>
+                          {Object.keys(PRI).map(p=><option key={p} value={p}>{PRI[p].label}</option>)}
+                        </select>
+                      </div>
+                      <div style={{display:"flex",gap:8}}>
+                        <input value={addForm.desc} onChange={e=>setAddForm(f=>({...f,desc:e.target.value}))}
+                          placeholder="설명 (선택)"
+                          style={{flex:1,padding:"6px 10px",border:"1.5px solid #e2e8f0",borderRadius:6,fontSize:11,outline:"none",background:"#fff"}}/>
+                        <button onClick={addItem} style={{padding:"6px 18px",background:m.color,color:"#fff",border:"none",borderRadius:6,fontSize:12,fontWeight:700,cursor:"pointer"}}>등록</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {!catItems.length&&(
+                    <div style={{textAlign:"center",padding:"24px 0",color:"#94a3b8",fontSize:12,background:"#fff",borderRadius:10,border:"1px solid #f1f5f9"}}>
+                      {fSt||fPri ? "필터 조건에 맞는 항목 없음" : "항목 없음"}
+                    </div>
+                  )}
+
+                  {catItems.map(item=>{
+                    const st=STATUS[item.status]; const pri=PRI[item.priority];
+                    const isDone=item.status==="done"; const isNote=noteId===item.id;
+                    return (
+                      <div key={item.id} style={{background:"#fff",borderRadius:10,padding:"12px 16px",marginBottom:6,boxShadow:"0 1px 3px rgba(0,0,0,.06)",borderLeft:`3px solid ${m.color}`,opacity:isDone?0.55:1,transition:"opacity .2s"}}>
+                        <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
+                          <button onClick={()=>cycleStatus(item.id)} title="클릭해서 상태 변경"
+                            style={{flexShrink:0,padding:"3px 12px",borderRadius:99,border:`1.5px solid ${st.color}`,background:st.bg,color:st.color,fontSize:10,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",marginTop:2,transition:"all .15s"}}>
+                            {st.label}
+                          </button>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3}}>
+                              <span style={{fontSize:10,fontWeight:700,color:"#94a3b8",fontFamily:"monospace",flexShrink:0}}>{item.id}</span>
+                              <span style={{fontSize:12,fontWeight:700,color:isDone?"#94a3b8":"#0f172a",textDecoration:isDone?"line-through":"none"}}>{item.title}</span>
+                            </div>
+                            {item.desc&&<div style={{fontSize:11,color:"#64748b",lineHeight:1.55,marginBottom:item.note?4:0}}>{item.desc}</div>}
+                            {item.note&&!isNote&&(
+                              <div style={{marginTop:5,padding:"4px 10px",background:"#fffbeb",borderRadius:5,fontSize:11,color:"#92400e",borderLeft:"2px solid #fcd34d"}}>
+                                💬 {item.note}
+                              </div>
+                            )}
+                            {isNote&&(
+                              <div style={{marginTop:8,display:"flex",gap:6}}>
+                                <input ref={noteRef} value={noteVal} onChange={e=>setNoteVal(e.target.value)}
+                                  onKeyDown={e=>{if(e.key==="Enter")saveNote(item.id);if(e.key==="Escape")setNoteId(null);}}
+                                  placeholder="메모 입력 후 Enter..."
+                                  style={{flex:1,padding:"5px 10px",border:"1.5px solid #2563eb",borderRadius:6,fontSize:11,outline:"none",boxShadow:"0 0 0 2px rgba(37,99,235,.12)"}}/>
+                                <button onClick={()=>saveNote(item.id)} style={{padding:"5px 14px",background:"#2563eb",color:"#fff",border:"none",borderRadius:6,fontSize:11,fontWeight:700,cursor:"pointer"}}>저장</button>
+                                <button onClick={()=>setNoteId(null)} style={{padding:"5px 10px",background:"#f1f5f9",color:"#64748b",border:"none",borderRadius:6,fontSize:11,cursor:"pointer"}}>취소</button>
+                              </div>
+                            )}
+                          </div>
+                          <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
+                            <span style={{padding:"2px 8px",borderRadius:99,background:pri.bg,color:pri.color,fontSize:9,fontWeight:700}}>{pri.label}</span>
+                            <button onClick={()=>{setNoteId(isNote?null:item.id);setNoteVal(item.note||"");}} title="메모"
+                              style={{width:26,height:26,borderRadius:7,border:"1px solid #e2e8f0",background:isNote?"#eff6ff":"#f8fafc",color:isNote?"#2563eb":"#94a3b8",cursor:"pointer",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",transition:"all .15s"}}>
+                              💬
+                            </button>
+                            <button onClick={()=>deleteItem(item.id)} title="삭제"
+                              style={{width:26,height:26,borderRadius:7,border:"1px solid #fecaca",background:"#fff",color:"#dc2626",cursor:"pointer",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",opacity:0.5,transition:"opacity .15s"}}
+                              onMouseEnter={e=>e.currentTarget.style.opacity="1"}
+                              onMouseLeave={e=>e.currentTarget.style.opacity="0.5"}>
+                              🗑
+                            </button>
+                            {item.updatedAt&&<span style={{fontSize:9,color:"#c0c8d4",whiteSpace:"nowrap"}}>{item.updatedAt}</span>}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+
+            {filtered.length===0&&!Object.keys(CAT).some(c=>addingCat===c)&&(
+              <div style={{textAlign:"center",padding:"80px 0",color:"#94a3b8",fontSize:14}}>조건에 맞는 항목이 없습니다</div>
+            )}
+            <div style={{height:40}}/>
+          </main>
+        </div>
+      );
+    }
+
+    // ── 루트 앱 (인증 + Firestore 동기화 관리) ───────────────────────
+    function App() {
+      // undefined = 인증 확인 중, null = 로그아웃, object = 로그인됨
+      const [user, setUser] = useState(undefined);
+      // null = Firestore 로딩 중, array = 데이터 로드됨
+      const [items, setItems] = useState(null);
+
+      // 인증 상태 리스너
+      useEffect(() => {
+        return auth.onAuthStateChanged(u => setUser(u || null));
+      }, []);
+
+      // 로그인 후 Firestore 실시간 리스너 설정
+      useEffect(() => {
+        if (!user) { setItems(null); return; }
+        const unsub = PLAN_DOC.onSnapshot(snap => {
+          if (snap.exists) {
+            // INIT에 새로 추가된 항목 병합 (기존 저장 데이터에 없는 것만 추가)
+            const saved = snap.data().items || [];
+            const savedIds = new Set(saved.map(i => i.id));
+            const newItems = INIT.filter(i => !savedIds.has(i.id));
+            setItems(newItems.length ? [...saved, ...newItems] : saved);
+          } else {
+            // 최초 접속 — 초기 데이터로 문서 생성
+            saveToFirestore(INIT);
+          }
+        }, err => {
+          console.error("Firestore 오류:", err);
+          alert("Firestore 접근 오류: " + err.message + "\n\nFirestore 보안 규칙에 plan 컬렉션 접근 권한을 추가해 주세요.");
+        });
+        return unsub;
+      }, [user]);
+
+      // Firestore에 저장하고 로컬 상태도 즉시 반영 (낙관적 업데이트)
+      const handleSave = (newItems) => {
+        setItems(newItems);
+        saveToFirestore(newItems);
+      };
+
+      if (!window._db) return null;
+      if (user === undefined) return <LoadingScreen />;
+      if (!user) return <LoginScreen />;
+      if (!items) return <LoadingScreen />;
+
+      return <PlanDashboard user={user} items={items} onSave={handleSave} />;
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
