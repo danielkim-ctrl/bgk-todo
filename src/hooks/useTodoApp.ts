@@ -57,6 +57,7 @@ export function useTodoApp() {
     priBg: Record<string,string>;
     stC: Record<string,string>;
     stBg: Record<string,string>;
+    memberColors: Record<string,string>;
     filters: Filters;
   };
 
@@ -71,6 +72,7 @@ export function useTodoApp() {
     priBg: { ...priBg },
     stC: { ...stC },
     stBg: { ...stBg },
+    memberColors: { ...memberColors },
     filters: { ...filters },
   });
 
@@ -85,6 +87,7 @@ export function useTodoApp() {
     setPriBg(snap.priBg);
     setStC(snap.stC);
     setStBg(snap.stBg);
+    setMemberColors(snap.memberColors || {});
     if (snap.filters) setFilters(snap.filters);
   };
 
@@ -115,6 +118,7 @@ export function useTodoApp() {
   const setPriBgGuarded = (fn: any) => { guard(); pushHistory(); setPriBg(fn); };
   const setStCGuarded = (fn: any) => { guard(); pushHistory(); setStC(fn); };
   const setStBgGuarded = (fn: any) => { guard(); pushHistory(); setStBg(fn); };
+  const setMemberColorsGuarded = (fn: any) => { guard(); pushHistory(); setMemberColors(fn); };
 
   const undo = () => {
     if (!historyRef.current.length) return;
@@ -147,6 +151,8 @@ export function useTodoApp() {
   const [priBg, setPriBg] = useState({ ...INIT_PRI_BG });
   const [stC, setStC] = useState({ ...INIT_ST_C });
   const [stBg, setStBg] = useState({ ...INIT_ST_BG });
+  // 담당자별 커스텀 아바타 색상 — 설정에서 변경 가능, Firebase에 저장됨
+  const [memberColors, setMemberColors] = useState<Record<string,string>>({});
 
   const [view, setView] = useState("list");
   const [toast, setToast] = useState({ m: "", t: "" });
@@ -257,6 +263,7 @@ export function useTodoApp() {
     if (d.priBg) setPriBg(merge ? (prev: any) => ({ ...prev, ...d.priBg }) : d.priBg);
     if (d.stC) setStC(merge ? (prev: any) => ({ ...prev, ...d.stC }) : d.stC);
     if (d.stBg) setStBg(merge ? (prev: any) => ({ ...prev, ...d.stBg }) : d.stBg);
+    if (d.memberColors) setMemberColors(merge ? (prev: any) => ({ ...prev, ...d.memberColors }) : d.memberColors);
     if (d.members?.length) {
       const rm = d.members.filter((m: string) => m !== "미배정");
       if (merge) { setMembers(prev => { const rs = new Set(rm); return [...rm, ...prev.filter((x: string) => !rs.has(x))]; }); }
@@ -289,20 +296,17 @@ export function useTodoApp() {
       }
       const d = snap.data();
       if (!fsBootstrapped.current) {
-        // 첫 Firestore 응답 — localStorage가 없으면 Firestore 데이터로 초기화
-        if (!hasLocal) {
-          applyData(d);
-          lastKnownUpdatedAt.current = d._updatedAt || 0;
-          try { localStorage.setItem("todo-v5", JSON.stringify(d)); } catch (e) { }
-          setLoaded(true);
-        }
+        // 첫 Firestore 응답 — 항상 Firestore 데이터를 적용 (localStorage는 빠른 로딩용 캐시일 뿐)
+        fromSnapshot.current = true;
+        applyData(d);
+        lastKnownUpdatedAt.current = d._updatedAt || 0;
+        try { localStorage.setItem("todo-v5", JSON.stringify(d)); } catch (e) { }
+        if (!hasLocal) setLoaded(true);
         fsBootstrapped.current = true;
         return;
       }
-      // 이후 스냅샷 — 같은 클라이언트 or 쓰기 중 or 더 오래된 데이터면 무시
+      // 이후 스냅샷 — 같은 클라이언트가 보낸 것이거나 더 오래된 데이터면 무시
       if (d._clientId === clientId.current) return;
-      if (pendingWrite.current) return;
-      // _updatedAt 없는 스냅샷은 타임스탬프 비교 불가 → lastKnownUpdatedAt이 있으면 무시
       const incomingAt = d._updatedAt || 0;
       if (incomingAt < lastKnownUpdatedAt.current) return;
       fromSnapshot.current = true;
@@ -321,63 +325,6 @@ export function useTodoApp() {
   }, [currentUser]);
 
 
-  useEffect(() => {
-    if (!loaded) return;
-    if (localStorage.getItem("seed-lotte-2026")) return;
-    if (projects.find(p => p.name.includes("롯데백화점"))) return;
-    const newPid = Math.max(...projects.map(p => p.id), 0) + 1;
-    const base = Math.max(...todos.filter(t => !Array.isArray(t)).map(t => t.id), 0) + 1;
-    const mk = (i: number, task: string, due: string, st: string, pri: string, det: string) => ({ id: base + i, pid: newPid, task, who: "김대윤", due, pri, st, det, cre: "2026-03-27", done: st === "완료" ? "2026-03-27" : null, repeat: "없음" });
-    setProjectsGuarded((prev: Project[]) => [...prev, { id: newPid, name: "2026 롯데백화점 동행 워크숍", color: "#ef4444", status: "활성" }]);
-    setTodos(prev => [...prev.filter(t => !Array.isArray(t)), ...[
-      mk(0,"참가사 선발 및 선발 공지","2026-03-06","진행중","긴급","최종 참가인원 체크 필수"),
-      mk(1,"롯데 호텔 담당자 인계","2026-03-06","완료","긴급","롯데호텔 관리 주체 확정 필요"),
-      mk(2,"롯데 호텔 추가 숙박 확보","2026-03-06","진행중","긴급","최종 객실: 80/61"),
-      mk(3,"[1차시] 직무 특강 1 연사 확정","2026-03-13","진행중","긴급","섭외비 확정, 숙소 및 항공 지원"),
-      mk(4,"[1차시] 직무 특강 2 연사 확정","2026-03-13","완료","긴급","이윤수, 조용헌, 환경재단 ESG 강사"),
-      mk(5,"[1차시] 명사 특강 연사 확정","2026-03-13","진행중","긴급","조용헌 교수님 항공권 발권 완료(272,000원)"),
-      mk(6,"[2차시] 직무 특강 1 연사 확정","2026-03-13","진행중","긴급","이윤수 강의 의뢰서 및 일정 체크 필요"),
-      mk(7,"[2차시] 직무 특강 2 연사 확정","2026-03-13","진행중","긴급","1차시와 동일"),
-      mk(8,"[2차시] 명사 특강 연사 확정","2026-03-13","진행중","긴급","1차시와 동일"),
-      mk(9,"[전체] 예산안 확정","2026-03-13","진행중","긴급",""),
-      mk(10,"[전체] 계약서 작성 및 선금 지급","2026-03-13","대기","긴급",""),
-      mk(11,"[2차시] 항공권 전달 및 발권","2026-03-24","진행중","긴급",""),
-      mk(12,"[1차시] 항공권 명단 전달 및 발권","2026-03-25","진행중","긴급",""),
-      mk(13,"[전체] 여행자보험 가입","2026-03-25","대기","긴급",""),
-      mk(14,"[전체] 레크레이션 상품 선정 및 구매","2026-03-27","완료","긴급","진행안함"),
-      mk(15,"[전체] 기념품 선정 및 구매","2026-03-27","진행중","긴급","시시호시 제주 전통술(3만원+@)"),
-      mk(16,"[전체] 제주도 사전 답사 및 호텔 미팅","2026-03-27","대기","긴급","03.23(월) 진행 예정"),
-      mk(17,"[전체] ESG 플로깅 프로그램 기획/확정","2026-03-27","진행중","긴급","장소 섭외, 지자체 협의, 스토리텔링 기획 필요"),
-      mk(18,"[전체] 해녀촌 기념품 체크","","대기","낮음","해녀촌 프로그램 취소, 성산일출봉/올레길로 변경"),
-      mk(19,"[전체] ESG 플로깅 현지 언론사 기사 초안","","대기","낮음","롯데백화점 작성"),
-      mk(20,"[전체] 플로깅 플랜B 수립","2026-03-27","진행중","긴급","우천시 선녀와나무꾼, 이너리스, 사려니 숲길"),
-      mk(21,"[1차시] 참석자 특이사항 수요조사","2026-04-10","대기","높음","식단, 알러지, 건강상태 조사"),
-      mk(22,"[2차시] 참석자 특이사항 수요조사","2026-04-10","대기","높음","체험 프로그램 분리 발송"),
-      mk(23,"[전체] 호텔 체크인 운영 방안 확정","2026-04-10","대기","높음","사전 체크인 후 현장 배부 예정"),
-      mk(24,"[전체] VIP 의전 체크","2026-04-10","완료","높음","모두 함께 버스 탑승"),
-      mk(25,"[전체] 연회장 레이아웃 구성","2026-04-10","대기","높음","크리스탈 볼룸 1,2,3 사용 / 무대 7.2M×3M"),
-      mk(26,"[전체] 브릿징·롯데백화점 인원별 R&R","2026-04-10","대기","높음",""),
-      mk(27,"[전체] 홍보물·기념품 사전 물류 배송","2026-04-10","대기","높음","행사 3~4일 전까지 호텔로 발송"),
-      mk(28,"[전체] 플로깅 키트 수령 및 호텔 발송","2026-04-10","대기","높음","롯데호텔 사전 협의 필요"),
-      mk(29,"[전체] 행사 브랜딩 홍보물 기획 및 출력","2026-04-10","대기","높음","명찰, 리플렛, 현수막, 버스 번호판 등"),
-      mk(30,"[전체] 안전 대책 수립","2026-04-10","대기","높음","병원 동선 파악, 구급약품 준비"),
-      mk(31,"[1차시] 참가사 안내문 발송","2026-04-17","대기","보통","일정표, 숙소, 준비물 안내"),
-      mk(32,"[2차시] 참가사 안내문 발송","2026-04-28","대기","보통",""),
-      mk(33,"[1차시] 호텔 예약 명단 확인 및 방 배정","","진행중","낮음","개인 사용분 개별 결제"),
-      mk(34,"[2차시] 호텔 예약 명단 확인 및 방 배정","","진행중","낮음","부문별 맞게 체험 프로그램 배정"),
-      mk(35,"롯데호텔 숙박·연회장 계약","","진행중","낮음","선금 입금 완료(3.16)"),
-      mk(36,"행사 키비주얼 제작 여부 확인","","완료","낮음","키비주얼 제작 완료(0313)"),
-      mk(37,"참가사 명단(출석체크용) 제작 - 파트너사","","대기","낮음","브릿징그룹 참가사명단 확인"),
-      mk(38,"참가사 명단(출석체크용) 제작 - 외주사","","대기","낮음","룸드롭 5,000원/객실"),
-      mk(39,"프로그램 일정표 수정 및 명찰용 스케쥴","","대기","낮음","명찰 뒤에 스케쥴표 인쇄"),
-      mk(40,"연회 음료 및 야식 준비","","대기","낮음","주류 영수증 처리 필요"),
-      mk(41,"헤드테이블 확인","","대기","낮음","VIP 및 파트너사 대표 좌석 지정"),
-    ]] as any);
-    setNId(base + 42); nIdRef.current = base + 42;
-    setPNId(newPid + 1);
-    localStorage.setItem("seed-lotte-2026", "1");
-  }, [loaded]);
-
   const skipFirst = useRef(false);
   useEffect(() => {
     if (!loaded) return;
@@ -388,14 +335,14 @@ export function useTodoApp() {
       const ver = ++writeVersion.current;
       const now = Date.now();
       lastKnownUpdatedAt.current = now;
-      const data = { todos, projects, nId, pNId, pris, stats, priC, priBg, stC, stBg, members, userSettings, _clientId: clientId.current, _updatedAt: now };
+      const data = { todos, projects, nId, pNId, pris, stats, priC, priBg, stC, stBg, members, memberColors, userSettings, _clientId: clientId.current, _updatedAt: now };
       try { localStorage.setItem("todo-v5", JSON.stringify(data)); } catch (e) { }
       setDoc(FS_DOC, data)
         .catch(() => flash("저장 실패 — 네트워크를 확인하세요", "err"))
         .finally(() => { if (writeVersion.current === ver) pendingWrite.current = false; });
     }, 400);
     return () => clearTimeout(t);
-  }, [todos, projects, nId, pNId, members, pris, stats, priC, priBg, stC, stBg, userSettings, loaded]);
+  }, [todos, projects, nId, pNId, members, pris, stats, priC, priBg, stC, stBg, memberColors, userSettings, loaded]);
 
   // action을 전달하면 토스트에 버튼이 표시됨 (예: AI 등록 후 "실행 취소")
   const flash = (m: string, t = "ok", action?: { label: string; fn: () => void }) => {
@@ -513,6 +460,19 @@ export function useTodoApp() {
     };
     setTodosWithHistory((p: Todo[]) => [...p, restored]);
     flash(`'${entry.task}' 업무가 복원되었습니다`);
+  };
+
+  // 리스트뷰 드래그 정렬 — 업무 배열 순서를 변경하여 수동 정렬 (정렬 미적용 시만 동작)
+  const reorderTodo = (dragId: number, beforeId: number | null) => {
+    setTodosWithHistory((prev: Todo[]) => {
+      const dragged = prev.find(t => t.id === dragId);
+      if (!dragged) return prev;
+      const without = prev.filter(t => t.id !== dragId);
+      if (beforeId === null) return [...without, dragged];
+      const idx = without.findIndex(t => t.id === beforeId);
+      if (idx === -1) return [...without, dragged];
+      return [...without.slice(0, idx), dragged, ...without.slice(idx)];
+    });
   };
 
   const filtered = useMemo(() => todos.filter(t => {
@@ -661,6 +621,7 @@ export function useTodoApp() {
     projects, setProjects: setProjectsGuarded, todos, setTodos: setTodosWithHistory, nId, setNId, pNId, setPNId, loaded,
     members, setMembers: setMembersGuarded, pris, setPris: setPrisGuarded, stats, setStats: setStatsGuarded,
     priC, setPriC: setPriCGuarded, priBg, setPriBg: setPriBgGuarded, stC, setStC: setStCGuarded, stBg, setStBg: setStBgGuarded,
+    memberColors, setMemberColors: setMemberColorsGuarded,
     view, setView, toast,
     search, setSearch, editCell, setEditCell,
     newRows, setNewRows, kbF, setKbF, kbFWho, setKbFWho,
@@ -684,7 +645,7 @@ export function useTodoApp() {
     todayStr,
     // handlers
     deletedLog, restoreTodo,
-    undo, redo, flash, forceFirestoreSync, updTodo, addTodo, delTodo,
+    undo, redo, flash, forceFirestoreSync, updTodo, addTodo, delTodo, reorderTodo,
     toggleSort, togF, handleCheck, toggleSelectAll,
     saveMod, addNR, isNREmpty, saveOneNR, saveNRs,
     addChip,

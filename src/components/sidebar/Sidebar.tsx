@@ -1,8 +1,9 @@
 import React, { useState } from "react";
+import { createPortal } from "react-dom";
 import { PROJ_PALETTE } from "../../constants";
 import { Filters } from "../../types";
 import { Project } from "../../types";
-import { FolderIcon, UserIcon, BoltIcon, CheckCircleIcon, MagnifyingGlassIcon, EyeIcon, EyeSlashIcon, StarIcon, StarOutlineIcon, XMarkIcon, ChevronDownIcon, ChevronUpIcon, ChevronRightIcon, ChevronLeftIcon, ICON_SM } from "../ui/Icons";
+import { FolderIcon, UserIcon, BoltIcon, CheckCircleIcon, MagnifyingGlassIcon, EyeIcon, EyeSlashIcon, StarIcon, StarOutlineIcon, XMarkIcon, ChevronDownIcon, ChevronUpIcon, ChevronRightIcon, ChevronLeftIcon, AdjustmentsHorizontalIcon, ICON_SM } from "../ui/Icons";
 
 interface SidebarProps {
   search: string;
@@ -46,6 +47,19 @@ export function Sidebar({
   const [showHiddenMem, setShowHiddenMem] = useState(false);
   // 섹션별 접기/펼치기 상태 (우선순위·상태는 기본 접힘)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({pri: true, st: true});
+  // 섹션별 정렬 모드: fav(즐겨찾기순) | name(이름순) | count(건수순)
+  const [sectionSort, setSectionSort] = useState<Record<string, 'fav' | 'name' | 'count'>>({});
+  // 정렬 팝업 열림 섹션 키 + 팝업 위치 (position:fixed — overflow:hidden 우회)
+  const [sortPopupOpen, setSortPopupOpen] = useState<string | null>(null);
+  const [sortPopupPos, setSortPopupPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+
+  // 팝업 외부 클릭 시 닫기
+  React.useEffect(() => {
+    if (!sortPopupOpen) return;
+    const close = () => setSortPopupOpen(null);
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [sortPopupOpen]);
 
 
   // 사이드바 위치·크기 추적 — fixed 플로팅 버튼 정렬용
@@ -76,10 +90,10 @@ export function Sidebar({
 
   const gridStyle = {} as const;
 
-  // B4: 호버 배경 + 선택 배경
+  // Google Tasks 스타일: 활성=#e8f0fe+#1a73e8, hover=#f1f3f4
   const itemBg = (sel: boolean, hk: string) => {
-    if (sel) return "#eff6ff";
-    if (hoverKey === hk) return "#f8fafc";
+    if (sel) return "#e8f0fe";
+    if (hoverKey === hk) return "#f1f3f4";
     return "transparent";
   };
 
@@ -89,7 +103,7 @@ export function Sidebar({
     padding: "2px 14px",
     cursor: "pointer",
     background: itemBg(sel, hk),
-    color: sel ? "#2563eb" : "#475569",
+    color: sel ? "#1a73e8" : "#475569",
     fontWeight: sel ? 600 : 400,
     fontSize: 12,
     userSelect: "none",
@@ -141,32 +155,16 @@ export function Sidebar({
       /* 필터 초기화 플로팅 기준 */
       transition: "width .2s ease, margin-left .2s ease",
     }}>
-      {/* ── 검색 — 최상단 고정 ── */}
-      <div style={{ padding: "10px 14px 8px", borderBottom: "1px solid #e2e8f0", flexShrink: 0 }}>
-        <div style={{ position: "relative" }}>
-          <span style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", color: "#94a3b8", pointerEvents: "none", display: "flex" }}><MagnifyingGlassIcon style={ICON_SM} /></span>
-          <input
-            value={search} onChange={e => setSearch(e.target.value)} placeholder="검색..."
-            style={{ width: "100%", padding: "6px 30px 6px 26px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: 11, outline: "none", boxSizing: "border-box", background: "#f8fafc" }}
-          />
-          {search && (
-            <button onClick={() => setSearch("")} style={{ position: "absolute", right: 7, top: "50%", transform: "translateY(-50%)", background: "#94a3b8", border: "none", borderRadius: "50%", width: 14, height: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
-              <XMarkIcon style={{width:10,height:10,color:"#fff"}}/>
-            </button>
-          )}
-        </div>
-      </div>
-
       {/* ── 즐겨찾기 ── */}
       <div style={{ padding: "8px 14px 6px", borderBottom: "1px solid #e2e8f0", flexShrink: 0 }}>
         <div
           onClick={() => togF("fav", "")}
           onMouseEnter={() => setHoverKey("fav")}
           onMouseLeave={() => setHoverKey(null)}
-          style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 0", cursor: "pointer", background: filters.fav ? "#fefce8" : hoverKey === "fav" ? "#f8fafc" : "transparent", borderRadius: 6, fontSize: 12, color: filters.fav ? "#b45309" : "#475569", fontWeight: filters.fav ? 700 : 400, userSelect: "none", transition: "background .1s" }}>
+          style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 2px", cursor: "pointer", background: filters.fav ? "#e8f0fe" : hoverKey === "fav" ? "#f1f3f4" : "transparent", borderRadius: 6, fontSize: 12, color: filters.fav ? "#1a73e8" : "#475569", fontWeight: filters.fav ? 600 : 400, userSelect: "none", transition: "background .1s" }}>
           <span style={{ display: "inline-flex", alignItems: "center", lineHeight: 1 }}>{filters.fav ? <StarIcon style={ICON_SM}/> : <StarOutlineIcon style={ICON_SM}/>}</span>
           <span style={{ flex: 1 }}>즐겨찾기</span>
-          <span style={{ fontSize: 10, color: filters.fav ? "#d97706" : "#94a3b8", background: filters.fav ? "#fde68a" : "#f1f5f9", borderRadius: 99, padding: "0 5px", fontWeight: 600, flexShrink: 0 }}>{todos.filter(t => isFav(t.id)).length}</span>
+          <span style={{ fontSize: 10, color: filters.fav ? "#1a73e8" : "#80868b", background: filters.fav ? "#e8f0fe" : "transparent", borderRadius: 99, padding: "0 5px", fontWeight: filters.fav ? 600 : 400, flexShrink: 0 }}>{todos.filter(t => isFav(t.id)).length}</span>
         </div>
       </div>
 
@@ -238,7 +236,18 @@ export function Sidebar({
             ? baseList.filter(t => gPr(t.pid).id === 0).length
             : baseList.filter((t: any) => !(t as any)[key]).length;
 
+          // 선택된 정렬 모드에 따라 정렬 (기본: 즐겨찾기순)
+          const sortMode = sectionSort[key] || 'fav';
           const sortedItems = [...items].sort((a, b) => {
+            if (sortMode === 'name') {
+              // 이름순 — 한글 가나다 순
+              return a.l.localeCompare(b.l, 'ko');
+            }
+            if (sortMode === 'count') {
+              // 건수순 — 미완료 업무 많은 순
+              return b.n - a.n;
+            }
+            // 즐겨찾기순 — 고정된 항목이 상단에
             const fa = (favSidebar[key] || []).includes(a.v) ? 0 : 1;
             const fb = (favSidebar[key] || []).includes(b.v) ? 0 : 1;
             return fa - fb;
@@ -251,21 +260,96 @@ export function Sidebar({
                 onClick={() => setCollapsed(prev => ({ ...prev, [key]: !prev[key] }))}
                 onMouseEnter={e => { const svg = e.currentTarget.querySelector("[data-collapse-icon] svg") as SVGElement|null; if(svg){svg.setAttribute("stroke-width","2.5");svg.style.color="#334155";} }}
                 onMouseLeave={e => { const svg = e.currentTarget.querySelector("[data-collapse-icon] svg") as SVGElement|null; if(svg){svg.setAttribute("stroke-width","1.5");svg.style.color="#94a3b8";} }}
-                style={{ display: "flex", alignItems: "center", padding: "8px 14px 6px", gap: 6, cursor: "pointer", userSelect: "none" }}
+                style={{ display: "flex", alignItems: "center", padding: "8px 10px 6px 14px", gap: 6, cursor: "pointer", userSelect: "none" }}
               >
-                <span style={{ fontSize: 13, display: "inline-flex", color: "#64748b" }}>{icon}</span>
-                <span style={{ fontSize: 12, fontWeight: 700, color: "#334155", flex: 1 }}>{label}</span>
+                <span style={{ fontSize: 13, display: "inline-flex", color: "#5f6368" }}>{icon}</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#5f6368", flex: 1, letterSpacing: ".3px", textTransform: "uppercase" }}>{label}</span>
                 {selCount > 0 && (
-                  <span style={{ fontSize: 10, fontWeight: 700, color: "#fff", background: "#2563eb", borderRadius: 99, padding: "1px 5px", lineHeight: 1.4 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: "#fff", background: "#1a73e8", borderRadius: 99, padding: "1px 5px", lineHeight: 1.4 }}>
                     {selCount}
                   </span>
                 )}
+                {/* 정렬 버튼 — 클릭 시 미니 팝업 (position:fixed로 overflow:hidden 우회) */}
+                <button
+                  onMouseDown={e => e.stopPropagation()} // 외부클릭 닫기 핸들러와 충돌 방지
+                  onClick={e => {
+                    e.stopPropagation(); // 섹션 접기 클릭과 분리
+                    if (sortPopupOpen === key) { setSortPopupOpen(null); return; }
+                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                    const zoom = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
+                    // zoom 보정 후 버튼 바로 아래 위치
+                    setSortPopupPos({ top: rect.bottom / zoom + 4, left: rect.left / zoom });
+                    setSortPopupOpen(key);
+                    // 섹션이 접혀 있으면 같이 펼치기
+                    if (collapsed[key]) setCollapsed(prev => ({ ...prev, [key]: false }));
+                  }}
+                  title={`정렬: ${sortMode === 'fav' ? '즐겨찾기순' : sortMode === 'name' ? '이름순' : '가장많은순'}`}
+                  style={{
+                    background: sortPopupOpen === key ? "#e8f0fe" : "none",
+                    border: "none", borderRadius: 4,
+                    cursor: "pointer", padding: "2px 4px",
+                    color: sortPopupOpen === key ? "#1a73e8" : "#94a3b8",
+                    lineHeight: 1, display: "inline-flex", alignItems: "center",
+                    transition: "color .12s, background .12s", flexShrink: 0,
+                  }}
+                  onMouseEnter={e => { if (sortPopupOpen !== key) { e.currentTarget.style.color = "#5f6368"; e.currentTarget.style.background = "#f1f3f4"; } }}
+                  onMouseLeave={e => { if (sortPopupOpen !== key) { e.currentTarget.style.color = "#94a3b8"; e.currentTarget.style.background = "none"; } }}
+                >
+                  <AdjustmentsHorizontalIcon style={{ width: 12, height: 12 }} />
+                </button>
                 <span data-collapse-icon style={{ display: "inline-flex", alignItems: "center" }}>
                   {collapsed[key]
                     ? <ChevronDownIcon style={{ width: 12, height: 12, color: "#94a3b8", transition: "color .12s" }} />
                     : <ChevronUpIcon style={{ width: 12, height: 12, color: "#94a3b8", transition: "color .12s" }} />}
                 </span>
               </div>
+
+              {/* 정렬 미니 팝업 — createPortal로 document.body에 렌더링하여 overflow 잘림 완전 방지 */}
+              {sortPopupOpen === key && createPortal(
+                <div
+                  onMouseDown={e => e.stopPropagation()} // 팝업 내부 클릭 시 닫힘 방지
+                  style={{
+                    position: "fixed",
+                    top: sortPopupPos.top, left: sortPopupPos.left,
+                    zIndex: 9999,
+                    background: "#fff",
+                    border: "1px solid #dadce0",
+                    borderRadius: 8,
+                    boxShadow: "0 4px 16px rgba(0,0,0,.15)",
+                    padding: "4px 0",
+                    minWidth: 120,
+                    fontFamily: "'Pretendard', system-ui, sans-serif",
+                  }}
+                >
+                  {(['fav', 'name', 'count'] as const).map(mode => {
+                    const isActive = (sectionSort[key] || 'fav') === mode;
+                    const labels = { fav: '즐겨찾기순', name: '이름순', count: '건수순' };
+                    return (
+                      <div
+                        key={mode}
+                        onClick={() => { setSectionSort(prev => ({ ...prev, [key]: mode })); setSortPopupOpen(null); }}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 6,
+                          padding: "6px 12px",
+                          fontSize: 12, color: "#1f1f1f", cursor: "pointer",
+                          background: isActive ? "#f1f3f4" : "transparent",
+                          transition: "background .1s",
+                          fontWeight: isActive ? 600 : 400,
+                        }}
+                        onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLDivElement).style.background = "#f1f3f4"; }}
+                        onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLDivElement).style.background = "transparent"; }}
+                      >
+                        {/* 선택된 항목에 체크 마크 */}
+                        <span style={{ width: 12, textAlign: "center", color: "#1a73e8", fontSize: 11, flexShrink: 0 }}>
+                          {isActive ? "✓" : ""}
+                        </span>
+                        {labels[mode]}
+                      </div>
+                    );
+                  })}
+                </div>,
+                document.body
+              )}
 
               {!collapsed[key] && <><div style={gridStyle}>
                   {/* 전체 */}
@@ -276,7 +360,7 @@ export function Sidebar({
                     style={itemStyle(allEmpty, `${key}_all`)}
                   >
                     <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>전체</span>
-                    <span style={{ fontSize: 10, color: allEmpty ? "#93c5fd" : "#94a3b8", background: allEmpty ? "#dbeafe" : "#f1f5f9", borderRadius: 99, padding: "0 5px", fontWeight: 600, flexShrink: 0 }}>
+                    <span style={{ fontSize: 10, color: allEmpty ? "#1a73e8" : "#80868b", background: allEmpty ? "#e8f0fe" : "transparent", borderRadius: 99, padding: "0 5px", fontWeight: allEmpty ? 600 : 400, flexShrink: 0 }}>
                       {key === "st" ? todos.length : todos.filter(t => t.st !== "완료").length}
                     </span>
                   </div>
@@ -291,7 +375,7 @@ export function Sidebar({
                       title="담당자·프로젝트 없는 항목"
                     >
                       <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>미배정</span>
-                      <span style={{ fontSize: 10, color: sel ? "#93c5fd" : "#94a3b8", background: sel ? "#dbeafe" : "#f1f5f9", borderRadius: 99, padding: "0 5px", fontWeight: 600, flexShrink: 0 }}>{unassignedCnt}</span>
+                      <span style={{ fontSize: 10, color: sel ? "#1a73e8" : "#80868b", background: sel ? "#e8f0fe" : "transparent", borderRadius: 99, padding: "0 5px", fontWeight: sel ? 600 : 400, flexShrink: 0 }}>{unassignedCnt}</span>
                     </div>
                   ); })()}
 
@@ -333,7 +417,7 @@ export function Sidebar({
                             onMouseLeave={e => { e.stopPropagation(); (e.currentTarget as HTMLButtonElement).style.color = "#94a3b8"; }}
                           ><EyeSlashIcon style={ICON_SM} /></button>
                         )}
-                        <span style={{ fontSize: 10, color: sel ? "#93c5fd" : "#94a3b8", background: sel ? "#dbeafe" : "#f1f5f9", borderRadius: 99, padding: "0 4px", fontWeight: 500, flexShrink: 0 }}>{it.n}</span>
+                        <span style={{ fontSize: 10, color: sel ? "#1a73e8" : "#80868b", background: sel ? "#e8f0fe" : "transparent", borderRadius: 99, padding: "0 4px", fontWeight: sel ? 600 : 400, flexShrink: 0 }}>{it.n}</span>
                       </div>
                     );
                   })}

@@ -13,27 +13,29 @@ import { DateTimePicker } from "./components/editor/DateTimePicker";
 import { EditForm } from "./components/todo/EditForm";
 import { DetailView } from "./components/todo/DetailView";
 import { Dashboard } from "./components/dashboard/Dashboard";
-import { ProjMgr } from "./components/settings/ProjMgr";
 import { SettingsMgr } from "./components/settings/SettingsMgr";
 
 import { LoginScreen } from "./components/auth/LoginScreen";
 import { KanbanView } from "./views/KanbanView";
 import { ListView } from "./views/ListView";
 import { CalendarView } from "./views/CalendarView";
+import PlanDashboard from "../plan-dashboard";
 
 export default function App() {
+
   const app = useTodoApp();
   const {
     projects, setProjects, todos, setTodos, nId, setNId, pNId, setPNId,
     members, setMembers, pris, setPris, stats, setStats,
     priC, setPriC, priBg, setPriBg, stC, setStC, stBg, setStBg,
+    memberColors, setMemberColors,
     view, setView, toast, filters, setFilters, favSidebar, togFavSidebar,
     search, setSearch, editCell, setEditCell, sortCol, sortDir, setSortCol, setSortDir, customSortOrders, setCustomSortOrders, activeSortFields, setActiveSortFields,
     newRows, setNewRows, kbF, setKbF, kbFWho, setKbFWho,
     dragId, setDragId, dragOver, setDragOver,
     calF, setCalF, calFWho, setCalFWho, calY, calM, calD,
     calView, setCalView, customDays, setCustomDays,
-    editMod, setEditMod, detMod, setDetMod, projMod, setProjMod, settMod, setSettMod,
+    editMod, setEditMod, detMod, setDetMod, settMod, setSettMod,
     chipAdd, setChipAdd, chipVal, setChipVal, chipColor, setChipColor,
     aiText, setAiText, aiFiles, setAiFiles, aiLoad, aiSt, setAiSt, apiKey, setApiKey,
     aiParsed, setAiParsed, addTab, setAddTab,
@@ -48,7 +50,7 @@ export default function App() {
     aProj, gPr, filtered, sorted, sortIcon,
     visibleTodoIds, allVisibleSelected, someVisibleSelected,
     ftodosExpanded, calRangeDs, todayStr, calDays,
-    undo, redo, flash, forceFirestoreSync, updTodo, addTodo, delTodo,
+    undo, redo, flash, forceFirestoreSync, updTodo, addTodo, delTodo, reorderTodo,
     toggleSort, togF, handleCheck, toggleSelectAll,
     calDate, setCalDate, calToday, calNav, calTitle, weekDates, customDates, agendaItems, evStyle,
     saveMod, addNR, isNREmpty, saveOneNR, saveNRs,
@@ -335,7 +337,6 @@ export default function App() {
         <div style={{fontSize:14,fontWeight:700,letterSpacing:"0.01em"}}>팀 TODO 통합관리</div>
       </div>
       <div style={{display:"flex",alignItems:"center",gap:6}}>
-        <button style={S.hBtn} onClick={()=>setProjMod(true)}><FolderIcon style={ICON_SM}/> 프로젝트</button>
         <button style={S.hBtn} onClick={()=>setSettMod(true)}><Cog6ToothIcon style={ICON_SM}/> 설정</button>
         {/* 삭제된 업무가 있을 때만 휴지통 버튼 표시 */}
         {deletedLog.length>0&&<button style={{...S.hBtn,position:"relative" as const}} onClick={()=>setShowTrash(true)} title="삭제된 업무 복원">
@@ -382,6 +383,7 @@ export default function App() {
         setChipColor={setChipColor} projects={projects}
         hiddenProjects={hiddenProjects} toggleHideProject={toggleHideProject}
         hiddenMembers={hiddenMembers} toggleHideMember={toggleHideMember}
+        memberColors={memberColors}
         visibleProj={visibleProj} visibleMembers={visibleMembers}
         addTab={addTab} setAddTab={setAddTab} newRows={newRows} setNewRows={setNewRows}
         addNR={addNR} saveNRs={saveNRs} saveOneNR={saveOneNR} isNREmpty={isNREmpty}
@@ -400,7 +402,7 @@ export default function App() {
         selectedIds={selectedIds} allVisibleSelected={allVisibleSelected}
         someVisibleSelected={someVisibleSelected}
         handleCheck={handleCheck} toggleSelectAll={toggleSelectAll}
-        toggleFav={toggleFav} addTodo={addTodo} updTodo={updTodo} flash={flash} delTodo={delTodo}
+        toggleFav={toggleFav} addTodo={addTodo} updTodo={updTodo} flash={flash} delTodo={delTodo} reorderTodo={reorderTodo}
         setEditMod={setEditMod}
         editCell={editCell} setEditCell={setEditCell}
         datePop={datePop} setDatePop={setDatePop}
@@ -537,15 +539,19 @@ export default function App() {
       {detMod&&<DetailView t={detMod} p={gPr(detMod.pid)} stats={stats} stC={stC} stBg={stBg} priC={priC} priBg={priBg} onSt={st=>{updTodo(detMod.id,{st});setDetMod({...detMod,st});flash(`상태가 "${st}"(으)로 변경되었습니다`)}}/>}
     </Modal>
 
-    <Modal open={projMod} onClose={()=>setProjMod(false)} title="프로젝트 관리" footer={<button style={S.bs} onClick={()=>setProjMod(false)}>닫기</button>}>
-      <ProjMgr projects={projects} todos={todos}
-        onAdd={p=>{const np={...p,id:pNId};setProjects((prev: any)=>[...prev,np]);setPNId(pNId+1);flash(`"${p.name}" 프로젝트가 추가되었습니다`)}}
-        onDel={id=>{if(todos.some(t=>t.pid===id)){alert("해당 프로젝트에 업무가 존재하여 삭제할 수 없습니다.");return;}setProjects((p: any)=>p.filter((x: any)=>x.id!==id));flash("프로젝트가 삭제되었습니다","err")}}
-        onEdit={(id,u)=>{setProjects((p: any)=>p.map((x: any)=>{if(x.id!==id)return x;return{...x,...u};}));flash("프로젝트 정보가 수정되었습니다")}}/>
-    </Modal>
-
     <Modal open={settMod} onClose={()=>setSettMod(false)} title="설정" footer={<button style={S.bs} onClick={()=>setSettMod(false)}>닫기</button>}>
-      <SettingsMgr members={members} setMembers={setMembers} pris={pris} setPris={setPris} stats={stats} setStats={setStats} priC={priC} setPriC={setPriC} priBg={priBg} setPriBg={setPriBg} stC={stC} setStC={setStC} stBg={stBg} setStBg={setStBg} todos={todos} flash={flash} apiKey={apiKey} setApiKey={setApiKey}/>
+      <SettingsMgr
+        members={members} setMembers={setMembers}
+        pris={pris} setPris={setPris} stats={stats} setStats={setStats}
+        priC={priC} setPriC={setPriC} priBg={priBg} setPriBg={setPriBg}
+        stC={stC} setStC={setStC} stBg={stBg} setStBg={setStBg}
+        memberColors={memberColors} setMemberColor={(name,c)=>setMemberColors((p:any)=>({...p,[name]:c}))}
+        projects={projects} pNId={pNId} setPNId={setPNId}
+        onAddProj={p=>{const np={...p,id:pNId};setProjects((prev:any)=>[...prev,np]);setPNId(pNId+1);flash(`"${p.name}" 프로젝트가 추가되었습니다`)}}
+        onDelProj={id=>{if(todos.some(t=>t.pid===id)){alert("해당 프로젝트에 업무가 존재하여 삭제할 수 없습니다.");return;}setProjects((p:any)=>p.filter((x:any)=>x.id!==id));flash("프로젝트가 삭제되었습니다","err")}}
+        onEditProj={(id,u)=>{setProjects((p:any)=>p.map((x:any)=>{if(x.id!==id)return x;return{...x,...u};}));flash("프로젝트 정보가 수정되었습니다")}}
+        todos={todos} flash={flash} apiKey={apiKey} setApiKey={setApiKey}
+      />
     </Modal>
 
     {/* ── 단축키 도움말 모달 ─────────────────────────────────── */}
