@@ -19,7 +19,6 @@ import { LoginScreen } from "./components/auth/LoginScreen";
 import { KanbanView } from "./views/KanbanView";
 import { ListView } from "./views/ListView";
 import { CalendarView } from "./views/CalendarView";
-import PlanDashboard from "../plan-dashboard";
 
 export default function App() {
 
