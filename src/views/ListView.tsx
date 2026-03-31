@@ -165,6 +165,7 @@ interface ListViewProps {
   someVisibleSelected: boolean;
   handleCheck: (id: number, shift: boolean) => void;
   toggleSelectAll: () => void;
+  selAll: (ids: number[]) => void;
   toggleFav: (id: number) => void;
   addTodo: (todo: any) => void;
   updTodo: (id: number, updates: any) => void;
@@ -203,7 +204,7 @@ export function ListView(props: ListViewProps) {
     expandMode, setExpandMode, sortCol, sortDir, setSortCol, setSortDir, sortIcon, toggleSort,
     customSortOrders, setCustomSortOrders,
     activeSortFields, setActiveSortFields,
-    selectedIds, allVisibleSelected, someVisibleSelected, handleCheck, toggleSelectAll,
+    selectedIds, allVisibleSelected, someVisibleSelected, handleCheck, toggleSelectAll, selAll,
     toggleFav, addTodo, updTodo, flash, delTodo, reorderTodo, setEditMod,
     editCell, setEditCell, datePop, setDatePop,
     hoverRow, setHoverRow, hoverRowRect, setHoverRowRect, hoverLeaveTimer,
@@ -665,15 +666,40 @@ export function ListView(props: ListViewProps) {
               </tr>})}
             {/* 드래그 시 맨 끝에 놓을 수 있도록 드롭 영역 표시 */}
             {canDrag&&dragRowId!==null&&dropAtEnd&&<tr><td colSpan={99} style={{borderTop:"3px solid #2563eb",padding:0,height:0}}/></tr>}
-            {sorted.filter(t=>t.st==="완료").length>0&&<tr>
-              <td colSpan={99} style={{padding:"6px 12px",background:"#f0fdf4",borderTop:"2px solid #bbf7d0",cursor:"pointer"}} onClick={()=>setShowDone(p=>!p)}>
-                <div style={{display:"flex",alignItems:"center",gap:8}}>
-                  <span style={{fontSize:11,fontWeight:700,color:"#16a34a",display:"inline-flex",alignItems:"center",gap:2}}><CheckIcon style={{width:12,height:12}}/> 완료됨</span>
-                  <span style={{fontSize:10,color:"#86efac"}}>{sorted.filter(t=>t.st==="완료").length}건</span>
-                  <span style={{fontSize:10,color:"#4ade80",marginLeft:"auto"}}>{showDone?"접기":"펼치기"}</span>
-                </div>
-              </td>
-            </tr>}
+            {sorted.filter(t=>t.st==="완료").length>0&&(()=>{
+              const doneTodos=sorted.filter(t=>t.st==="완료");
+              // 완료 섹션 전체선택 상태 계산
+              const allDoneSel=doneTodos.length>0&&doneTodos.every(t=>selectedIds.has(t.id));
+              const someDoneSel=doneTodos.some(t=>selectedIds.has(t.id))&&!allDoneSel;
+              return <tr>
+                {/* 완료 섹션 헤더 — 클릭으로 접기/펼치기, 우측에 전체선택 체크박스 */}
+                <td colSpan={99} style={{padding:"6px 12px",background:"#f0fdf4",borderTop:"2px solid #bbf7d0",cursor:"pointer"}} onClick={()=>setShowDone(p=>!p)}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{fontSize:11,fontWeight:700,color:"#16a34a",display:"inline-flex",alignItems:"center",gap:2}}><CheckIcon style={{width:12,height:12}}/> 완료됨</span>
+                    <span style={{fontSize:10,color:"#86efac"}}>{doneTodos.length}건</span>
+                    <span style={{fontSize:10,color:"#4ade80",marginLeft:"auto"}}>{showDone?"접기":"펼치기"}</span>
+                    {/* 완료 항목 전체선택 체크박스 — 접기/펼치기 클릭과 분리 */}
+                    {showDone&&<input type="checkbox"
+                      checked={allDoneSel}
+                      ref={el=>{if(el)el.indeterminate=someDoneSel;}}
+                      onChange={()=>{}}
+                      onClick={e=>{
+                        e.stopPropagation(); // 접기/펼치기 클릭 차단
+                        if(allDoneSel){
+                          // 완료 항목 전체 선택 해제 — 기존 선택에서 완료 ID 제거
+                          const doneIds=new Set(doneTodos.map(t=>t.id));
+                          selAll([...Array.from(selectedIds)].filter((id:number)=>!doneIds.has(id)));
+                        }else{
+                          // 완료 항목 전체 선택 — 기존 선택에 완료 ID 추가
+                          selAll([...Array.from(selectedIds),...doneTodos.map(t=>t.id)]);
+                        }
+                      }}
+                      title={allDoneSel?"완료 항목 선택 해제":"완료 항목 전체 선택"}
+                      style={{width:14,height:14,cursor:"pointer",accentColor:"#16a34a",marginLeft:6,flexShrink:0}}/>}
+                  </div>
+                </td>
+              </tr>;
+            })()}
             {showDone&&sorted.filter(t=>t.st==="완료").map(t=>{const plain=stripHtml(t.det||"");
               return <tr key={t.id} data-rowid={t.id} style={{borderBottom:"1px solid #f1f5f9",background:"#fafafa",opacity:.72}}
                 onMouseEnter={e=>{if(editCell||datePop)return;setHoverRow(t.id);const r=(e.currentTarget as HTMLTableRowElement).getBoundingClientRect();setHoverRowRect({top:r.top,height:r.height});}}>

@@ -44,7 +44,7 @@ export default function App() {
     userFavs, isFav, toggleFav: toggleFavBase, userSettings, setUserSettings,
     expandMode, setExpandMode, todoView, setTodoView, showDone, setShowDone, memoCols, setMemoCols,
     selectedIds, lastSelRef, addSecRef, tblDivRef,
-    clrSel, movePop, setMovePop, bulkPop, setBulkPop,
+    clrSel, selAll, movePop, setMovePop, bulkPop, setBulkPop,
     historyRef, redoRef,
     aProj, gPr, filtered, sorted, sortIcon,
     visibleTodoIds, allVisibleSelected, someVisibleSelected,
@@ -400,7 +400,7 @@ export default function App() {
         activeSortFields={activeSortFields} setActiveSortFields={setActiveSortFields}
         selectedIds={selectedIds} allVisibleSelected={allVisibleSelected}
         someVisibleSelected={someVisibleSelected}
-        handleCheck={handleCheck} toggleSelectAll={toggleSelectAll}
+        handleCheck={handleCheck} toggleSelectAll={toggleSelectAll} selAll={selAll}
         toggleFav={toggleFav} addTodo={addTodo} updTodo={updTodo} flash={flash} delTodo={delTodo} reorderTodo={reorderTodo}
         setEditMod={setEditMod}
         editCell={editCell} setEditCell={setEditCell}
