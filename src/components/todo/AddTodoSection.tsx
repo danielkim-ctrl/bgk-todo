@@ -1,11 +1,12 @@
 import React, { useRef, useState, useEffect } from "react";
-import { REPEAT_OPTS } from "../../constants";
+import { repeatLabel } from "../../constants";
 import { S } from "../../styles";
 import { fD, stripHtml } from "../../utils";
 import { NewRow, DatePopState } from "../../types";
 import { Project } from "../../types";
 import { SectionLabel } from "../ui/SectionLabel";
 import { FolderIcon, UserIcon, BoltIcon, ArrowPathIcon, CalendarIcon, PaperClipIcon, DocumentIcon, DocumentTextIcon, SparklesIcon, CheckIcon, XMarkIcon, ChevronUpIcon, ChevronDownIcon, PlusIcon, ICON_SM } from "../ui/Icons";
+import { RepeatPicker } from "../ui/RepeatPicker";
 
 type AiFile = { name: string; type: string; data: string; textContent?: string };
 
@@ -88,8 +89,20 @@ export function AddTodoSection({
   const [dragOver, setDragOver] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [bulkOpen, setBulkOpen] = useState<string|null>(null);
+  // 직접 입력 테이블의 반복 팝오버 — 몇 번째 행이 열려 있는지 + 팝업 위치
+  const [repPop, setRepPop] = useState<{idx: number; rect: DOMRect}|null>(null);
+  const repPopRef = useRef<HTMLDivElement>(null);
   const applyBulk = (field: string, value: string) => { setAiParsed((p: any[]) => p.map((t: any) => t._chk ? {...t, [field]: value} : t)); setBulkOpen(null); };
   useEffect(() => { if (!bulkOpen) return; const close = () => setBulkOpen(null); document.addEventListener("mousedown", close); return () => document.removeEventListener("mousedown", close); }, [bulkOpen]);
+  // 반복 팝오버 바깥 클릭 시 닫기
+  useEffect(() => {
+    if (!repPop) return;
+    const h = (e: MouseEvent) => {
+      if (repPopRef.current && !repPopRef.current.contains(e.target as Node)) setRepPop(null);
+    };
+    const t = setTimeout(() => document.addEventListener("mousedown", h, true), 50);
+    return () => { clearTimeout(t); document.removeEventListener("mousedown", h, true); };
+  }, [repPop]);
 
   // 탭 클릭 — 다른 탭이면 전환+펼치기, 같은 탭이면 접기/펼치기 토글
   const handleTab = (tab: string) => {
@@ -140,6 +153,7 @@ export function AddTodoSection({
   };
 
   return (
+    <>
     <div ref={addSecRef} style={{overflow:"hidden"}}>
     <SectionLabel num="01" title="업무 추가" sub="직접 입력 또는 AI 자동 생성"/>
     <div style={{...S.card,padding:0,marginBottom:10,overflow:"hidden"}}>
@@ -247,7 +261,16 @@ export function AddTodoSection({
                 <td style={{padding:"4px 6px"}}><select value={r.who} onChange={e=>{const n=[...newRows];n[i].who=e.target.value;setNewRows(n)}} style={{...cellInput,fontSize:10}}><option value="">담당자</option>{members.map(m=><option key={m}>{m}</option>)}</select></td>
                 <td style={{padding:"4px 6px"}}><div onClick={e=>{const rect=e.currentTarget.getBoundingClientRect();setNrDatePop({id:i,rect,value:r.due||""});}} style={{...cellInput,cursor:"pointer",color:r.due?"#334155":"#94a3b8",whiteSpace:"nowrap",display:"flex",alignItems:"center",padding:"0 6px"}}>{r.due?fD(r.due):"날짜 선택"}</div></td>
                 <td style={{padding:"4px 6px"}}><select value={r.pri} onChange={e=>{const n=[...newRows];n[i].pri=e.target.value;setNewRows(n)}} style={{...cellInput,fontSize:10}}>{pris.map(p=><option key={p}>{p}</option>)}</select></td>
-                <td style={{padding:"4px 6px"}}><select value={r.repeat||"없음"} onChange={e=>{const n=[...newRows];n[i].repeat=e.target.value;setNewRows(n)}} style={{...cellInput,fontSize:10}}>{REPEAT_OPTS.map(p=><option key={p}>{p}</option>)}</select></td>
+                {/* 반복 셀 — 클릭 시 RepeatPicker 팝오버 열기 */}
+                <td style={{padding:"4px 6px",position:"relative"}}>
+                  <div onClick={e=>{const rect=(e.currentTarget as HTMLElement).getBoundingClientRect();setRepPop({idx:i,rect});}}
+                    style={{...cellInput,cursor:"pointer",display:"flex",alignItems:"center",gap:4,color:r.repeat&&r.repeat!=="없음"?"#1a73e8":"#94a3b8"}}>
+                    <ArrowPathIcon style={{width:10,height:10,flexShrink:0}}/>
+                    <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>
+                      {r.repeat&&r.repeat!=="없음"?repeatLabel(r.repeat):"반복"}
+                    </span>
+                  </div>
+                </td>
                 <td style={{padding:"4px 4px",textAlign:"center"}}>
                   <button onClick={()=>saveOneNR(i)} disabled={empty} style={{background:empty?"#f1f5f9":"#2563eb",border:"none",color:empty?"#cbd5e1":"#fff",cursor:empty?"default":"pointer",fontSize:10,fontWeight:700,borderRadius:6,padding:"4px 5px",marginRight:2,display:"inline-flex",alignItems:"center",justifyContent:"center"}}><CheckIcon style={{width:12,height:12}}/></button>
                   <button onClick={()=>setNewRows((r: NewRow[])=>r.filter((_,j)=>j!==i))} style={{background:"#fee2e2",border:"none",color:"#dc2626",cursor:"pointer",fontSize:10,fontWeight:700,borderRadius:6,padding:"4px 5px",display:"inline-flex",alignItems:"center",justifyContent:"center"}}><XMarkIcon style={{width:12,height:12}}/></button>
@@ -418,9 +441,9 @@ export function AddTodoSection({
                       style={{...aiSelBase,borderColor:prc+"55",background:prBg,color:prc}}>
                       {pris.map(p=><option key={p}>{p}</option>)}
                     </select>
-                    <select value={t.repeat||"없음"} onChange={e=>{const n=[...aiParsed];n[i].repeat=e.target.value;setAiParsed(n);}}
+                    <select value={t.repeat&&t.repeat!=="없음"?repeatLabel(t.repeat):"없음"} onChange={e=>{const n=[...aiParsed];n[i].repeat=e.target.value;setAiParsed(n);}}
                       style={{...aiSelBase,borderColor:"#e2e8f0",background:"#f1f5f9",color:t.repeat&&t.repeat!=="없음"?"#7c3aed":"#94a3b8"}}>
-                      {REPEAT_OPTS.map(r=><option key={r}>{r}</option>)}
+                      {["없음","매일","매주","매월"].map(r=><option key={r}>{r}</option>)}
                     </select>
                   </div>
                   <input value={t.detail||""} onChange={e=>{const n=[...aiParsed];n[i].detail=e.target.value;setAiParsed(n);}} placeholder="상세내용 입력..."
@@ -439,5 +462,40 @@ export function AddTodoSection({
       </div>}
     </div>
     </div>
+
+    {/* ── 반복 팝오버 — 직접 입력 행의 반복 셀 클릭 시 표시 ── */}
+    {repPop && (
+      <div
+        ref={repPopRef}
+        style={{
+          position: "fixed",
+          // 팝오버를 클릭한 셀 아래쪽에 정렬 (zoom: 1.0이므로 보정 없음)
+          top: repPop.rect.bottom + 4,
+          left: repPop.rect.left,
+          zIndex: 300,
+          background: "#fff",
+          border: "1px solid #e2e8f0",
+          borderRadius: 10,
+          boxShadow: "0 4px 20px rgba(0,0,0,.12)",
+          padding: "10px 14px",
+          minWidth: 200,
+          maxWidth: 260,
+        }}
+      >
+        <RepeatPicker
+          value={newRows[repPop.idx]?.repeat || "없음"}
+          onChange={v => {
+            const n = [...newRows];
+            if (n[repPop.idx]) { n[repPop.idx] = { ...n[repPop.idx], repeat: v }; setNewRows(n); }
+          }}
+          startDate={newRows[repPop.idx]?.due || ""}
+        />
+        <button
+          onClick={() => setRepPop(null)}
+          style={{ width: "100%", marginTop: 10, padding: "5px", borderRadius: 6, border: "none", background: "#1a73e8", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+        >완료</button>
+      </div>
+    )}
+    </>
   );
 }

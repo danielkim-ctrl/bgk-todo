@@ -1,13 +1,13 @@
 import { useRef, useState, useEffect } from "react";
 import { S } from "../styles";
 import { isOD, dateStr, fDow } from "../utils";
-import { REPEAT_OPTS } from "../constants";
 import { avColor, avColor2 } from "../utils/avatarUtils";
 import { Chip } from "../components/ui/Chip";
 import { RepeatBadge } from "../components/ui/RepeatBadge";
 import { MultiMonthView } from "../components/calendar/MultiMonthView";
 import { DateTimePicker } from "../components/editor/DateTimePicker";
 import { Bars3Icon, ArrowPathIcon, UserIcon, ExclamationTriangleIcon, CalendarIcon, FolderIcon, CheckCircleIcon, CheckIcon, XMarkIcon, PencilSquareIcon, TrashIcon, BoltIcon, StarIcon, StarOutlineIcon, ICON_SM } from "../components/ui/Icons";
+import { RepeatPicker } from "../components/ui/RepeatPicker";
 
 interface CalendarViewProps {
   // calendar state
@@ -138,33 +138,18 @@ function SidebarAddTask({ adding, setAdding, title, setTitle, visibleProj, visib
   const [addPid, setAddPid] = useState("0");
   const [addWho, setAddWho] = useState("");
   const [addPri, setAddPri] = useState("보통");
+  // 반복 설정 — RepeatPicker 컴포넌트가 관리, 이 state는 최종 값을 보관
   const [addRepeat, setAddRepeat] = useState<any>("없음");
-  // 반복 상세 설정 state
-  const [repInterval, setRepInterval] = useState(1);
-  const [repUnit, setRepUnit] = useState<"일"|"주"|"월">("일");
-  const [repTime, setRepTime] = useState("");
-  const [repEndType, setRepEndType] = useState<"none"|"date"|"count">("none");
-  const [repEndDate, setRepEndDate] = useState("");
-  const [repEndCount, setRepEndCount] = useState(30);
-  const [showRepeatDetail, setShowRepeatDetail] = useState(false);
-  const [showTimePicker, setShowTimePicker] = useState(false); // 시간 드롭다운 열림 여부
   const [picker, setPicker] = useState<string|null>(null);
   const detRef = useRef<HTMLDivElement>(null);
-  const timePickerRef = useRef<HTMLDivElement>(null); // 시간 드롭다운 ref (바깥 클릭 감지용)
   const titleRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLDivElement>(null);
   // 최신 상태를 ref로 유지 — 바깥 클릭 핸들러에서 참조
-  // 반복 설정을 RepeatConfig 객체로 구성
-  const buildRepeat = () => {
-    if (!showRepeatDetail) return "없음";
-    return { interval: repInterval, unit: repUnit, time: repTime || undefined, start: addDue || todayStr, endType: repEndType, endDate: repEndType === "date" ? repEndDate : undefined, endCount: repEndType === "count" ? repEndCount : undefined };
-  };
-  const stateRef = useRef({ title, addDue, addPid, addWho, addPri, buildRepeat });
-  stateRef.current = { title, addDue, addPid, addWho, addPri, buildRepeat };
+  const stateRef = useRef({ title, addDue, addPid, addWho, addPri, addRepeat });
+  stateRef.current = { title, addDue, addPid, addWho, addPri, addRepeat };
 
   const resetForm = () => {
     setTitle(""); setAddDue(""); setAddPid("0"); setAddWho(""); setAddPri("보통"); setAddRepeat("없음"); setPicker(null);
-    setRepInterval(1); setRepUnit("일"); setRepTime(""); setRepEndType("none"); setRepEndDate(""); setRepEndCount(30); setShowRepeatDetail(false);
     if (detRef.current) detRef.current.innerHTML = "";
   };
 
@@ -173,7 +158,7 @@ function SidebarAddTask({ adding, setAdding, title, setTitle, visibleProj, visib
     const s = stateRef.current;
     if (!s.title.trim()) return;
     // 날짜 미설정 시 빈 값으로 저장 (Google Tasks 방식 — "날짜 없음" 섹션에 표시)
-    addTodo({ pid: parseInt(s.addPid), task: s.title.trim(), who: s.addWho || currentUser || "", due: s.addDue || "", pri: s.addPri, st: "대기", det: detRef.current?.innerHTML || "", repeat: s.buildRepeat() });
+    addTodo({ pid: parseInt(s.addPid), task: s.title.trim(), who: s.addWho || currentUser || "", due: s.addDue || "", pri: s.addPri, st: "대기", det: detRef.current?.innerHTML || "", repeat: s.addRepeat });
     resetForm();
     flash("업무가 등록되었습니다");
     setTimeout(() => titleRef.current?.focus(), 50);
@@ -186,29 +171,23 @@ function SidebarAddTask({ adding, setAdding, title, setTitle, visibleProj, visib
   };
 
   // 바깥 클릭 시 닫기 — ref 기반이므로 항상 최신 title 참조
-  // 시간 드롭다운(timePickerRef)이 열려있을 때는 닫지 않음
   useEffect(() => {
     if (!adding) return;
     const h = (e: MouseEvent) => {
       const inForm = formRef.current?.contains(e.target as Node);
-      const inTimePicker = timePickerRef.current?.contains(e.target as Node);
-      if (!inForm && !inTimePicker) close();
+      if (!inForm) close();
     };
     const t = setTimeout(() => document.addEventListener("mousedown", h, true), 50);
     return () => { clearTimeout(t); document.removeEventListener("mousedown", h, true); };
   }, [adding]);
 
-  // 시간 드롭다운 — 바깥 클릭 시 닫기
-  useEffect(() => {
-    if (!showTimePicker) return;
-    const h = (e: MouseEvent) => {
-      if (timePickerRef.current && !timePickerRef.current.contains(e.target as Node)) {
-        setShowTimePicker(false);
-      }
-    };
-    document.addEventListener("mousedown", h, true);
-    return () => document.removeEventListener("mousedown", h, true);
-  }, [showTimePicker]);
+  // 반복 칩 라벨 계산 — RepeatPicker가 반환한 값으로부터 표시 텍스트 추출
+  const repeatChipLabel = (() => {
+    if (!addRepeat || addRepeat === "없음") return null;
+    if (typeof addRepeat === "string") return addRepeat;
+    const c = addRepeat;
+    return c.interval === 1 ? `매${c.unit}` : `${c.interval}${c.unit}마다`;
+  })();
 
   // 칩 목록
   const chips: {key:string; label:string; color?:string}[] = [];
@@ -222,17 +201,14 @@ function SidebarAddTask({ adding, setAdding, title, setTitle, visibleProj, visib
   if (addPid !== "0") { const p = visibleProj.find((pr: any) => String(pr.id) === addPid); if (p) chips.push({ key: "pid", label: p.name, color: p.color }); }
   if (addWho && addWho !== currentUser) chips.push({ key: "who", label: addWho });
   if (addPri !== "보통") chips.push({ key: "pri", label: addPri, color: priC[addPri] });
-  if (showRepeatDetail) {
-    const rl = repInterval === 1 ? `매${repUnit}` : `${repInterval}${repUnit}마다`;
-    chips.push({ key: "repeat", label: rl });
-  }
+  if (repeatChipLabel) chips.push({ key: "repeat", label: repeatChipLabel });
 
   const removeChip = (key: string) => {
     if (key === "due") setAddDue("");
     if (key === "pid") setAddPid("0");
     if (key === "who") setAddWho("");
     if (key === "pri") setAddPri("보통");
-    if (key === "repeat") { setShowRepeatDetail(false); setRepInterval(1); setRepUnit("일"); setRepTime(""); setRepEndType("none"); }
+    if (key === "repeat") setAddRepeat("없음");
   };
 
   const optBtn = (active: boolean) => ({
@@ -311,89 +287,8 @@ function SidebarAddTask({ adding, setAdding, title, setTitle, visibleProj, visib
             </div>
             <input type="date" value={addDue} onChange={e => setAddDue(e.target.value)}
               style={{ width: "100%", fontSize: 11, padding: "4px 6px", border: "1px solid #e2e8f0", borderRadius: 6, outline: "none", fontFamily: "inherit", boxSizing: "border-box" as const, marginBottom: 8 }} />
-            {/* 반복 설정 — Google Tasks 스타일 */}
-            <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: 8 }}>
-              <div onClick={() => setShowRepeatDetail(p => !p)}
-                style={{ fontSize: 11, fontWeight: 600, color: "#334155", marginBottom: 6, display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
-                <ArrowPathIcon style={{ width: 13, height: 13 }} />
-                반복 {showRepeatDetail ? "▾" : "▸"}
-                {showRepeatDetail && <span style={{ marginLeft: "auto", fontSize: 10, color: "#1a73e8", fontWeight: 500 }}>{repInterval === 1 ? `매${repUnit}` : `${repInterval}${repUnit}마다`}</span>}
-              </div>
-              {showRepeatDetail && <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
-                {/* 간격 */}
-                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                  <input type="number" min={1} value={repInterval} onChange={e => setRepInterval(Math.max(1, parseInt(e.target.value) || 1))}
-                    style={{ width: 44, padding: "5px 6px", border: "1px solid #dadce0", borderRadius: 6, fontSize: 12, textAlign: "center" as const, outline: "none", fontFamily: "inherit" }} />
-                  {(["일", "주", "월"] as const).map(u => (
-                    <button key={u} onClick={() => setRepUnit(u)}
-                      style={{ fontSize: 11, padding: "3px 10px", borderRadius: 99, border: `1px solid ${repUnit === u ? "#1a73e8" : "#e2e8f0"}`, background: repUnit === u ? "#e8f0fe" : "#fff", color: repUnit === u ? "#1a73e8" : "#334155", cursor: "pointer", fontFamily: "inherit", fontWeight: repUnit === u ? 600 : 400 }}>{u}</button>
-                  ))}
-                </div>
-                {/* 시간 — 버튼 클릭 시 드롭다운, 바깥 클릭 시 닫힘 */}
-                <div style={{ position: "relative" as const }} ref={timePickerRef}>
-                  <div style={{ fontSize: 10, color: "#94a3b8", marginBottom: 4 }}>시간</div>
-                  {/* 현재 선택된 시간 표시 버튼 */}
-                  <button onClick={() => setShowTimePicker(v => !v)}
-                    onBlur={e => {
-                      // 드롭다운 내부로 포커스가 이동하면 닫지 않음
-                      if (timePickerRef.current && !timePickerRef.current.contains(e.relatedTarget as Node)) {
-                        setShowTimePicker(false);
-                      }
-                    }}
-                    style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 10px", fontSize: 11, border: "1px solid #dadce0", borderRadius: 6, background: "#fff", color: repTime ? "#1a73e8" : "#5f6368", cursor: "pointer", fontFamily: "inherit", fontWeight: repTime ? 600 : 400 }}>
-                    <span>{repTime || "시간 설정"}</span>
-                    <span style={{ fontSize: 9, color: "#94a3b8" }}>▾</span>
-                  </button>
-                  {/* 드롭다운 목록 — onMouseDown+preventDefault로 바깥클릭 핸들러보다 먼저 처리 */}
-                  {showTimePicker && (
-                    <div style={{ position: "absolute" as const, top: "100%", left: 0, right: 0, zIndex: 100, border: "1px solid #dadce0", borderRadius: 6, background: "#fff", boxShadow: "0 4px 12px rgba(0,0,0,0.12)", overflow: "hidden", marginTop: 2 }}>
-                      {/* 없음 */}
-                      <div onMouseDown={e => { e.preventDefault(); e.stopPropagation(); setRepTime(""); setShowTimePicker(false); }}
-                        style={{ padding: "6px 12px", fontSize: 11, cursor: "pointer", background: !repTime ? "#e8f0fe" : "#fff", color: !repTime ? "#1a73e8" : "#334155", fontWeight: !repTime ? 600 : 400, borderBottom: "1px solid #f1f3f4" }}
-                        onMouseEnter={e => { if (repTime) (e.currentTarget as HTMLElement).style.background = "#f1f3f4"; }}
-                        onMouseLeave={e => { if (repTime) (e.currentTarget as HTMLElement).style.background = "#fff"; }}>
-                        없음
-                      </div>
-                      {/* 00:00 ~ 23:30, 30분 단위 스크롤 */}
-                      <div style={{ maxHeight: 150, overflowY: "auto" as const }}>
-                        {Array.from({ length: 48 }, (_, i) => {
-                          const h = String(Math.floor(i / 2)).padStart(2, "0");
-                          const m = i % 2 === 0 ? "00" : "30";
-                          const t = `${h}:${m}`;
-                          return (
-                            <div key={t} onMouseDown={e => { e.preventDefault(); e.stopPropagation(); setRepTime(t); setShowTimePicker(false); }}
-                              style={{ padding: "6px 12px", fontSize: 11, cursor: "pointer", background: repTime === t ? "#e8f0fe" : "transparent", color: repTime === t ? "#1a73e8" : "#334155", fontWeight: repTime === t ? 600 : 400 }}
-                              onMouseEnter={e => { if (repTime !== t) (e.currentTarget as HTMLElement).style.background = "#f1f3f4"; }}
-                              onMouseLeave={e => { if (repTime !== t) (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
-                              {t}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-                {/* 종료 */}
-                <div>
-                  <div style={{ fontSize: 10, color: "#94a3b8", marginBottom: 3 }}>종료</div>
-                  <div style={{ display: "flex", flexDirection: "column" as const, gap: 4 }}>
-                    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, cursor: "pointer" }}>
-                      <input type="radio" name="repEnd" checked={repEndType === "none"} onChange={() => setRepEndType("none")} style={{ accentColor: "#1a73e8" }} /> 없음
-                    </label>
-                    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, cursor: "pointer" }}>
-                      <input type="radio" name="repEnd" checked={repEndType === "date"} onChange={() => setRepEndType("date")} style={{ accentColor: "#1a73e8" }} /> 날짜
-                      {repEndType === "date" && <input type="date" value={repEndDate} onChange={e => setRepEndDate(e.target.value)}
-                        style={{ fontSize: 10, padding: "2px 6px", border: "1px solid #dadce0", borderRadius: 4, outline: "none", fontFamily: "inherit" }} />}
-                    </label>
-                    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, cursor: "pointer" }}>
-                      <input type="radio" name="repEnd" checked={repEndType === "count"} onChange={() => setRepEndType("count")} style={{ accentColor: "#1a73e8" }} /> 반복
-                      {repEndType === "count" && <><input type="number" min={1} value={repEndCount} onChange={e => setRepEndCount(parseInt(e.target.value) || 1)}
-                        style={{ width: 40, fontSize: 10, padding: "2px 4px", border: "1px solid #dadce0", borderRadius: 4, textAlign: "center" as const, outline: "none", fontFamily: "inherit" }} /><span style={{ fontSize: 10, color: "#5f6368" }}>회</span></>}
-                    </label>
-                  </div>
-                </div>
-              </div>}
-            </div>
+            {/* 반복 설정 — RepeatPicker 공통 컴포넌트 사용 */}
+            <RepeatPicker value={addRepeat} onChange={setAddRepeat} startDate={addDue || todayStr} />
             {/* 완료 버튼 */}
             <button onClick={() => setPicker(null)}
               style={{ width: "100%", marginTop: 8, padding: "5px", borderRadius: 6, border: "none", background: "#1a73e8", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>완료</button>
@@ -456,16 +351,8 @@ function SidebarEditExpanded({ t, visibleProj, visibleMembers, pris, priC, priBg
   taskDivRefs: React.MutableRefObject<Map<number, HTMLDivElement>>;
 }) {
   const [picker, setPicker] = useState<string|null>(null);
-  // 반복 편집 state — 기존 값으로 초기화
-  const [showRepeatDetail, setShowRepeatDetail] = useState(false);
-  const [repInterval, setRepInterval] = useState(1);
-  const [repUnit, setRepUnit] = useState<"일"|"주"|"월">("일");
-  const [repTime, setRepTime] = useState("");
-  const [repEndType, setRepEndType] = useState<"none"|"date"|"count">("none");
-  const [repEndDate, setRepEndDate] = useState("");
-  const [repEndCount, setRepEndCount] = useState(30);
-  const [showTimePicker, setShowTimePicker] = useState(false);
-  const timePickerRef = useRef<HTMLDivElement>(null);
+  // 반복 편집 state — RepeatPicker 컴포넌트가 관리, 이 state는 최종 값을 보관
+  const [editRepeat, setEditRepeat] = useState<any>(t.repeat || "없음");
   const panelRef = useRef<HTMLDivElement>(null); // 편집 패널 전체 ref (바깥 클릭 감지용)
   // contentEditable innerHTML 초기화를 마운트 시 1회만 수행하기 위한 플래그
   const detInitialized = useRef(false);
@@ -473,12 +360,6 @@ function SidebarEditExpanded({ t, visibleProj, visibleMembers, pris, priC, priBg
 
   // 날짜 빠른 선택 헬퍼
   const qDays = (n: number) => { const d = new Date(); d.setDate(d.getDate() + n); return dateStr(d.getFullYear(), d.getMonth(), d.getDate()); };
-
-  // 반복 config 빌드
-  const buildRepeat = () => {
-    if (!showRepeatDetail) return "없음";
-    return { interval: repInterval, unit: repUnit, time: repTime || undefined, start: t.due || todayStr, endType: repEndType, endDate: repEndType === "date" ? repEndDate : undefined, endCount: repEndType === "count" ? repEndCount : undefined };
-  };
 
   // 편집 패널 바깥 클릭 시 자동 축소 — Google Tasks 방식
   // capture:false(버블링)로 등록 → panelRef div의 onMouseDown stopPropagation으로 내부 클릭 차단
@@ -492,16 +373,6 @@ function SidebarEditExpanded({ t, visibleProj, visibleMembers, pris, priC, priBg
     const timer = setTimeout(() => document.addEventListener("mousedown", h, false), 50);
     return () => { clearTimeout(timer); document.removeEventListener("mousedown", h, false); };
   }, []);
-
-  // 시간 드롭다운 바깥 클릭 시 닫기
-  useEffect(() => {
-    if (!showTimePicker) return;
-    const h = (e: MouseEvent) => {
-      if (timePickerRef.current && !timePickerRef.current.contains(e.target as Node)) setShowTimePicker(false);
-    };
-    document.addEventListener("mousedown", h, true);
-    return () => document.removeEventListener("mousedown", h, true);
-  }, [showTimePicker]);
 
   // 현재 날짜 표시 레이블 — Google Tasks 스타일
   const dueDateStr = t.due?.split(" ")[0] || "";
@@ -677,75 +548,9 @@ function SidebarEditExpanded({ t, visibleProj, visibleMembers, pris, priC, priBg
           </div>
           <input type="date" value={dueDateStr} onChange={e => updTodo(t.id, { due: e.target.value })}
             style={{ width: "100%", fontSize: 11, padding: "4px 6px", border: "1px solid #e2e8f0", borderRadius: 6, outline: "none", fontFamily: "inherit", boxSizing: "border-box" as const, marginBottom: 8 }} />
-          {/* 반복 설정 */}
-          <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: 8 }}>
-            <div onClick={() => setShowRepeatDetail(p => !p)}
-              style={{ fontSize: 11, fontWeight: 600, color: "#334155", marginBottom: 6, display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
-              <ArrowPathIcon style={{ width: 13, height: 13 }} />
-              반복 {showRepeatDetail ? "▾" : "▸"}
-              {showRepeatDetail && <span style={{ marginLeft: "auto", fontSize: 10, color: "#1a73e8", fontWeight: 500 }}>{repInterval === 1 ? `매${repUnit}` : `${repInterval}${repUnit}마다`}</span>}
-            </div>
-            {showRepeatDetail && <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
-              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                <input type="number" min={1} value={repInterval} onChange={e => setRepInterval(Math.max(1, parseInt(e.target.value) || 1))}
-                  style={{ width: 44, padding: "5px 6px", border: "1px solid #dadce0", borderRadius: 6, fontSize: 12, textAlign: "center" as const, outline: "none", fontFamily: "inherit" }} />
-                {(["일", "주", "월"] as const).map(u => (
-                  <button key={u} onClick={() => setRepUnit(u)}
-                    style={{ fontSize: 11, padding: "3px 10px", borderRadius: 99, border: `1px solid ${repUnit === u ? "#1a73e8" : "#e2e8f0"}`, background: repUnit === u ? "#e8f0fe" : "#fff", color: repUnit === u ? "#1a73e8" : "#334155", cursor: "pointer", fontFamily: "inherit", fontWeight: repUnit === u ? 600 : 400 }}>{u}</button>
-                ))}
-              </div>
-              {/* 시간 드롭다운 */}
-              <div style={{ position: "relative" as const }} ref={timePickerRef}>
-                <div style={{ fontSize: 10, color: "#94a3b8", marginBottom: 4 }}>시간</div>
-                <button onClick={() => setShowTimePicker(v => !v)}
-                  style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 10px", fontSize: 11, border: "1px solid #dadce0", borderRadius: 6, background: "#fff", color: repTime ? "#1a73e8" : "#5f6368", cursor: "pointer", fontFamily: "inherit", fontWeight: repTime ? 600 : 400 }}>
-                  <span>{repTime || "시간 설정"}</span>
-                  <span style={{ fontSize: 9, color: "#94a3b8" }}>▾</span>
-                </button>
-                {showTimePicker && (
-                  <div style={{ position: "absolute" as const, top: "100%", left: 0, right: 0, zIndex: 100, border: "1px solid #dadce0", borderRadius: 6, background: "#fff", boxShadow: "0 4px 12px rgba(0,0,0,0.12)", overflow: "hidden", marginTop: 2 }}>
-                    <div onMouseDown={e => { e.preventDefault(); e.stopPropagation(); setRepTime(""); setShowTimePicker(false); }}
-                      style={{ padding: "6px 12px", fontSize: 11, cursor: "pointer", background: !repTime ? "#e8f0fe" : "#fff", color: !repTime ? "#1a73e8" : "#334155", fontWeight: !repTime ? 600 : 400, borderBottom: "1px solid #f1f3f4" }}>없음</div>
-                    <div style={{ maxHeight: 150, overflowY: "auto" as const }}>
-                      {Array.from({ length: 48 }, (_, i) => {
-                        const hh = String(Math.floor(i / 2)).padStart(2, "0");
-                        const mm = i % 2 === 0 ? "00" : "30";
-                        const tv = `${hh}:${mm}`;
-                        return (
-                          <div key={tv} onMouseDown={e => { e.preventDefault(); e.stopPropagation(); setRepTime(tv); setShowTimePicker(false); }}
-                            style={{ padding: "6px 12px", fontSize: 11, cursor: "pointer", background: repTime === tv ? "#e8f0fe" : "transparent", color: repTime === tv ? "#1a73e8" : "#334155", fontWeight: repTime === tv ? 600 : 400 }}
-                            onMouseEnter={e => { if (repTime !== tv) (e.currentTarget as HTMLElement).style.background = "#f1f3f4"; }}
-                            onMouseLeave={e => { if (repTime !== tv) (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
-                            {tv}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-              {/* 종료 */}
-              <div>
-                <div style={{ fontSize: 10, color: "#94a3b8", marginBottom: 3 }}>종료</div>
-                <div style={{ display: "flex", flexDirection: "column" as const, gap: 4 }}>
-                  <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, cursor: "pointer" }}>
-                    <input type="radio" name={`repEnd_${t.id}`} checked={repEndType === "none"} onChange={() => setRepEndType("none")} style={{ accentColor: "#1a73e8" }} /> 없음
-                  </label>
-                  <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, cursor: "pointer" }}>
-                    <input type="radio" name={`repEnd_${t.id}`} checked={repEndType === "date"} onChange={() => setRepEndType("date")} style={{ accentColor: "#1a73e8" }} /> 날짜
-                    {repEndType === "date" && <input type="date" value={repEndDate} onChange={e => setRepEndDate(e.target.value)}
-                      style={{ fontSize: 10, padding: "2px 6px", border: "1px solid #dadce0", borderRadius: 4, outline: "none", fontFamily: "inherit" }} />}
-                  </label>
-                  <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, cursor: "pointer" }}>
-                    <input type="radio" name={`repEnd_${t.id}`} checked={repEndType === "count"} onChange={() => setRepEndType("count")} style={{ accentColor: "#1a73e8" }} /> 반복
-                    {repEndType === "count" && <><input type="number" min={1} value={repEndCount} onChange={e => setRepEndCount(parseInt(e.target.value) || 1)}
-                      style={{ width: 40, fontSize: 10, padding: "2px 4px", border: "1px solid #dadce0", borderRadius: 4, textAlign: "center" as const, outline: "none", fontFamily: "inherit" }} /><span style={{ fontSize: 10, color: "#5f6368" }}>회</span></>}
-                  </label>
-                </div>
-              </div>
-            </div>}
-          </div>
-          <button onClick={() => { updTodo(t.id, { repeat: buildRepeat() }); setPicker(null); }}
+          {/* 반복 설정 — RepeatPicker 공통 컴포넌트 사용 */}
+          <RepeatPicker value={editRepeat} onChange={setEditRepeat} startDate={t.due || todayStr} />
+          <button onClick={() => { updTodo(t.id, { repeat: editRepeat }); setPicker(null); }}
             style={{ width: "100%", marginTop: 8, padding: "5px", borderRadius: 6, border: "none", background: "#1a73e8", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>완료</button>
         </div>
       )}

@@ -18,7 +18,7 @@ export const dDay = (d: string, s: string) => {
   if(diff<=7)return{label:`D-${diff}`,color:"#2563eb",bg:"#eff6ff",border:"#93c5fd"};
   return{label:`D-${diff}`,color:"#64748b",bg:"#f8fafc",border:"#e2e8f0"};
 };
-export const gP = (ps: Project[], id: number): Project => ps.find(p=>p.id===id)||{id:0,name:"미분류",color:"#94a3b8",status:""};
+export const gP = (ps: Project[], id: number): Project => ps.find(p=>p.id===id)||{id:0,name:"미배정",color:"#94a3b8",status:""};
 export const fD = (d: string) => d?d.slice(5).replace("-","/"):"—";
 export const DOW = ["일","월","화","수","목","금","토"];
 export const fDow = (d: string) => { if(!d) return ""; const dt=new Date(d.split(" ")[0]); return isNaN(dt.getTime())?"":DOW[dt.getDay()]; };

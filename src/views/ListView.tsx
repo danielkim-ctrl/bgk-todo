@@ -413,8 +413,8 @@ export function ListView(props: ListViewProps) {
         })}
         {/* 단일 정렬 칩 (누적 정렬 미사용 시 sortCol 표시) */}
         {sortCol&&activeSortFields.length===0&&<Chip active bg="#eef2ff" fg="#4338ca" borderColor="#c7d2fe" onRemove={()=>setSortCol(null)}>{({pid:"프로젝트",task:"업무내용",who:"담당자",due:"마감기한",pri:"우선순위",st:"상태",repeat:"반복",id:"기본"} as Record<string,string>)[sortCol]||sortCol}{sortDir==="asc"?" ↑":" ↓"}</Chip>}
-        {/* 전체 초기화 — 필터, 검색어, 정렬 모두 리셋 */}
-        <button onClick={()=>{setSearch("");setFilters({proj:[],who:[],pri:[],st:[],repeat:[],fav:""});setActiveSortFields([]);setSortCol(null);}} style={{marginLeft:"auto",fontSize:10,color:"#94a3b8",background:"none",border:"none",cursor:"pointer",padding:"2px 6px",borderRadius:4,flexShrink:0}}>전체 초기화</button>
+        {/* 필터 초기화 — 필터, 검색어, 정렬 모두 리셋 */}
+        <button onClick={()=>{setSearch("");setFilters({proj:[],who:[],pri:[],st:[],repeat:[],fav:""});setActiveSortFields([]);setSortCol(null);}} style={{marginLeft:"auto",fontSize:10,color:"#94a3b8",background:"none",border:"none",cursor:"pointer",padding:"2px 6px",borderRadius:4,flexShrink:0}}>필터 초기화</button>
       </div>}
     </div>}
     {/* 메모뷰: 필터 칩만 표시 (검색은 리스트뷰 통합 바에 있으므로 칩으로만 확인) */}
@@ -427,7 +427,7 @@ export function ListView(props: ListViewProps) {
       {filters.pri.map((v:string)=><Chip key={v} active bg={priBg[v]} fg={priC[v]} borderColor={`${priC[v]}44`} icon={<FlagIcon style={ICON_SM}/>} onRemove={()=>togF("pri",v)}>{v}</Chip>)}
       {filters.st.map((v:string)=><Chip key={v} active bg={stBg[v]} fg={stC[v]} borderColor={`${stC[v]}44`} icon={<CheckCircleIcon style={ICON_SM}/>} onRemove={()=>togF("st",v)}>{v}</Chip>)}
       {filters.repeat.map((v:string)=><Chip key={v} active bg="#f0fdf4" fg="#15803d" borderColor="#bbf7d0" icon={<ArrowPathIcon style={ICON_SM}/>} onRemove={()=>togF("repeat",v)}>{v}</Chip>)}
-      <button onClick={()=>{setSearch("");setFilters({proj:[],who:[],pri:[],st:[],repeat:[],fav:""});}} style={{marginLeft:"auto",fontSize:10,color:"#94a3b8",background:"none",border:"none",cursor:"pointer",padding:"2px 6px",borderRadius:4}}>전체 초기화</button>
+      <button onClick={()=>{setSearch("");setFilters({proj:[],who:[],pri:[],st:[],repeat:[],fav:""});}} style={{marginLeft:"auto",fontSize:10,color:"#94a3b8",background:"none",border:"none",cursor:"pointer",padding:"2px 6px",borderRadius:4}}>필터 초기화</button>
     </div>}
 
     {/* 테이블 헤더 — 리스트뷰일 때 sticky 안에 포함 */}
