@@ -155,7 +155,7 @@ export function useTodoApp() {
   const [memberColors, setMemberColors] = useState<Record<string,string>>({});
 
   const [view, setView] = useState("list");
-  const [toast, setToast] = useState({ m: "", t: "" });
+  const [toast, setToast] = useState<{ m: string; t: string; action?: { label: string; fn: () => void } }>({ m: "", t: "" });
   const [search, setSearch] = useState("");
   const [editCell, setEditCell] = useState<{ id: number, field: string } | null>(null);
   const [newRows, setNewRows] = useState<NewRow[]>([]);
@@ -191,7 +191,7 @@ export function useTodoApp() {
     link.rel = "stylesheet";
     link.href = "https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css";
     document.head.appendChild(link);
-    return () => document.head.removeChild(link);
+    return () => { document.head.removeChild(link); };
   }, []);
 
   useEffect(() => {
@@ -204,7 +204,7 @@ export function useTodoApp() {
       ::-webkit-scrollbar-thumb:hover{background:#94a3b8}
     `;
     document.head.appendChild(st);
-    return () => document.head.removeChild(st);
+    return () => { document.head.removeChild(st); };
   }, []);
 
   const VALID_ST = ["대기", "진행중", "검토", "완료"];
