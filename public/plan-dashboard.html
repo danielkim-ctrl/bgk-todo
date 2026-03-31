@@ -170,6 +170,8 @@
       const [autoLoad, setAutoLoad] = useState(false);
       const [autoLog, setAutoLog] = useState([]);
       const [showAuto, setShowAuto] = useState(false);
+      // 카테고리별 완료 항목 펼침 상태
+      const [expandedDone, setExpandedDone] = useState({});
       const apiKey = "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";
 
       useEffect(()=>{ if(noteId&&noteRef.current) noteRef.current.focus(); },[noteId]);
@@ -343,6 +345,10 @@
             {Object.keys(CAT).map(cat=>{
               const catItems=filtered.filter(i=>i.cat===cat);
               if(!catItems.length&&fCat&&fCat!==cat) return null;
+              // 완료 항목은 기본적으로 숨김 — fSt==="done" 필터 시에는 그대로 표시
+              const activeItems=fSt==="done"?catItems:catItems.filter(i=>i.status!=="done");
+              const doneItems=fSt==="done"?[]:catItems.filter(i=>i.status==="done");
+              const isDoneExpanded=!!expandedDone[cat];
               const m=CAT[cat];
               const catTotal=items.filter(i=>i.cat===cat).length;
               const catDone=items.filter(i=>i.cat===cat&&i.status==="done").length;
@@ -381,13 +387,13 @@
                     </div>
                   )}
 
-                  {!catItems.length&&(
+                  {!activeItems.length&&!doneItems.length&&(
                     <div style={{textAlign:"center",padding:"24px 0",color:"#94a3b8",fontSize:12,background:"#fff",borderRadius:10,border:"1px solid #f1f5f9"}}>
                       {fSt||fPri ? "필터 조건에 맞는 항목 없음" : "항목 없음"}
                     </div>
                   )}
 
-                  {catItems.map(item=>{
+                  {activeItems.map(item=>{
                     const st=STATUS[item.status]; const pri=PRI[item.priority];
                     const isDone=item.status==="done"; const isNote=noteId===item.id;
                     return (
@@ -437,6 +443,53 @@
                       </div>
                     );
                   })}
+
+                  {/* 완료 항목 — 기본 숨김, 토글로 펼침 */}
+                  {doneItems.length>0&&(
+                    <div style={{marginTop:activeItems.length?4:0}}>
+                      <button onClick={()=>setExpandedDone(p=>({...p,[cat]:!p[cat]}))}
+                        style={{width:"100%",padding:"7px 14px",background:"#f8fafc",border:"1px dashed #e2e8f0",borderRadius:8,fontSize:11,color:"#94a3b8",cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:6,marginBottom:isDoneExpanded?6:0,transition:"border-color .15s"}}
+                        onMouseEnter={e=>e.currentTarget.style.borderColor="#cbd5e1"}
+                        onMouseLeave={e=>e.currentTarget.style.borderColor="#e2e8f0"}>
+                        <span style={{fontSize:10}}>✓</span>
+                        완료 {doneItems.length}건
+                        <span style={{marginLeft:"auto",fontSize:10}}>{isDoneExpanded?"▲ 접기":"▼ 펼치기"}</span>
+                      </button>
+                      {isDoneExpanded&&doneItems.map(item=>{
+                        const st=STATUS[item.status]; const pri=PRI[item.priority];
+                        const isNote=noteId===item.id;
+                        return (
+                          <div key={item.id} style={{background:"#fff",borderRadius:10,padding:"10px 16px",marginBottom:4,boxShadow:"0 1px 2px rgba(0,0,0,.04)",borderLeft:`3px solid ${m.color}`,opacity:0.45}}>
+                            <div style={{display:"flex",alignItems:"center",gap:10}}>
+                              <button onClick={()=>cycleStatus(item.id)} title="클릭해서 상태 변경"
+                                style={{flexShrink:0,padding:"3px 12px",borderRadius:99,border:`1.5px solid ${st.color}`,background:st.bg,color:st.color,fontSize:10,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",transition:"all .15s"}}>
+                                {st.label}
+                              </button>
+                              <div style={{flex:1,minWidth:0,display:"flex",alignItems:"center",gap:6}}>
+                                <span style={{fontSize:10,fontWeight:700,color:"#c0c8d4",fontFamily:"monospace",flexShrink:0}}>{item.id}</span>
+                                <span style={{fontSize:12,fontWeight:600,color:"#b0b8c4",textDecoration:"line-through"}}>{item.title}</span>
+                              </div>
+                              <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
+                                <span style={{padding:"2px 8px",borderRadius:99,background:pri.bg,color:pri.color,fontSize:9,fontWeight:700}}>{pri.label}</span>
+                                <button onClick={()=>deleteItem(item.id)} title="삭제"
+                                  style={{width:26,height:26,borderRadius:7,border:"1px solid #fecaca",background:"#fff",color:"#dc2626",cursor:"pointer",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",opacity:0.5,transition:"opacity .15s"}}
+                                  onMouseEnter={e=>e.currentTarget.style.opacity="1"}
+                                  onMouseLeave={e=>e.currentTarget.style.opacity="0.5"}>
+                                  🗑
+                                </button>
+                                {item.updatedAt&&<span style={{fontSize:9,color:"#c0c8d4",whiteSpace:"nowrap"}}>{item.updatedAt}</span>}
+                              </div>
+                            </div>
+                            {item.note&&!isNote&&(
+                              <div style={{marginTop:5,padding:"3px 10px",background:"#fffbeb",borderRadius:5,fontSize:11,color:"#92400e",borderLeft:"2px solid #fcd34d"}}>
+                                💬 {item.note}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               );
             })}
