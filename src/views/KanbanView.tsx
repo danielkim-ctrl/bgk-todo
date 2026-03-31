@@ -3,6 +3,7 @@ import { isOD, dDay, fD } from "../utils";
 import { Chip } from "../components/ui/Chip";
 import { RepeatBadge } from "../components/ui/RepeatBadge";
 import { ListBulletIcon } from "../components/ui/Icons";
+import { KanbanMobile } from "./KanbanMobile";
 
 interface KanbanViewProps {
   todos: any[];
@@ -31,6 +32,8 @@ interface KanbanViewProps {
   setEditMod: (v: any) => void;
   setDetMod: (v: any) => void;
   flash: (msg: string, type?: string) => void;
+  // 모바일 전용
+  isMobile?: boolean;
 }
 
 export function KanbanView({
@@ -39,7 +42,29 @@ export function KanbanView({
   kanbanOrder, setKanbanOrder, kbInsert, setKbInsert,
   dragId, setDragId, dragOver, setDragOver,
   gPr, updTodo, setEditMod, setDetMod, flash,
+  isMobile,
 }: KanbanViewProps) {
+  // ── 모바일: 탭 전환 방식의 1컬럼 칸반 렌더링 ─────────────────────────────────
+  if (isMobile) {
+    return (
+      <KanbanMobile
+        todos={todos}
+        stats={stats}
+        pris={pris}
+        priC={priC}
+        stC={stC}
+        stBg={stBg}
+        kbF={kbF}
+        kbFWho={kbFWho}
+        visibleProj={visibleProj}
+        gPr={gPr}
+        updTodo={updTodo}
+        setEditMod={setEditMod}
+        flash={flash}
+      />
+    );
+  }
+
   return <div>
     {/* 프로젝트 필터 + 새 업무 버튼 */}
     <div style={{display:"flex",justifyContent:"space-between",marginBottom:8,flexWrap:"wrap",gap:6,alignItems:"flex-start"}}>

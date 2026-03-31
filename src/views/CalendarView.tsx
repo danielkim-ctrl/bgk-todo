@@ -123,6 +123,8 @@ interface CalendarViewProps {
   handleSideComplete: (id: number, isDone: boolean) => void;
   detDivRefs: React.MutableRefObject<Map<number, HTMLDivElement>>;
   taskDivRefs: React.MutableRefObject<Map<number, HTMLDivElement>>;
+  /** 모바일 여부 — 캘린더 셀 크기 및 이벤트 표시 방식 조정 */
+  isMobile?: boolean;
 }
 
 // ── 사이드바 업무 추가 — Google Tasks 스타일 ──────────────────────────────
@@ -643,6 +645,7 @@ export function CalendarView(props: CalendarViewProps) {
     secTodayOpen, setSecTodayOpen, secWeekOpen, setSecWeekOpen,
     secLaterOpen, setSecLaterOpen, starredIds, toggleStar,
     pendingComplete, handleSideComplete, detDivRefs, taskDivRefs,
+    isMobile,
   } = props;
 
   return <div style={{display:"flex",gap:14,alignItems:"flex-start"}}>
@@ -863,7 +866,7 @@ export function CalendarView(props: CalendarViewProps) {
       </div>;
     })()}
 
-    {calView==="month"&&<MultiMonthView calY={calY} calM={calM} ftodos={ftodosExpanded} todayStr={todayStr} gPr={gPr} onEvClick={openEvPop} onDayClick={(e,ds)=>openQA(e,ds,0)} onMoreClick={(e,ds,ts)=>{e.stopPropagation();const zm=parseFloat(getComputedStyle(document.documentElement).zoom)||1;const r=(e.currentTarget as HTMLElement).getBoundingClientRect();const vw=window.innerWidth/zm;const vh=window.innerHeight/zm;setCalDayPop({ds,todos:ts,x:Math.max(8,Math.min(r.right/zm+4,vw-292)),y:Math.max(8,Math.min(r.top/zm,vh-370))});setCalEvPop(null);setCalQA(null);}} setCalDate={setCalDate} setCalView={setCalView} calDays={calDays} evStyle={evStyle} calDragId={calDragId} calDragOverDs={calDragOverDs} onCalDragStart={calDragStart} onCalDragEnd={calDragEnd} onCalDrop={calDropOnDate} setCalDragOverDs={setCalDragOverDs} sidebarDragId={sidebarDragId} calTodayKey={calTodayKey}/>}
+    {calView==="month"&&<MultiMonthView calY={calY} calM={calM} ftodos={ftodosExpanded} todayStr={todayStr} gPr={gPr} onEvClick={openEvPop} onDayClick={(e,ds)=>openQA(e,ds,0)} onMoreClick={(e,ds,ts)=>{e.stopPropagation();const zm=parseFloat(getComputedStyle(document.documentElement).zoom)||1;const r=(e.currentTarget as HTMLElement).getBoundingClientRect();const vw=window.innerWidth/zm;const vh=window.innerHeight/zm;setCalDayPop({ds,todos:ts,x:Math.max(8,Math.min(r.right/zm+4,vw-292)),y:Math.max(8,Math.min(r.top/zm,vh-370))});setCalEvPop(null);setCalQA(null);}} setCalDate={setCalDate} setCalView={setCalView} calDays={calDays} evStyle={evStyle} calDragId={calDragId} calDragOverDs={calDragOverDs} onCalDragStart={calDragStart} onCalDragEnd={calDragEnd} onCalDrop={calDropOnDate} setCalDragOverDs={setCalDragOverDs} sidebarDragId={sidebarDragId} calTodayKey={calTodayKey} isMobile={isMobile}/>}
 
     {calView==="custom"&&(()=>{
       const cDates=customDates();

@@ -6,6 +6,7 @@ import { avColor, avColor2, avInitials } from "../utils/avatarUtils";
 import { Sidebar } from "../components/sidebar/Sidebar";
 import { AddTodoSection } from "../components/todo/AddTodoSection";
 import { MemoView } from "../components/todo/MemoView";
+import { ListCards } from "../components/todo/ListCards";
 import { SectionLabel } from "../components/ui/SectionLabel";
 import { DropPanel } from "../components/ui/DropPanel";
 import { RepeatBadge } from "../components/ui/RepeatBadge";
@@ -194,6 +195,9 @@ interface ListViewProps {
   savedFilters: SavedFilter[];
   saveCurrentFilter: (name: string, filters: Filters, search: string) => void;
   deleteSavedFilter: (id: string) => void;
+  // 모바일 전용 props
+  isMobile?: boolean;
+  onFilterOpen?: () => void;    // 모바일 필터 바텀 시트 열기
 }
 
 export function ListView(props: ListViewProps) {
@@ -217,6 +221,7 @@ export function ListView(props: ListViewProps) {
     hoverRow, setHoverRow, hoverRowRect, setHoverRowRect, hoverLeaveTimer,
     addSecRef, tblDivRef,
     savedFilters, saveCurrentFilter, deleteSavedFilter,
+    isMobile, onFilterOpen,
   } = props;
 
   // ── 저장 필터 이름 입력 상태 ────────────────────────────────────────────────
@@ -361,6 +366,49 @@ export function ListView(props: ListViewProps) {
     if (field === "repeat") return <td style={S.tdc}>{children}<DropPanel anchorRect={ar} items={REPEAT_OPTS.map(r => ({value: r, label: r}))} current={todo.repeat || "없음"} onSelect={v => save(v)} onClose={stop} alignRight/></td>;
     return <td style={S.tdc}>{children}</td>;
   };
+
+  // ── 모바일: 활성 필터 수 계산 ─────────────────────────────────────────────────
+  // 검색어와 필터 칩 수를 합산하여 필터 버튼에 배지로 표시
+  const activeFilterCount =
+    (filters.proj?.length || 0) +
+    (filters.who?.length || 0) +
+    (filters.pri?.length || 0) +
+    (filters.st?.length || 0) +
+    (filters.repeat?.length || 0) +
+    (filters.fav ? 1 : 0);
+
+  // ── 모바일 뷰: 데스크톱 테이블 대신 카드형 리스트 렌더링 ─────────────────────
+  // 사이드바·AddTodoSection·테이블 모두 숨기고 ListCards(카드형) 컴포넌트만 표시
+  if (isMobile) {
+    return (
+      <ListCards
+        sorted={sorted}
+        gPr={gPr}
+        priC={priC}
+        priBg={priBg}
+        stC={stC}
+        stBg={stBg}
+        isFav={isFav}
+        showDone={showDone}
+        setShowDone={setShowDone}
+        onCardTap={(todo) => setEditMod(todo)}
+        onComplete={(id) => {
+          // 완료 처리: 현재 상태가 완료면 이전 상태(대기)로, 아니면 완료로 전환
+          const todo = sorted.find((t: any) => t.id === id);
+          if (todo) updTodo(id, { st: todo.st === "완료" ? (stats[0] || "대기") : "완료" });
+        }}
+        onDelete={(id) => {
+          if (confirm("이 업무를 삭제하시겠습니까?")) delTodo(id);
+        }}
+        search={search}
+        setSearch={setSearch}
+        activeFilterCount={activeFilterCount}
+        onFilterOpen={onFilterOpen || (() => {})}
+        filters={filters}
+        togF={togF}
+      />
+    );
+  }
 
   return <div style={{display:"flex",alignItems:"flex-start",gap:14}}>
     <Sidebar

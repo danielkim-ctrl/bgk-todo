@@ -1,12 +1,19 @@
 import { useRef, useEffect, useState } from "react";
 import { useTodoApp } from "./hooks/useTodoApp";
+import { useIsMobile } from "./hooks/useMediaQuery";
 import { PermissionProvider } from "./auth/PermissionContext";
 import { S } from "./styles";
 import { REPEAT_OPTS, INIT_ST } from "./constants";
-import { FolderIcon, Cog6ToothIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, TrashIcon, KeyboardIcon, ChartBarIcon, ListBulletIcon, CalendarIcon, ViewColumnsIcon, ArrowPathIcon, UserIcon, BoltIcon, CheckCircleIcon, DocumentTextIcon, StarIcon as StarSolidIcon, StarOutlineIcon, PlusIcon, ClipboardDocumentIcon, CheckIcon, PencilSquareIcon, XMarkIcon, ICON_SM } from "./components/ui/Icons";
+import { FolderIcon, Cog6ToothIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, TrashIcon, KeyboardIcon, ChartBarIcon, ListBulletIcon, CalendarIcon, ViewColumnsIcon, ArrowPathIcon, UserIcon, BoltIcon, CheckCircleIcon, DocumentTextIcon, StarIcon as StarSolidIcon, StarOutlineIcon, PlusIcon, ClipboardDocumentIcon, CheckIcon, PencilSquareIcon, XMarkIcon, Bars3Icon, ICON_SM } from "./components/ui/Icons";
+import { BottomTabBar } from "./components/ui/BottomTabBar";
+import { SidebarDrawer } from "./components/sidebar/SidebarDrawer";
+import { FAB } from "./components/ui/FAB";
+import { AddTodoBottomSheet } from "./components/todo/AddTodoBottomSheet";
+import { FilterBottomSheet } from "./components/ui/FilterBottomSheet";
 
 import { Toast } from "./components/ui/Toast";
 import { Modal } from "./components/ui/Modal";
+import { BottomSheet } from "./components/ui/BottomSheet";
 import { NotePopup } from "./components/editor/NotePopup";
 import { CellRichPopup } from "./components/editor/CellRichPopup";
 import { DateTimePicker } from "./components/editor/DateTimePicker";
@@ -96,6 +103,16 @@ export default function App() {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [view, todoView, selectedIds, setTodos, flash, clrSel, setMemoCols, calToday, calNav, setCalView, undo, redo]);
+
+  // ── 반응형 모바일 감지 ────────────────────────────────────────
+  // 768px 이하에서 true — 모바일 레이아웃 분기에 사용
+  const isMobile = useIsMobile();
+  // 모바일 사이드바 Drawer 열림 여부 (햄버거 버튼으로 토글)
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  // 모바일 업무 추가 바텀 시트 열림 여부 (FAB 탭 시 열림)
+  const [addTodoBSOpen, setAddTodoBSOpen] = useState(false);
+  // 모바일 필터 바텀 시트 열림 여부 (필터 버튼 탭 시 열림)
+  const [filterBSOpen, setFilterBSOpen] = useState(false);
 
   // ── 단축키 도움말 / 휴지통 모달 상태 ────────────────────────────
   const [showShortcuts, setShowShortcuts] = useState(false); // 단축키 도움말 팝업 열림 여부
@@ -331,39 +348,87 @@ export default function App() {
   );
 
   const content = <div style={S.wrap}>
-    <header style={S.hdr}>
-      <div style={{display:"flex",alignItems:"center",gap:12}}>
-        <img src={`${import.meta.env.BASE_URL}bgk_logo_white.png`} alt="Bridging Group" onClick={()=>window.location.reload()} style={{height:32,width:"auto",display:"block",flexShrink:0,cursor:"pointer"}}/>
-        <div style={{width:1,height:20,background:"rgba(255,255,255,.3)"}}/>
-        <div style={{fontSize:14,fontWeight:700,letterSpacing:"0.01em"}}>팀 TODO 통합관리</div>
-      </div>
-      <div style={{display:"flex",alignItems:"center",gap:6}}>
-        <button style={S.hBtn} onClick={()=>setSettMod(true)}><Cog6ToothIcon style={ICON_SM}/> 설정</button>
-        {/* 삭제된 업무가 있을 때만 휴지통 버튼 표시 */}
-        {deletedLog.length>0&&<button style={{...S.hBtn,position:"relative" as const}} onClick={()=>setShowTrash(true)} title="삭제된 업무 복원">
-          <TrashIcon style={ICON_SM}/> 휴지통
-          <span style={{position:"absolute" as const,top:-4,right:-4,background:"#ef4444",color:"#fff",borderRadius:99,fontSize:10,fontWeight:800,padding:"1px 5px",lineHeight:1.4}}>{deletedLog.length}</span>
-        </button>}
-        <button style={S.hBtn} onClick={()=>setShowShortcuts(true)} title="단축키 도움말 (?)"><KeyboardIcon style={ICON_SM}/></button>
-        <div style={{width:1,height:20,background:"rgba(255,255,255,.25)",margin:"0 4px"}}/>
-        <div style={{display:"flex",alignItems:"center",gap:7}}>
-          <div style={{width:28,height:28,borderRadius:"50%",background:"rgba(255,255,255,.25)",border:"1.5px solid rgba(255,255,255,.4)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,color:"#fff",flexShrink:0}}>{currentUser?.[0]}</div>
-          <span style={{fontSize:12,fontWeight:600,color:"#fff"}}>{currentUser}</span>
-          <button style={{...S.hBtn,fontSize:10,padding:"3px 10px",background:"rgba(255,255,255,.12)"}} onClick={()=>{if(window.confirm("정말 로그아웃하시겠습니까?"))setCurrentUser(null);}}>로그아웃</button>
-        </div>
-      </div>
+    {/* ── 헤더 ── 모바일: 햄버거 + 타이틀 + 사용자 아바타 / 데스크톱: 기존 그대로 */}
+    <header style={{...S.hdr, height: isMobile ? 48 : 52}}>
+      {isMobile ? (
+        // 모바일 헤더 — 좌: 햄버거, 중: 타이틀, 우: 설정+아바타
+        <>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            {/* 햄버거 버튼 — 탭 시 SidebarDrawer 열기 */}
+            <button style={{background:"none",border:"none",cursor:"pointer",color:"rgba(255,255,255,.9)",padding:4,display:"flex",alignItems:"center",borderRadius:6}} onClick={()=>setDrawerOpen(true)} aria-label="메뉴 열기">
+              <Bars3Icon style={{width:22,height:22}}/>
+            </button>
+            <div style={{fontSize:14,fontWeight:700,letterSpacing:"0.01em"}}>팀 TODO</div>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:6}}>
+            <button style={S.hBtn} onClick={()=>setSettMod(true)}><Cog6ToothIcon style={ICON_SM}/></button>
+            {deletedLog.length>0&&<button style={{...S.hBtn,position:"relative" as const}} onClick={()=>setShowTrash(true)} title="휴지통">
+              <TrashIcon style={ICON_SM}/>
+              <span style={{position:"absolute" as const,top:-4,right:-4,background:"#ef4444",color:"#fff",borderRadius:99,fontSize:10,fontWeight:800,padding:"1px 5px",lineHeight:1.4}}>{deletedLog.length}</span>
+            </button>}
+            {/* 모바일 아바타 — 탭 시 로그아웃 */}
+            <div onClick={()=>{if(window.confirm("정말 로그아웃하시겠습니까?"))setCurrentUser(null);}} style={{width:28,height:28,borderRadius:"50%",background:"rgba(255,255,255,.25)",border:"1.5px solid rgba(255,255,255,.4)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,color:"#fff",flexShrink:0,cursor:"pointer"}}>{currentUser?.[0]}</div>
+          </div>
+        </>
+      ) : (
+        // 데스크톱 헤더 — 기존 그대로
+        <>
+          <div style={{display:"flex",alignItems:"center",gap:12}}>
+            <img src={`${import.meta.env.BASE_URL}bgk_logo_white.png`} alt="Bridging Group" onClick={()=>window.location.reload()} style={{height:32,width:"auto",display:"block",flexShrink:0,cursor:"pointer"}}/>
+            <div style={{width:1,height:20,background:"rgba(255,255,255,.3)"}}/>
+            <div style={{fontSize:14,fontWeight:700,letterSpacing:"0.01em"}}>팀 TODO 통합관리</div>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:6}}>
+            <button style={S.hBtn} onClick={()=>setSettMod(true)}><Cog6ToothIcon style={ICON_SM}/> 설정</button>
+            {deletedLog.length>0&&<button style={{...S.hBtn,position:"relative" as const}} onClick={()=>setShowTrash(true)} title="삭제된 업무 복원">
+              <TrashIcon style={ICON_SM}/> 휴지통
+              <span style={{position:"absolute" as const,top:-4,right:-4,background:"#ef4444",color:"#fff",borderRadius:99,fontSize:10,fontWeight:800,padding:"1px 5px",lineHeight:1.4}}>{deletedLog.length}</span>
+            </button>}
+            <button style={S.hBtn} onClick={()=>setShowShortcuts(true)} title="단축키 도움말 (?)"><KeyboardIcon style={ICON_SM}/></button>
+            <div style={{width:1,height:20,background:"rgba(255,255,255,.25)",margin:"0 4px"}}/>
+            <div style={{display:"flex",alignItems:"center",gap:7}}>
+              <div style={{width:28,height:28,borderRadius:"50%",background:"rgba(255,255,255,.25)",border:"1.5px solid rgba(255,255,255,.4)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,color:"#fff",flexShrink:0}}>{currentUser?.[0]}</div>
+              <span style={{fontSize:12,fontWeight:600,color:"#fff"}}>{currentUser}</span>
+              <button style={{...S.hBtn,fontSize:10,padding:"3px 10px",background:"rgba(255,255,255,.12)"}} onClick={()=>{if(window.confirm("정말 로그아웃하시겠습니까?"))setCurrentUser(null);}}>로그아웃</button>
+            </div>
+          </div>
+        </>
+      )}
     </header>
 
-    <nav style={S.nav}>
-      {([["dashboard",<ChartBarIcon style={ICON_SM}/>,"대시보드"],["list",<ListBulletIcon style={ICON_SM}/>,"리스트"],["calendar",<CalendarIcon style={ICON_SM}/>,"캘린더"],["kanban",<ViewColumnsIcon style={ICON_SM}/>,"칸반"]] as [string,React.ReactNode,string][]).map(([k,icon,l])=><button key={k} style={{...S.navB(view===k),transition:"color .15s, background .15s"}} onClick={()=>{setView(k);window.scrollTo(0,0);}}
-        onMouseEnter={e=>{if(view!==k){e.currentTarget.style.color="#2563eb";e.currentTarget.style.background="#f8fafc";}}}
-        onMouseLeave={e=>{if(view!==k){e.currentTarget.style.color="#64748b";e.currentTarget.style.background="none";}}}>{icon}{l}{k==="kanban"&&(kbF.length>0||kbFWho.length>0)&&<span style={{fontSize:10,background:"#ef4444",color:"#fff",borderRadius:99,padding:"0 5px",fontWeight:700}}>{kbF.length+kbFWho.length}</span>}</button>)}
-    </nav>
+    {/* ── 상단 탭 네비게이션 — 데스크톱 전용 (모바일은 하단 BottomTabBar 사용) */}
+    {!isMobile && (
+      <nav style={S.nav}>
+        {([["dashboard",<ChartBarIcon style={ICON_SM}/>,"대시보드"],["list",<ListBulletIcon style={ICON_SM}/>,"리스트"],["calendar",<CalendarIcon style={ICON_SM}/>,"캘린더"],["kanban",<ViewColumnsIcon style={ICON_SM}/>,"칸반"]] as [string,React.ReactNode,string][]).map(([k,icon,l])=><button key={k} style={{...S.navB(view===k),transition:"color .15s, background .15s"}} onClick={()=>{setView(k);window.scrollTo(0,0);}}
+          onMouseEnter={e=>{if(view!==k){e.currentTarget.style.color="#2563eb";e.currentTarget.style.background="#f8fafc";}}}
+          onMouseLeave={e=>{if(view!==k){e.currentTarget.style.color="#64748b";e.currentTarget.style.background="none";}}}>{icon}{l}{k==="kanban"&&(kbF.length>0||kbFWho.length>0)&&<span style={{fontSize:10,background:"#ef4444",color:"#fff",borderRadius:99,padding:"0 5px",fontWeight:700}}>{kbF.length+kbFWho.length}</span>}</button>)}
+      </nav>
+    )}
 
-    <main style={S.main}>
+    {/* ── 모바일 사이드바 Drawer ─────────────────────────────────── */}
+    {isMobile && (
+      <SidebarDrawer
+        open={drawerOpen}
+        onClose={()=>setDrawerOpen(false)}
+        search={search} setSearch={setSearch}
+        filters={filters} togF={togF}
+        todos={todos} aProj={aProj} members={members} pris={pris} priC={priC}
+        stats={stats} stC={stC}
+        favSidebar={favSidebar} togFavSidebar={togFavSidebar}
+        isFav={isFav} gPr={gPr}
+        setChipAdd={setChipAdd} setChipVal={setChipVal} setChipColor={setChipColor}
+        projects={projects}
+        hiddenProjects={hiddenProjects} toggleHideProject={toggleHideProject}
+        hiddenMembers={hiddenMembers} toggleHideMember={toggleHideMember}
+      />
+    )}
+
+    {/* ── 메인 콘텐츠 — 모바일: 하단 탭 바(56px) + safe-area 높이만큼 패딩 추가 */}
+    <main style={isMobile ? {...S.main, paddingBottom:"calc(56px + env(safe-area-inset-bottom) + 16px)"} : S.main}>
       {view==="dashboard"&&<Dashboard todos={todos} projects={projects} members={members} priC={priC} priBg={priBg} stC={stC} stBg={stBg} gPr={gPr} deletedLog={deletedLog}
         // KPI 카드 클릭 시 리스트 뷰로 이동하고 해당 상태 필터를 자동 적용
-        onNavigate={(stF)=>{setView("list");setFilters({proj:[],who:[],pri:[],st:stF,repeat:[],fav:""});window.scrollTo(0,0);}}/>}
+        onNavigate={(stF)=>{setView("list");setFilters({proj:[],who:[],pri:[],st:stF,repeat:[],fav:""});window.scrollTo(0,0);}}
+        isMobile={isMobile}/>}
 
       {view==="kanban"&&<KanbanView
         todos={todos} stats={stats} pris={pris} priC={priC} priBg={priBg} stC={stC} stBg={stBg}
@@ -374,6 +439,7 @@ export default function App() {
         dragId={dragId} setDragId={setDragId}
         dragOver={dragOver} setDragOver={setDragOver}
         gPr={gPr} updTodo={updTodo} setEditMod={setEditMod} setDetMod={setDetMod} flash={flash}
+        isMobile={isMobile}
       />}
 
       {view==="list"&&<ListView
@@ -412,6 +478,8 @@ export default function App() {
         hoverLeaveTimer={hoverLeaveTimer}
         addSecRef={addSecRef} tblDivRef={tblDivRef}
         savedFilters={savedFilters} saveCurrentFilter={saveCurrentFilter} deleteSavedFilter={deleteSavedFilter}
+        isMobile={isMobile}
+        onFilterOpen={() => setFilterBSOpen(true)}
       />}
 
       {view==="calendar"&&<CalendarView
@@ -462,6 +530,7 @@ export default function App() {
         starredIds={starredIds} toggleStar={toggleStar}
         pendingComplete={pendingComplete} handleSideComplete={handleSideComplete}
         detDivRefs={detDivRefs} taskDivRefs={taskDivRefs}
+        isMobile={isMobile}
       />}
     </main>
 
@@ -533,9 +602,23 @@ export default function App() {
       </div>;
     })()}
 
-    <Modal open={!!editMod} onClose={()=>setEditMod(null)} title={editMod?.id?"업무 수정":"새 업무"} footer={<>{editMod?.id&&<button style={{...S.bd,marginRight:"auto"}} onClick={()=>{if(confirm(`"${editMod.task}" 업무를 삭제하시겠습니까?`)){const id=parseInt(editMod.id);setEditMod(null);delTodo(id)}}}><TrashIcon style={ICON_SM}/> 삭제</button>}<button style={S.bs} onClick={()=>setEditMod(null)}>취소</button><button style={S.bp} onClick={()=>saveMod(editMod)}>저장</button></>}>
-      {editMod&&<EditForm f={editMod} onChange={setEditMod} proj={visibleProj} members={visibleMembers} pris={pris} stats={stats}/>}
-    </Modal>
+    {/* 편집 모달 — 모바일에서는 BottomSheet, 데스크톱에서는 Modal로 렌더링 */}
+    {isMobile ? (
+      <BottomSheet open={!!editMod} onClose={()=>setEditMod(null)} title={editMod?.id?"업무 수정":"새 업무"} fullHeight>
+        {editMod&&<>
+          <EditForm f={editMod} onChange={setEditMod} proj={visibleProj} members={visibleMembers} pris={pris} stats={stats}/>
+          <div style={{display:"flex",gap:8,marginTop:16,paddingTop:12,borderTop:"1px solid #e2e8f0"}}>
+            {editMod?.id&&<button style={{...S.bd,marginRight:"auto"}} onClick={()=>{if(confirm(`"${editMod.task}" 업무를 삭제하시겠습니까?`)){const id=parseInt(editMod.id);setEditMod(null);delTodo(id)}}}><TrashIcon style={ICON_SM}/> 삭제</button>}
+            <button style={S.bs} onClick={()=>setEditMod(null)}>취소</button>
+            <button style={S.bp} onClick={()=>saveMod(editMod)}>저장</button>
+          </div>
+        </>}
+      </BottomSheet>
+    ) : (
+      <Modal open={!!editMod} onClose={()=>setEditMod(null)} title={editMod?.id?"업무 수정":"새 업무"} footer={<>{editMod?.id&&<button style={{...S.bd,marginRight:"auto"}} onClick={()=>{if(confirm(`"${editMod.task}" 업무를 삭제하시겠습니까?`)){const id=parseInt(editMod.id);setEditMod(null);delTodo(id)}}}><TrashIcon style={ICON_SM}/> 삭제</button>}<button style={S.bs} onClick={()=>setEditMod(null)}>취소</button><button style={S.bp} onClick={()=>saveMod(editMod)}>저장</button></>}>
+        {editMod&&<EditForm f={editMod} onChange={setEditMod} proj={visibleProj} members={visibleMembers} pris={pris} stats={stats}/>}
+      </Modal>
+    )}
 
     <Modal open={!!detMod} onClose={()=>setDetMod(null)} title={detMod?.task||""} footer={<><button style={{...S.bd,marginRight:"auto"}} onClick={()=>{if(confirm(`"${detMod.task}" 업무를 삭제하시겠습니까?`)){delTodo(detMod.id);setDetMod(null)}}}><TrashIcon style={ICON_SM}/></button><button style={S.bs} onClick={()=>setDetMod(null)}>닫기</button><button style={S.bp} onClick={()=>{setEditMod(detMod);setDetMod(null)}}><PencilSquareIcon style={ICON_SM}/> 수정</button></>}>
       {detMod&&<DetailView t={detMod} p={gPr(detMod.pid)} stats={stats} stC={stC} stBg={stBg} priC={priC} priBg={priBg} onSt={st=>{updTodo(detMod.id,{st});setDetMod({...detMod,st});flash(`상태가 "${st}"(으)로 변경되었습니다`)}}/>}
@@ -624,6 +707,54 @@ export default function App() {
       </div>
     </div>}
 
+
+    {/* ── 모바일 FAB — 리스트 뷰에서만 표시, 탭 시 업무 추가 바텀 시트 열기 */}
+    {isMobile && view === "list" && (
+      <FAB onClick={() => setAddTodoBSOpen(true)} />
+    )}
+
+    {/* ── 모바일 업무 추가 바텀 시트 — FAB 탭 시 열림 */}
+    {isMobile && (
+      <AddTodoBottomSheet
+        open={addTodoBSOpen}
+        onClose={() => setAddTodoBSOpen(false)}
+        members={visibleMembers}
+        pris={pris}
+        stats={stats}
+        visibleProj={visibleProj}
+        currentUser={currentUser}
+        onSave={(todo) => {
+          // addTodo 내부에서 자동으로 ID 생성 — id 직접 지정 불필요
+          addTodo({ ...todo, favs: [], pct: 0 });
+          flash("업무가 추가되었습니다");
+        }}
+      />
+    )}
+
+    {/* ── 모바일 필터 바텀 시트 — 필터 버튼 탭 시 열림 */}
+    {isMobile && (
+      <FilterBottomSheet
+        open={filterBSOpen}
+        onClose={() => setFilterBSOpen(false)}
+        filters={filters}
+        togF={togF}
+        aProj={visibleProj}
+        members={visibleMembers}
+        pris={pris}
+        priC={priC}
+        stats={stats}
+        stC={stC}
+      />
+    )}
+
+    {/* ── 모바일 하단 탭 바 — 데스크톱에서는 렌더링하지 않음 */}
+    {isMobile && (
+      <BottomTabBar
+        view={view}
+        onViewChange={v => setView(v)}
+        kanbanFilterCount={kbF.length + kbFWho.length}
+      />
+    )}
 
     <Toast msg={toast.m} type={toast.t} action={toast.action}/>
     {notePopup&&<NotePopup

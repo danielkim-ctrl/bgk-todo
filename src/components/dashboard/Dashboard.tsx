@@ -4,7 +4,7 @@ import { isOD, stripHtml } from "../../utils";
 import { Project, DeletedTodo } from "../../types";
 import { CheckCircleIcon, ExclamationTriangleIcon, UserIcon, FolderIcon, CalendarIcon, ListBulletIcon, CheckIcon, BoltIcon, ICON_SM } from "../ui/Icons";
 
-export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,deletedLog=[],onNavigate}: {
+export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,deletedLog=[],onNavigate,isMobile}: {
   todos: any[];
   projects: Project[];
   members: string[];
@@ -16,6 +16,8 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
   deletedLog?: DeletedTodo[];
   /** KPI 카드 클릭 시 리스트 뷰로 이동하는 콜백 (상태 필터 배열 전달) */
   onNavigate?: (stFilter: string[]) => void;
+  /** 모바일 여부 — KPI 카드 2열 레이아웃, 텍스트 크기 조정 */
+  isMobile?: boolean;
 }) {
   const [tab,setTab]=useState("member");
   // KPI 기간 필터 — 마감기한 기준으로 표시 범위 조정
@@ -318,7 +320,8 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
       })}
     </div>
 
-    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:20}}>
+    {/* 모바일에서는 2열, 데스크톱에서는 4열 KPI 카드 그리드 */}
+    <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(2,1fr)":"repeat(4,1fr)",gap:isMobile?10:12,marginBottom:20}}>
       {kpiCards.map(([c,ic,v,l,stF])=>
         // KPI 카드 클릭 시 리스트 뷰로 이동하며 해당 상태 필터 자동 적용
         <div key={l} onClick={()=>onNavigate?.(stF)}

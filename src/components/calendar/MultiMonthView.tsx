@@ -23,7 +23,7 @@ function LazyMonth({children,placeholder}: {children: React.ReactNode,placeholde
   return <div ref={ref}>{visible?children:placeholder}</div>;
 }
 
-export function MultiMonthView({calY,calM,ftodos,todayStr,gPr,onEvClick,onDayClick,onMoreClick,setCalDate,setCalView,calDays,evStyle,calDragId,calDragOverDs,onCalDragStart,onCalDragEnd,onCalDrop,setCalDragOverDs,sidebarDragId,calTodayKey}: {
+export function MultiMonthView({calY,calM,ftodos,todayStr,gPr,onEvClick,onDayClick,onMoreClick,setCalDate,setCalView,calDays,evStyle,calDragId,calDragOverDs,onCalDragStart,onCalDragEnd,onCalDrop,setCalDragOverDs,sidebarDragId,calTodayKey,isMobile}: {
   calY: number;
   calM: number;
   ftodos: any[];
@@ -44,6 +44,8 @@ export function MultiMonthView({calY,calM,ftodos,todayStr,gPr,onEvClick,onDayCli
   setCalDragOverDs: (ds: string|null) => void;
   sidebarDragId: number|null;
   calTodayKey?: number;
+  /** 모바일 여부 — true면 이벤트 칩 대신 색상 도트만 표시 */
+  isMobile?: boolean;
 }) {
   const months=Array.from({length:12},(_,i)=>({y:calY,m:i}));
   const monthRefs=useRef<(HTMLDivElement|null)[]>([]);
@@ -110,7 +112,7 @@ export function MultiMonthView({calY,calM,ftodos,todayStr,gPr,onEvClick,onDayCli
         const isWeekStart=(i%7)===0;
         const isDragOver=isDraggingAny&&c.ds===calDragOverDs;
         return <div key={i} data-calcell
-          style={{minHeight:120,padding:6,borderRight:((i+1)%7)?"1px solid #f1f5f9":"none",borderBottom:"1px solid #f1f5f9",
+          style={{minHeight:isMobile?48:120,padding:isMobile?"4px 3px":6,borderRight:((i+1)%7)?"1px solid #f1f5f9":"none",borderBottom:"1px solid #f1f5f9",
             background:isDragOver?"#eff6ff":c.isT?"#eff6ff":c.cur?"#fff":"#f8fafc",
             outline:isDragOver?"2px solid #2563eb":"none",outlineOffset:-2,
             overflow:"hidden",cursor:c.ds?(isDraggingAny?"copy":"pointer"):"default",
@@ -122,26 +124,53 @@ export function MultiMonthView({calY,calM,ftodos,todayStr,gPr,onEvClick,onDayCli
           <div style={{fontSize:13,fontWeight:600,marginBottom:3,color:c.isT?"#fff":!c.cur?"#94a3b8":isWeekStart?"#dc2626":"#334155",...(c.isT?{display:"inline-flex",alignItems:"center",justifyContent:"center",background:"#2563eb",width:24,height:24,borderRadius:"50%",fontSize:12}:{padding:"1px 4px"})}}>
             {c.d}
           </div>
-          {dayT.slice(0,4).map((t,ii)=>{
-            const p=gPr(t.pid);
-            const isThisDragging=calDragId===t.id;
-            return <div key={t.id+"_"+ii}
-              draggable
-              onDragStart={e=>{e.stopPropagation();onCalDragStart(t.id);}}
-              onDragEnd={e=>{e.stopPropagation();onCalDragEnd();}}
-              onClick={e=>{e.stopPropagation();if(!isThisDragging)onEvClick(e,t);}}
-              onMouseEnter={e=>{(e.currentTarget as HTMLDivElement).style.filter="brightness(.92)";}}
-              onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.filter="none";}}
-              style={{...evStyle(p,t.repeat),fontSize:11,padding:"3px 7px",marginBottom:2,
-                cursor:"grab",opacity:isThisDragging?.4:1,
-                transition:"opacity .15s, filter .12s"}}>
-              {t.repeat&&t.repeat!=="없음"&&<ArrowPathIcon style={ICON_SM} />}{t.task}
-            </div>;
-          })}
-          {dayT.length>4&&<div onClick={e=>{e.stopPropagation();onMoreClick(e,c.ds!,dayT);}}
-            onMouseEnter={e=>{(e.currentTarget as HTMLDivElement).style.background="#dbeafe";(e.currentTarget as HTMLDivElement).style.color="#1d4ed8";}}
-            onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.background="transparent";(e.currentTarget as HTMLDivElement).style.color="#2563eb";}}
-            style={{fontSize:10,color:"#2563eb",paddingLeft:4,cursor:"pointer",fontWeight:600,borderRadius:4,transition:"background .1s,color .1s"}}>+{dayT.length-4}건 더보기</div>}
+          {/* 모바일: 이벤트 칩 대신 색상 도트만 표시 — 셀이 좁아서 칩이 잘림 방지 */}
+          {isMobile ? (
+            dayT.length > 0 && (
+              <div style={{ display: "flex", gap: 2, flexWrap: "wrap" as const, marginTop: 2 }}>
+                {dayT.slice(0, 5).map((t, ii) => {
+                  const p = gPr(t.pid);
+                  return (
+                    <span
+                      key={t.id + "_" + ii}
+                      onClick={e => { e.stopPropagation(); onEvClick(e, t); }}
+                      style={{
+                        width: 6, height: 6, borderRadius: "50%",
+                        background: evStyle(p, t.repeat).background as string || "#2563eb",
+                        flexShrink: 0, cursor: "pointer",
+                      }}
+                    />
+                  );
+                })}
+                {dayT.length > 5 && (
+                  <span style={{ fontSize: 8, color: "#94a3b8", lineHeight: "6px" }}>+{dayT.length - 5}</span>
+                )}
+              </div>
+            )
+          ) : (
+            <>
+              {dayT.slice(0,4).map((t,ii)=>{
+                const p=gPr(t.pid);
+                const isThisDragging=calDragId===t.id;
+                return <div key={t.id+"_"+ii}
+                  draggable
+                  onDragStart={e=>{e.stopPropagation();onCalDragStart(t.id);}}
+                  onDragEnd={e=>{e.stopPropagation();onCalDragEnd();}}
+                  onClick={e=>{e.stopPropagation();if(!isThisDragging)onEvClick(e,t);}}
+                  onMouseEnter={e=>{(e.currentTarget as HTMLDivElement).style.filter="brightness(.92)";}}
+                  onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.filter="none";}}
+                  style={{...evStyle(p,t.repeat),fontSize:11,padding:"3px 7px",marginBottom:2,
+                    cursor:"grab",opacity:isThisDragging?.4:1,
+                    transition:"opacity .15s, filter .12s"}}>
+                  {t.repeat&&t.repeat!=="없음"&&<ArrowPathIcon style={ICON_SM} />}{t.task}
+                </div>;
+              })}
+              {dayT.length>4&&<div onClick={e=>{e.stopPropagation();onMoreClick(e,c.ds!,dayT);}}
+                onMouseEnter={e=>{(e.currentTarget as HTMLDivElement).style.background="#dbeafe";(e.currentTarget as HTMLDivElement).style.color="#1d4ed8";}}
+                onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.background="transparent";(e.currentTarget as HTMLDivElement).style.color="#2563eb";}}
+                style={{fontSize:10,color:"#2563eb",paddingLeft:4,cursor:"pointer",fontWeight:600,borderRadius:4,transition:"background .1s,color .1s"}}>+{dayT.length-4}건 더보기</div>}
+            </>
+          )}
         </div>;})}
     </div>
   </>;
