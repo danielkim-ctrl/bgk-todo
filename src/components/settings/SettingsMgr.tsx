@@ -410,8 +410,9 @@ export function SettingsMgr({
             {/* PIN 코드 — 담당자 탭에서만 표시 */}
             {isMember && (
               <span style={{fontSize:10,fontFamily:"'Courier New',monospace",color:"#64748b",background:"#f1f5f9",padding:"2px 6px",borderRadius:4,flexShrink:0,letterSpacing:"1px",cursor:"pointer",border:"1px solid #e2e8f0",transition:"background .1s"}}
-                title="클릭하여 PIN 재생성"
-                onClick={e=>{e.stopPropagation();if(confirm(`"${v}"의 PIN을 재생성하시겠습니까?`)){setMemberPins((p:any)=>({...p,[v]:generatePin()}));flash(`${v}의 PIN이 재생성되었습니다`);}}}
+                title="클릭: 복사 / 더블클릭: 재생성"
+                onClick={e=>{e.stopPropagation();const p=memberPins[v];if(p){navigator.clipboard.writeText(p);flash(`${v}의 PIN이 복사되었습니다`);}}}
+                onDoubleClick={e=>{e.stopPropagation();if(confirm(`"${v}"의 PIN을 재생성하시겠습니까?`)){setMemberPins((p:any)=>({...p,[v]:generatePin()}));flash(`${v}의 PIN이 재생성되었습니다`);}}}
                 onMouseEnter={e=>{(e.currentTarget as HTMLElement).style.background="#e2e8f0";}}
                 onMouseLeave={e=>{(e.currentTarget as HTMLElement).style.background="#f1f5f9";}}>
                 {memberPins[v]||"------"}
@@ -471,7 +472,10 @@ function TeamTab({
   flash: (m: string, t?: string) => void;
 }) {
   const [newName, setNewName] = useState("");
-  const [newColor, setNewColor] = useState("#2563eb");
+  // 기존 팀 색상과 겹치지 않는 다음 색상 자동 선택
+  const usedTeamColors = teams.map(t => t.color);
+  const nextTeamColor = PROJ_PALETTE.find(c => !usedTeamColors.includes(c)) || PROJ_PALETTE[0];
+  const [newColor, setNewColor] = useState(nextTeamColor);
   // 현재 편집 중인 팀 ID (펼쳐진 팀)
   const [editId, setEditId] = useState<string | null>(null);
   // 드래그 정렬 상태
@@ -490,6 +494,9 @@ function TeamTab({
     if (!newName.trim()) return;
     addTeam(newName.trim(), newColor);
     setNewName("");
+    // 다음 미사용 색상으로 자동 갱신
+    const used = [...usedTeamColors, newColor];
+    setNewColor(PROJ_PALETTE.find(c => !used.includes(c)) || PROJ_PALETTE[0]);
   };
 
   return <>

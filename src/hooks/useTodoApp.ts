@@ -295,13 +295,9 @@ export function useTodoApp() {
     // 팀·역할·권한·PIN 데이터 복원
     if (d.globalPermissions) setGlobalPermissions(d.globalPermissions);
     if (d.sharedApiKey) sharedApiKeyRef.current = d.sharedApiKey;
-    // PIN 복원 — 없으면 기존 멤버 전원에게 자동 생성
+    // PIN 복원 — 있으면 그대로 복원 (없으면 아래 useEffect에서 마이그레이션)
     if (d.memberPins && Object.keys(d.memberPins).length > 0) {
       setMemberPins(d.memberPins);
-    } else if (d.members?.length) {
-      const pins: Record<string, string> = {};
-      d.members.forEach((m: string) => { pins[m] = String(Math.floor(100000 + Math.random() * 900000)); });
-      setMemberPins(pins);
     }
     if (d.teams) setTeams(d.teams);
     if (d.memberRoles && Object.keys(d.memberRoles).length > 0) {
@@ -780,6 +776,18 @@ export function useTodoApp() {
     }));
     flash(`${count}건의 업무가 프로젝트 기준으로 팀에 배정되었습니다`);
   };
+
+  // PIN 마이그레이션 — 멤버 중 PIN 미발급자에게 자동 생성 (로드 완료 후 1회)
+  const pinMigDone = useRef(false);
+  useEffect(() => {
+    if (!loaded || pinMigDone.current || !members.length) return;
+    pinMigDone.current = true;
+    const missing = members.filter(m => !memberPins[m]);
+    if (!missing.length) return;
+    const pins: Record<string, string> = { ...memberPins };
+    missing.forEach(m => { pins[m] = generatePin(); });
+    setMemberPins(pins);
+  }, [loaded, members, memberPins]);
 
   // 자동 마이그레이션 — 팀에 프로젝트가 연결되어 있고 미배정 todo가 있으면 자동 배정
   // 로드 완료 후 1회만 실행
