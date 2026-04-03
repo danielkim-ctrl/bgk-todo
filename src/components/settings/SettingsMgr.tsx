@@ -407,12 +407,12 @@ export function SettingsMgr({
                 )}
               </>;
             })()}
-            {/* PIN 코드 — 담당자 탭에서만 표시 */}
+            {/* PIN 코드 — 클릭: 복사 / 더블클릭: 직접 수정 */}
             {isMember && (
               <span style={{fontSize:12,fontFamily:"'Courier New',monospace",color:"#64748b",background:"#f1f5f9",padding:"3px 8px",borderRadius:4,flexShrink:0,letterSpacing:"1px",cursor:"pointer",border:"1px solid #e2e8f0",transition:"background .1s"}}
-                title="클릭: 복사 / 더블클릭: 재생성"
+                title="클릭: 복사 / 더블클릭: 수정"
                 onClick={e=>{e.stopPropagation();const p=memberPins[v];if(p){navigator.clipboard.writeText(p);flash(`${v}의 PIN이 복사되었습니다`);}}}
-                onDoubleClick={e=>{e.stopPropagation();if(confirm(`"${v}"의 PIN을 재생성하시겠습니까?`)){setMemberPins((p:any)=>({...p,[v]:generatePin()}));flash(`${v}의 PIN이 재생성되었습니다`);}}}
+                onDoubleClick={e=>{e.stopPropagation();const cur=memberPins[v]||"";const n=prompt(`${v}의 PIN 수정 (6자리 숫자)`,cur);if(n===null)return;const cleaned=n.replace(/\D/g,"").slice(0,6);if(cleaned.length!==6){flash("6자리 숫자를 입력해주세요","err");return;}setMemberPins((p:any)=>({...p,[v]:cleaned}));flash(`${v}의 PIN이 변경되었습니다`);}}
                 onMouseEnter={e=>{(e.currentTarget as HTMLElement).style.background="#e2e8f0";}}
                 onMouseLeave={e=>{(e.currentTarget as HTMLElement).style.background="#f1f5f9";}}>
                 {memberPins[v]||"------"}

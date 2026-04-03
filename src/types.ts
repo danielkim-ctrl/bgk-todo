@@ -115,9 +115,9 @@ export const TEAM_ROLE_LABELS: Record<TeamRole, string> = {
 };
 
 export const TEAM_ROLE_PERMISSIONS: Record<TeamRole, string[]> = {
-  admin:  ["todo.create","todo.edit.all","todo.delete.all","team.view.other","project.manage","member.manage","settings.edit","ai.use"],
-  editor: ["todo.create","todo.edit.own","todo.delete.own","ai.use"],
-  viewer: [],
+  admin:  ["todo.create","todo.edit.own","todo.edit.all","todo.delete.own","todo.delete.all","team.view.other","project.manage","member.manage","settings.edit","ai.use"],
+  editor: ["todo.create","todo.edit.own","todo.edit.all","todo.delete.own","project.manage","member.manage","ai.use"],
+  viewer: ["todo.create","todo.edit.own","todo.delete.own","ai.use"],
 };
 
 /** 권한 항목 목록 + 한글 라벨 — 관리자 권한 설정 UI에서 사용 */
