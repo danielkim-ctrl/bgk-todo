@@ -81,7 +81,7 @@ export function SettingsMgr({
 
   // ── 공통 스타일 토큰 — 모든 탭에서 동일하게 적용 ──────────────────────────
   const tS = (a: boolean): React.CSSProperties => ({
-    padding: "8px 14px", fontSize: 12, fontWeight: a ? 600 : 500,
+    padding: "10px 16px", fontSize: 13, fontWeight: a ? 600 : 500,
     color: a ? "#2563eb" : "#64748b",
     background: a ? "#eff6ff" : "transparent",
     border: "none", borderBottom: a ? "2px solid #2563eb" : "2px solid transparent",
@@ -89,21 +89,21 @@ export function SettingsMgr({
   });
   // 목록 행 공통 스타일
   const ROW: React.CSSProperties = {
-    display: "flex", alignItems: "center", gap: 8,
-    padding: "8px 10px", background: "#fff", borderRadius: 8,
-    border: "1px solid #e2e8f0", fontSize: 12, marginBottom: 4,
+    display: "flex", alignItems: "center", gap: 10,
+    padding: "10px 12px", background: "#fff", borderRadius: 8,
+    border: "1px solid #e2e8f0", fontSize: 13, marginBottom: 4,
     transition: "background .1s",
   };
   // 텍스트 입력 공통 스타일
   const INP: React.CSSProperties = {
-    flex: 1, padding: "7px 10px", border: "1.5px solid #e2e8f0",
-    borderRadius: 8, fontSize: 12, outline: "none", fontFamily: "inherit",
+    flex: 1, padding: "8px 12px", border: "1.5px solid #e2e8f0",
+    borderRadius: 8, fontSize: 13, outline: "none", fontFamily: "inherit",
   };
   // 추가 버튼 공통 스타일
   const BTN_ADD: React.CSSProperties = {
     background: "linear-gradient(135deg,#2563eb,#1d4ed8)", color: "#fff",
-    border: "none", padding: "7px 14px", borderRadius: 8,
-    fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+    border: "none", padding: "8px 16px", borderRadius: 8,
+    fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
   };
   // 색상 피커 공통 스타일
   const COLOR_PICK: React.CSSProperties = {
@@ -112,7 +112,7 @@ export function SettingsMgr({
   };
   // 섹션 라벨 공통 스타일
   const SEC_LABEL: React.CSSProperties = {
-    fontSize: 11, fontWeight: 600, color: "#334155", marginBottom: 6,
+    fontSize: 13, fontWeight: 600, color: "#334155", marginBottom: 8,
   };
   // 아이콘 버튼 hover 핸들러
   const iconHover = (e: React.MouseEvent, enter: boolean) => {
@@ -241,14 +241,14 @@ export function SettingsMgr({
 
   return <div style={{ display:"flex", height: 480, margin: "-16px -18px -0px" }}>
     {/* ── 좌측 메뉴 ── */}
-    <div style={{ width: 160, flexShrink: 0, borderRight: "1px solid #e2e8f0", padding: "12px 0", display: "flex", flexDirection: "column", gap: 2 }}>
+    <div style={{ width: 170, flexShrink: 0, borderRight: "1px solid #e2e8f0", padding: "12px 0", display: "flex", flexDirection: "column", gap: 2 }}>
       {menuItems.filter(m => m.show !== false).map(m => {
         const active = tab === m.key;
         return <button key={m.key} onClick={() => setTab(m.key)}
           style={{
             display: "flex", alignItems: "center", gap: 8,
             padding: "9px 16px", border: "none", cursor: "pointer",
-            fontSize: 12, fontWeight: active ? 600 : 500, fontFamily: "inherit",
+            fontSize: 13, fontWeight: active ? 600 : 500, fontFamily: "inherit",
             color: active ? "#2563eb" : "#475569",
             background: active ? "#eff6ff" : "transparent",
             borderRight: active ? "2px solid #2563eb" : "2px solid transparent",
@@ -281,7 +281,7 @@ export function SettingsMgr({
 
     {/* ── API 키 탭 ── */}
     {tab==="apikey"&&<div>
-      <div style={{fontSize:12,color:"#64748b",marginBottom:10,lineHeight:1.6}}>Anthropic API 키를 입력하세요. 한 번 등록하면 모든 팀원이 사용할 수 있습니다.</div>
+      <div style={{fontSize:13,color:"#64748b",marginBottom:12,lineHeight:1.6}}>Anthropic API 키를 입력하세요. 한 번 등록하면 모든 팀원이 사용할 수 있습니다.</div>
       <div style={{display:"flex",gap:6,marginBottom:8}}>
         <input type="password" value={keyDraft} onChange={e=>setKeyDraft(e.target.value)}
           placeholder="sk-ant-..." style={INP}/>
@@ -310,7 +310,7 @@ export function SettingsMgr({
               const availTeams=teams.filter(t=>!t.projectIds.includes(p.id));
               return <div style={{display:"flex",gap:3,alignItems:"center",flexWrap:"wrap" as const}}>
                 {projTeams.map(t=>(
-                  <span key={t.id} style={{display:"inline-flex",alignItems:"center",gap:2,padding:"1px 6px",background:"#eff6ff",borderRadius:99,fontSize:10,color:"#2563eb",fontWeight:500,border:"1px solid #bfdbfe",whiteSpace:"nowrap" as const}}>
+                  <span key={t.id} style={{display:"inline-flex",alignItems:"center",gap:2,padding:"2px 8px",background:"#eff6ff",borderRadius:99,fontSize:11,color:"#2563eb",fontWeight:500,border:"1px solid #bfdbfe",whiteSpace:"nowrap" as const}}>
                     <span style={{width:6,height:6,borderRadius:"50%",background:t.color,flexShrink:0}}/>
                     {t.name}
                     <span onClick={()=>removeTeamProject(t.id,p.id)} style={{cursor:"pointer",color:"#93c5fd",marginLeft:1,fontSize:12,lineHeight:1}}>×</span>
@@ -353,7 +353,7 @@ export function SettingsMgr({
             : todos.filter((t:any)=>t.st===v).length;
           const isMember = tab === "members";
           const color = isMember ? undefined : tab==="pris" ? (priC[v]||"#94a3b8") : (stC[v]||"#94a3b8");
-          const SEL: React.CSSProperties = {padding:"3px 8px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:10,fontFamily:"inherit"};
+          const SEL: React.CSSProperties = {padding:"4px 8px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:12,fontFamily:"inherit"};
           // 드래그 정렬 — 배열 재정렬 함수
           const reorderItems = (from: number, to: number) => {
             if (tab==="members") setMembers((p:string[])=>{const a=[...p];const[m]=a.splice(from,1);a.splice(to,0,m);return a;});
@@ -390,7 +390,7 @@ export function SettingsMgr({
                 {teams.length > 0 && (
                   <div style={{display:"flex",gap:3,alignItems:"center",flexWrap:"wrap" as const}}>
                     {myTeams.map(t => (
-                      <span key={t.id} style={{display:"inline-flex",alignItems:"center",gap:2,padding:"1px 6px",background:"#eff6ff",borderRadius:99,fontSize:10,color:"#2563eb",fontWeight:500,border:"1px solid #bfdbfe",whiteSpace:"nowrap" as const}}>
+                      <span key={t.id} style={{display:"inline-flex",alignItems:"center",gap:2,padding:"2px 8px",background:"#eff6ff",borderRadius:99,fontSize:11,color:"#2563eb",fontWeight:500,border:"1px solid #bfdbfe",whiteSpace:"nowrap" as const}}>
                         <span style={{width:6,height:6,borderRadius:"50%",background:t.color,flexShrink:0}}/>
                         {t.name}
                         <span onClick={()=>removeTeamMember(t.id,v)} style={{cursor:"pointer",color:"#93c5fd",marginLeft:1,fontSize:12,lineHeight:1}}>×</span>
@@ -409,7 +409,7 @@ export function SettingsMgr({
             })()}
             {/* PIN 코드 — 담당자 탭에서만 표시 */}
             {isMember && (
-              <span style={{fontSize:10,fontFamily:"'Courier New',monospace",color:"#64748b",background:"#f1f5f9",padding:"2px 6px",borderRadius:4,flexShrink:0,letterSpacing:"1px",cursor:"pointer",border:"1px solid #e2e8f0",transition:"background .1s"}}
+              <span style={{fontSize:12,fontFamily:"'Courier New',monospace",color:"#64748b",background:"#f1f5f9",padding:"3px 8px",borderRadius:4,flexShrink:0,letterSpacing:"1px",cursor:"pointer",border:"1px solid #e2e8f0",transition:"background .1s"}}
                 title="클릭: 복사 / 더블클릭: 재생성"
                 onClick={e=>{e.stopPropagation();const p=memberPins[v];if(p){navigator.clipboard.writeText(p);flash(`${v}의 PIN이 복사되었습니다`);}}}
                 onDoubleClick={e=>{e.stopPropagation();if(confirm(`"${v}"의 PIN을 재생성하시겠습니까?`)){setMemberPins((p:any)=>({...p,[v]:generatePin()}));flash(`${v}의 PIN이 재생성되었습니다`);}}}
@@ -418,7 +418,7 @@ export function SettingsMgr({
                 {memberPins[v]||"------"}
               </span>
             )}
-            <span style={{fontSize:10,color:"#94a3b8",flexShrink:0}}>{cnt}건</span>
+            <span style={{fontSize:12,color:"#94a3b8",flexShrink:0}}>{cnt}건</span>
             <button onClick={()=>edit(v)} style={ICON_BTN} onMouseEnter={e=>iconHover(e,true)} onMouseLeave={e=>iconHover(e,false)}><PencilSquareIcon style={ICON_SM}/></button>
             <button onClick={()=>tryDel(v)} style={ICON_BTN} onMouseEnter={e=>iconHover(e,true)} onMouseLeave={e=>iconHover(e,false)}><TrashIcon style={ICON_SM}/></button>
           </div>;
