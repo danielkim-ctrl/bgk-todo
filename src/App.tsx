@@ -394,7 +394,7 @@ export default function App() {
 
   if (!currentUser) return (
     <PermissionProvider currentUser={null}>
-      <LoginScreen members={members} memberPins={memberPins} onLogin={name => setCurrentUser(name)}/>
+      <LoginScreen members={members} memberPins={memberPins} teams={teams} onLogin={name => setCurrentUser(name)}/>
     </PermissionProvider>
   );
 
