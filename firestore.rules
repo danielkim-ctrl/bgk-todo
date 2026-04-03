@@ -2,32 +2,30 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ── 사용자 개인 설정 (uid 기반) ──────────────────────────────────────────
+    // ── 사용자 개인 설정 ────────────────────────────────────────────────────
     match /users/{uid} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
     }
 
     // ── 팀 전체 공유 todo 데이터 ─────────────────────────────────────────────
-    // 현재는 인증된 사용자에게 읽기/쓰기 모두 허용
-    // Phase 2에서 팀별 문서 분리 후 팀 멤버만 쓰기 가능하도록 제한 예정
+    // 읽기: 인증된 모든 사용자
+    // 쓰기: 인증된 사용자 — 팀 역할(admin/editor) 기반 제한은 클라이언트에서 처리
+    //       Firestore에서는 인증 여부만 확인 (팀 멤버십은 문서 내 teams 배열에서 판단)
     match /todos_db/{document} {
-      // 읽기: 인증된 모든 사용자 (전사 공개 기본값)
       allow read: if request.auth != null;
-      // 쓰기: 인증된 사용자 (Phase 2에서 팀 역할 기반으로 제한)
-      allow write: if request.auth != null;
+      // 쓰기 시 인증 필수 + 데이터 무결성 검증
+      allow write: if request.auth != null
+        // 삭제가 아닌 경우 필수 필드 존재 확인 (최소한의 무결성)
+        && (request.resource == null || request.resource.data.keys().hasAny(['todos', '_updatedAt']));
     }
 
-    // ── 팀별 독립 문서 (Phase 2 확장용) ──────────────────────────────────────
-    // 팀이 별도 Firestore 문서로 분리될 때 사용
-    // teams/{teamId}/data 형태로 팀별 todo를 격리
+    // ── 팀별 독립 문서 (Phase 2+ 확장용) ──────────────────────────────────────
     match /teams/{teamId}/{document=**} {
-      // 읽기: 팀 visibility가 "company"면 전체, "private"면 팀 멤버만
       allow read: if request.auth != null;
-      // 쓰기: 인증된 사용자 (Phase 3에서 역할별 제한 추가)
       allow write: if request.auth != null;
     }
 
-    // ── 프로젝트 (레거시 호환) ────────────────────────────────────────────────
+    // ── 프로젝트 ────────────────────────────────────────────────────────────
     match /projects/{projectId} {
       allow read, write: if request.auth != null;
     }

@@ -165,6 +165,8 @@ export function useTodoApp() {
   // 팀 목록 — 조직도 단위, Firebase에 저장
   const [teams, setTeams] = useState<Team[]>([]);
   const [teamNId, setTeamNId] = useState(1); // 팀 ID 자동 증가용
+  // 현재 선택된 팀 (null = 전체 보기)
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
 
   const [view, setView] = useState("list");
   const [toast, setToast] = useState<{ m: string; t: string; action?: { label: string; fn: () => void } }>({ m: "", t: "" });
@@ -475,7 +477,8 @@ export function useTodoApp() {
       who: currentUser || "시스템",
       action: "create",
     };
-    const newTodo = { ...t, id, cre: td(), done: t.st === "완료" ? td() : null, repeat: t.repeat || "없음", logs: [createLog] };
+    // 업무 생성 시 현재 선택된 팀의 teamId를 자동 배정
+    const newTodo = { ...t, id, cre: td(), done: t.st === "완료" ? td() : null, repeat: t.repeat || "없음", teamId: t.teamId || selectedTeamId || undefined, logs: [createLog] };
     setTodosWithHistory((p: Todo[]) => [...p, newTodo]);
     return id;
   };
@@ -542,7 +545,15 @@ export function useTodoApp() {
     });
   };
 
-  const filtered = useMemo(() => todos.filter(t => {
+  // 팀 필터 적용된 todo 목록 — 모든 뷰(리스트/캘린더/칸반/대시보드)에서 표시용으로 사용
+  // selectedTeamId가 null이면 전체 보기, 아니면 해당 팀 + 전사 공개(teamId 없는) todo만 표시
+  const viewTodos = useMemo(() => {
+    if (!selectedTeamId) return todos;
+    return todos.filter(t => !t.teamId || t.teamId === selectedTeamId);
+  }, [todos, selectedTeamId]);
+
+  // viewTodos(팀 필터 적용 후)를 기반으로 검색/필터 적용
+  const filtered = useMemo(() => viewTodos.filter(t => {
     const q = search.toLowerCase();
     return (!q || t.task.toLowerCase().includes(q) || t.who.toLowerCase().includes(q) || gPr(t.pid).name.toLowerCase().includes(q))
       && (filters.proj.length === 0 || filters.proj.some(v => v === "__none__" ? gPr(t.pid).id === 0 : String(t.pid) === v))
@@ -551,7 +562,7 @@ export function useTodoApp() {
       && (filters.who.length === 0 || filters.who.some(v => v === "__none__" ? !t.who : t.who === v))
       && (filters.repeat.length === 0 || filters.repeat.includes(t.repeat))
       && (!filters.fav || isFav(t.id));
-  }), [todos, search, filters, projects, currentUser, userFavs]);
+  }), [viewTodos, search, filters, projects, currentUser, userFavs]);
 
   const toggleSort = (col: string) => {
     if (sortCol === col) { if (sortDir === "asc") { setSortDir("desc") } else { setSortCol(null); setSortDir("asc") } }
@@ -695,8 +706,8 @@ export function useTodoApp() {
     setTeams(p => p.map(t => t.id === teamId ? { ...t, projectIds: t.projectIds.filter(id => id !== pid) } : t));
   };
 
-  // ── useCalendar: 캘린더 상태·로직 분리 ────────────────────────────────────
-  const cal = useCalendar({ todos });
+  // ── useCalendar: 캘린더 상태·로직 분리 — 팀 필터 적용된 todos 전달 ──────
+  const cal = useCalendar({ todos: viewTodos });
 
   const saveMod = (f: any) => {
     if (!f.task || !f.who) { alert("업무내용과 담당자는 필수 항목입니다."); return; }
@@ -734,12 +745,13 @@ export function useTodoApp() {
 
   return {
     // state
-    projects, setProjects: setProjectsGuarded, todos, setTodos: setTodosWithHistory, nId, setNId, pNId, setPNId, loaded,
+    projects, setProjects: setProjectsGuarded, todos: viewTodos, allTodos: todos, setTodos: setTodosWithHistory, nId, setNId, pNId, setPNId, loaded,
     members, setMembers: setMembersGuarded, pris, setPris: setPrisGuarded, stats, setStats: setStatsGuarded,
     priC, setPriC: setPriCGuarded, priBg, setPriBg: setPriBgGuarded, stC, setStC: setStCGuarded, stBg, setStBg: setStBgGuarded,
     memberColors, setMemberColors: setMemberColorsGuarded,
     // 팀
     teams, setTeams, teamNId,
+    selectedTeamId, setSelectedTeamId,
     addTeam, updTeam, delTeam,
     addTeamMember, removeTeamMember, setTeamMemberRole,
     addTeamProject, removeTeamProject,

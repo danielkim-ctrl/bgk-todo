@@ -4,7 +4,7 @@ import { useIsMobile } from "./hooks/useMediaQuery";
 import { PermissionProvider } from "./auth/PermissionContext";
 import { S } from "./styles";
 import { REPEAT_OPTS, INIT_ST } from "./constants";
-import { ActivityLog } from "./types";
+import { ActivityLog, TEAM_ROLE_PERMISSIONS, TeamRole } from "./types";
 import { FolderIcon, Cog6ToothIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, TrashIcon, KeyboardIcon, ChartBarIcon, ListBulletIcon, CalendarIcon, ViewColumnsIcon, ArrowPathIcon, UserIcon, BoltIcon, CheckCircleIcon, DocumentTextIcon, StarIcon as StarSolidIcon, StarOutlineIcon, PlusIcon, ClipboardDocumentIcon, CheckIcon, PencilSquareIcon, XMarkIcon, Bars3Icon, ICON_SM } from "./components/ui/Icons";
 import { BottomTabBar } from "./components/ui/BottomTabBar";
 import { SidebarDrawer } from "./components/sidebar/SidebarDrawer";
@@ -24,6 +24,7 @@ import { Dashboard } from "./components/dashboard/Dashboard";
 import { SettingsMgr } from "./components/settings/SettingsMgr";
 
 import { LoginScreen } from "./components/auth/LoginScreen";
+import { usePermission } from "./auth/PermissionContext";
 import { KanbanView } from "./views/KanbanView";
 import { ListView } from "./views/ListView";
 import { CalendarView } from "./views/CalendarView";
@@ -36,7 +37,8 @@ export default function App() {
     members, setMembers, pris, setPris, stats, setStats,
     priC, setPriC, priBg, setPriBg, stC, setStC, stBg, setStBg,
     memberColors, setMemberColors,
-    teams, setTeams, addTeam, updTeam, delTeam,
+    teams, setTeams, selectedTeamId, setSelectedTeamId,
+    addTeam, updTeam, delTeam,
     addTeamMember, removeTeamMember, setTeamMemberRole,
     addTeamProject, removeTeamProject,
     view, setView, toast, filters, setFilters, favSidebar, togFavSidebar,
@@ -121,6 +123,14 @@ export default function App() {
   // ── 단축키 도움말 / 휴지통 모달 상태 ────────────────────────────
   const [showShortcuts, setShowShortcuts] = useState(false); // 단축키 도움말 팝업 열림 여부
   const [showTrash, setShowTrash] = useState(false);         // 휴지통 팝업 열림 여부
+
+  // ── 역할별 권한 헬퍼 ──────────────────────────────────────────────────
+  // 현재 사용자의 팀 내 역할을 기반으로 can() 함수 제공
+  // 팀 미소속 시 admin (기존 동작 유지)
+  const myTeam = teams.find(t => t.members.some(m => m.name === currentUser));
+  const myRole: TeamRole = myTeam?.members.find(m => m.name === currentUser)?.role ?? "admin";
+  const can = (perm: string) => TEAM_ROLE_PERMISSIONS[myRole].includes(perm);
+  const isOwner = (who: string) => who === currentUser;
 
   // ── 캘린더 팝오버 / 빠른 추가 상태 ──────────────────────────────
   const [calEvPop, setCalEvPop] = useState<{todo:any,x:number,y:number}|null>(null);
@@ -381,9 +391,29 @@ export default function App() {
             <img src={`${import.meta.env.BASE_URL}bgk_logo_white.png`} alt="Bridging Group" onClick={()=>window.location.reload()} style={{height:32,width:"auto",display:"block",flexShrink:0,cursor:"pointer"}}/>
             <div style={{width:1,height:20,background:"rgba(255,255,255,.3)"}}/>
             <div style={{fontSize:14,fontWeight:700,letterSpacing:"0.01em"}}>팀 TODO 통합관리</div>
+            {/* 팀 전환 드롭다운 — 선택된 팀 기준으로 모든 뷰 필터링 */}
+            {teams.length>0&&<>
+              <div style={{width:1,height:20,background:"rgba(255,255,255,.15)"}}/>
+              <select
+                value={selectedTeamId||""}
+                onChange={e=>setSelectedTeamId(e.target.value||null)}
+                style={{
+                  padding:"4px 24px 4px 10px",borderRadius:6,
+                  border:"1px solid rgba(255,255,255,.25)",
+                  background:"rgba(255,255,255,.1)",
+                  color:"#fff",fontSize:12,fontWeight:600,
+                  fontFamily:"inherit",cursor:"pointer",
+                  appearance:"none" as const,
+                  backgroundImage:"url(\"data:image/svg+xml,%3Csvg viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='white' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E\")",
+                  backgroundRepeat:"no-repeat",backgroundPosition:"right 8px center",backgroundSize:"8px",
+                }}>
+                <option value="" style={{color:"#334155"}}>전체 보기</option>
+                {teams.map(t=><option key={t.id} value={t.id} style={{color:"#334155"}}>{t.name}</option>)}
+              </select>
+            </>}
           </div>
           <div style={{display:"flex",alignItems:"center",gap:6}}>
-            <button style={S.hBtn} onClick={()=>setSettMod(true)}><Cog6ToothIcon style={ICON_SM}/> 설정</button>
+            {can("settings.edit")&&<button style={S.hBtn} onClick={()=>setSettMod(true)}><Cog6ToothIcon style={ICON_SM}/> 설정</button>}
             {deletedLog.length>0&&<button style={{...S.hBtn,position:"relative" as const}} onClick={()=>setShowTrash(true)} title="삭제된 업무 복원">
               <TrashIcon style={ICON_SM}/> 휴지통
               <span style={{position:"absolute" as const,top:-4,right:-4,background:"#ef4444",color:"#fff",borderRadius:99,fontSize:10,fontWeight:800,padding:"1px 5px",lineHeight:1.4}}>{deletedLog.length}</span>
@@ -615,14 +645,22 @@ export default function App() {
             onAddComment={(text)=>{const entry:ActivityLog={id:`${Date.now()}-${Math.random().toString(36).slice(2,7)}`,at:new Date().toISOString(),who:currentUser||"시스템",action:"comment",comment:text};const next=[...(editMod.logs||[]),entry];updTodo(parseInt(editMod.id),{logs:next});setEditMod((f:any)=>({...f,logs:next}));}}
           />
           <div style={{display:"flex",gap:8,marginTop:16,paddingTop:12,borderTop:"1px solid #e2e8f0"}}>
-            {editMod?.id&&<button style={{...S.bd,marginRight:"auto"}} onClick={()=>{if(confirm(`"${editMod.task}" 업무를 삭제하시겠습니까?`)){const id=parseInt(editMod.id);setEditMod(null);delTodo(id)}}}><TrashIcon style={ICON_SM}/> 삭제</button>}
+            {/* 삭제: admin이거나 본인 업무+delete.own 권한 */}
+            {editMod?.id&&(can("todo.delete.all")||(isOwner(editMod.who)&&can("todo.delete.own")))&&<button style={{...S.bd,marginRight:"auto"}} onClick={()=>{if(confirm(`"${editMod.task}" 업무를 삭제하시겠습니까?`)){const id=parseInt(editMod.id);setEditMod(null);delTodo(id)}}}><TrashIcon style={ICON_SM}/> 삭제</button>}
             <button style={S.bs} onClick={()=>setEditMod(null)}>취소</button>
-            <button style={S.bp} onClick={()=>saveMod(editMod)}>저장</button>
+            {/* 저장: 새 업무는 create 권한, 수정은 edit.all 또는 본인+edit.own */}
+            {(editMod?.id?(can("todo.edit.all")||(isOwner(editMod.who)&&can("todo.edit.own"))):can("todo.create"))
+              ?<button style={S.bp} onClick={()=>saveMod(editMod)}>저장</button>
+              :<button style={{...S.bp,opacity:.4,cursor:"default"}} disabled title="수정 권한이 없습니다">저장</button>}
           </div>
         </>}
       </BottomSheet>
     ) : (
-      <Modal open={!!editMod} onClose={()=>setEditMod(null)} title={editMod?.id?"업무 수정":"새 업무"} footer={<>{editMod?.id&&<button style={{...S.bd,marginRight:"auto"}} onClick={()=>{if(confirm(`"${editMod.task}" 업무를 삭제하시겠습니까?`)){const id=parseInt(editMod.id);setEditMod(null);delTodo(id)}}}><TrashIcon style={ICON_SM}/> 삭제</button>}<button style={S.bs} onClick={()=>setEditMod(null)}>취소</button><button style={S.bp} onClick={()=>saveMod(editMod)}>저장</button></>}>
+      <Modal open={!!editMod} onClose={()=>setEditMod(null)} title={editMod?.id?"업무 수정":"새 업무"} footer={<>
+        {editMod?.id&&(can("todo.delete.all")||(isOwner(editMod.who)&&can("todo.delete.own")))&&<button style={{...S.bd,marginRight:"auto"}} onClick={()=>{if(confirm(`"${editMod.task}" 업무를 삭제하시겠습니까?`)){const id=parseInt(editMod.id);setEditMod(null);delTodo(id)}}}><TrashIcon style={ICON_SM}/> 삭제</button>}
+        <button style={S.bs} onClick={()=>setEditMod(null)}>취소</button>
+        {(editMod?.id?(can("todo.edit.all")||(isOwner(editMod?.who)&&can("todo.edit.own"))):can("todo.create"))?<button style={S.bp} onClick={()=>saveMod(editMod)}>저장</button>:<button style={{...S.bp,opacity:.4,cursor:"default"}} disabled title="수정 권한이 없습니다">저장</button>}
+      </>}>
         {editMod&&<EditForm f={editMod} onChange={setEditMod} proj={visibleProj} members={visibleMembers} pris={pris} stats={stats}
           currentUser={currentUser} gPr={gPr}
           onAddComment={(text)=>{
