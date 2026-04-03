@@ -372,6 +372,8 @@ export function useTodoApp() {
   const skipFirst = useRef(false);
   useEffect(() => {
     if (!loaded) return;
+    // Firestore 첫 동기화 완료 전에는 저장 차단 — localStorage 구버전 데이터로 Firestore 덮어쓰기 방지
+    if (!fsBootstrapped.current) return;
     if (!skipFirst.current) { skipFirst.current = true; return; }
     if (fromSnapshot.current) { fromSnapshot.current = false; return; }
     const t = setTimeout(() => {
