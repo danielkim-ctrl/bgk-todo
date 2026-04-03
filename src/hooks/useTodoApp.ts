@@ -826,8 +826,22 @@ export function useTodoApp() {
 
   const addChip = () => {
     if (!chipVal.trim()) return; const v = chipVal.trim();
-    if (chipAdd === "proj") { if (projects.some(p => p.name === v)) { flash(`프로젝트 "${v}"은(는) 이미 존재합니다`, "err"); return; } setProjectsGuarded((p: Project[]) => [...p, { id: pNId, name: v, color: chipColor, status: "활성" }]); setPNId(pNId + 1); flash(`프로젝트 "${v}"이(가) 추가되었습니다`); }
-    else if (chipAdd === "who") { if (members.includes(v)) { flash(`담당자 "${v}"은(는) 이미 존재합니다`, "err"); return; } setMembersGuarded((p: string[]) => [...p, v]); flash(`담당자 "${v}"이(가) 추가되었습니다`); }
+    if (chipAdd === "proj") {
+      if (projects.some(p => p.name === v)) { flash(`프로젝트 "${v}"은(는) 이미 존재합니다`, "err"); return; }
+      const newPid = pNId;
+      setProjectsGuarded((p: Project[]) => [...p, { id: newPid, name: v, color: chipColor, status: "활성" }]); setPNId(pNId + 1);
+      // 현재 선택된 팀에 프로젝트 자동 연결
+      if (selectedTeamId) addTeamProject(selectedTeamId, newPid);
+      flash(`프로젝트 "${v}"이(가) 추가되었습니다`);
+    }
+    else if (chipAdd === "who") {
+      if (members.includes(v)) { flash(`담당자 "${v}"은(는) 이미 존재합니다`, "err"); return; }
+      setMembersGuarded((p: string[]) => [...p, v]);
+      // 현재 선택된 팀에 담당자 자동 배정 + PIN 생성
+      if (selectedTeamId) addTeamMember(selectedTeamId, v, "editor");
+      setMemberPins(p => ({ ...p, [v]: generatePin() }));
+      flash(`담당자 "${v}"이(가) 추가되었습니다`);
+    }
     else if (chipAdd === "pri") { if (!pris.includes(v)) { setPrisGuarded((p: string[]) => [...p, v]); setPriCGuarded((p: any) => ({ ...p, [v]: chipColor })); setPriBgGuarded((p: any) => ({ ...p, [v]: chipColor + "18" })); } flash(`우선순위 "${v}"이(가) 추가되었습니다`); }
     else if (chipAdd === "st") { if (!stats.includes(v)) { setStatsGuarded((p: string[]) => [...p, v]); setStCGuarded((p: any) => ({ ...p, [v]: chipColor })); setStBgGuarded((p: any) => ({ ...p, [v]: chipColor + "18" })); } flash(`상태 "${v}"이(가) 추가되었습니다`); }
     setChipVal(""); setChipAdd(null);
