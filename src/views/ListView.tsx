@@ -48,7 +48,6 @@ function HoverPopup({hoverRow,hoverRowRect,setHoverRow,setHoverRowRect,sorted,tb
       const tblRight = tblRect ? tblRect.right / zoom : window.innerWidth / zoom;
       const tblTop = tblRect ? tblRect.top / zoom : 0;
       const tblBottom = tblRect ? tblRect.bottom / zoom : window.innerHeight / zoom;
-      const inTable = mx >= tblLeft && mx <= tblRight && my >= tblTop && my <= tblBottom;
 
       // 팝업 영역 확인
       const popRect = popupRef.current?.getBoundingClientRect();
@@ -56,6 +55,11 @@ function HoverPopup({hoverRow,hoverRowRect,setHoverRow,setHoverRowRect,sorted,tb
         ? mx >= popRect.left / zoom && mx <= popRect.right / zoom
           && my >= popRect.top / zoom && my <= popRect.bottom / zoom
         : false;
+
+      // 팝업이 테이블 우측 6px 간격에 붙어 있어, 마우스가 간격을 통과하는 순간 감지 누락 발생
+      // → tblRight를 팝업 좌측(또는 고정 여유값)까지 연장해 간격을 커버
+      const rightBound = popRect ? popRect.right / zoom : tblRight + 16;
+      const inTable = mx >= tblLeft && mx <= rightBound && my >= tblTop && my <= tblBottom;
 
       // 테이블에도 팝업에도 없으면 숨김
       if (!inTable && !inPopup) {
@@ -887,10 +891,11 @@ export function ListView(props: ListViewProps) {
                       </span>}
                 </td>
                 <CellEdit todo={t} field="who" tdStyle={priCellStyle}><div style={{display:"flex",alignItems:"center",gap:6,...(expandMode?{alignSelf:"flex-start" as const}:{})}}><span style={{width:26,height:26,borderRadius:"50%",background:`linear-gradient(135deg,${avColor(t.who)},${avColor2(t.who)})`,color:"#fff",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,flexShrink:0,letterSpacing:"-0.5px",boxShadow:"0 1px 3px rgba(0,0,0,.15)"}} title={t.who}>{avInitials(t.who)}</span><span style={{fontSize:13}}>{t.who}</span></div></CellEdit>
-                <CellEdit todo={t} field="due" tdStyle={priCellStyle}>{(()=>{const[dpart,tpart]=(t.due||"").split(" ");const fmt12v=(v: string)=>{if(!v)return "";const[hh,mm]=v.split(":").map(Number);const ap=hh<12?"오전":"오후";const h12=hh===0?12:hh>12?hh-12:hh;return `${ap} ${h12}:${fmt2(mm)}`;};const dd=dDay(t.due,t.st);return <div style={{display:"flex",flexDirection:"column" as const,alignItems:"center",gap:2}}>
-                  <span style={{fontSize:13,color:od?"#dc2626":"#64748b"}}>{dpart?`${dpart}(${fDow(dpart)})`:"—"}</span>
-                  {tpart&&<span style={{fontSize:13,color:od?"#dc2626":"#94a3b8",fontWeight:400}}>{fmt12v(tpart)}</span>}
-                  {dd&&<span style={{fontSize:10,fontWeight:700,color:dd.color,background:dd.bg,border:`1px solid ${dd.border}`,padding:"1px 6px",borderRadius:4,letterSpacing:"0.02em"}}>{dd.label}</span>}
+                {/* 마감기한 셀 — 날짜+D-day 뱃지 세로 배치 시 행 높이 증가 방지
+                    padding을 10px→3px로 줄이고 뱃지 lineHeight 압축해 표준 행 높이 유지 */}
+                <CellEdit todo={t} field="due" tdStyle={{...priCellStyle,padding:"3px 12px",verticalAlign:"middle" as const}}>{(()=>{const[dpart,tpart]=(t.due||"").split(" ");const fmt12v=(v: string)=>{if(!v)return "";const[hh,mm]=v.split(":").map(Number);const ap=hh<12?"오전":"오후";const h12=hh===0?12:hh>12?hh-12:hh;return `${ap} ${h12}:${fmt2(mm)}`;};const dd=dDay(t.due,t.st);return <div style={{display:"flex",flexDirection:"column" as const,alignItems:"center",gap:1}}>
+                  <span style={{fontSize:13,lineHeight:"17px",color:od?"#dc2626":"#64748b",whiteSpace:"nowrap" as const}}>{dpart?`${dpart}(${fDow(dpart)})`:"—"}{tpart?` ${fmt12v(tpart)}`:""}</span>
+                  {dd&&<span style={{fontSize:10,fontWeight:700,color:dd.color,background:dd.bg,border:`1px solid ${dd.border}`,padding:"0 5px",borderRadius:4,lineHeight:"13px",letterSpacing:"0.02em",flexShrink:0}}>{dd.label}</span>}
                 </div>;})()}</CellEdit>
                 {!expandMode&&<>
                   <CellEdit todo={t} field="pri" tdStyle={priCellStyle}><span style={{...S.badge(priBg[t.pri],priC[t.pri],`1px solid ${priC[t.pri]}55`),display:"inline-flex",alignItems:"center",gap:3,cursor:"pointer",transition:"filter .12s"}} onMouseEnter={e=>(e.currentTarget as HTMLElement).style.filter="brightness(.93)"} onMouseLeave={e=>(e.currentTarget as HTMLElement).style.filter="none"}><span>●</span>{t.pri}<span style={{fontSize:8,opacity:.5}}>▾</span></span></CellEdit>

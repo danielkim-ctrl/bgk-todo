@@ -49,8 +49,12 @@ export function DropPanel({items,current,onSelect,onClose,renderItem=null,alignR
   useEffect(()=>{ if(pos) panelRef.current?.focus(); }, [pos]);
 
   // 스크롤 발생 시 팝업 닫기 — position:fixed 팝업이 트리거 요소와 분리되는 것을 방지
+  // 단, 패널 내부 스크롤(목록 자체 스크롤)은 닫기 제외
   useEffect(()=>{
-    const onScroll=()=>onClose();
+    const onScroll=(e: Event)=>{
+      if(panelRef.current?.contains(e.target as Node))return;
+      onClose();
+    };
     window.addEventListener("scroll",onScroll,true);
     return()=>window.removeEventListener("scroll",onScroll,true);
   },[onClose]);

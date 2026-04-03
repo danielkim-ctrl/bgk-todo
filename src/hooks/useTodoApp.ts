@@ -6,7 +6,7 @@ import {
   initTodos, initProj
 } from "../constants";
 import { td, gP, stripHtml, isOD } from "../utils";
-import { Filters, NewRow, AiParsed, DatePopState, NotePopupState, Project, Todo, DeletedTodo, SavedFilter } from "../types";
+import { Filters, NewRow, AiParsed, DatePopState, NotePopupState, Project, Todo, DeletedTodo, SavedFilter, ActivityLog } from "../types";
 import { useAI } from "./useAI";
 import { useCalendar } from "./useCalendar";
 import { useUserSettings } from "./useUserSettings";
@@ -407,17 +407,69 @@ export function useTodoApp() {
     undo, // AI 등록 후 "실행 취소" 토스트 버튼에서 사용
   });
 
+  // 활동 로그 ID 생성 — 타임스탬프+랜덤으로 충돌 방지
+  const mkLogId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+  // repeat 값(문자열 or 객체)을 표시용 문자열로 변환
+  const fmtRepeat = (v: any): string => {
+    if (!v || v === "없음") return "없음";
+    if (typeof v === "string") return v;
+    if (v.interval === 1) return `매${v.unit}`;
+    return `${v.interval}${v.unit}마다`;
+  };
+
   const updTodo = (id: number, u: any) => setTodosWithHistory((p: Todo[]) => p.map(t => {
     if (t.id !== id) return t;
     const n: any = { ...t, ...u };
     if (u.st === "완료" && t.st !== "완료") n.done = td();
     else if (u.st && u.st !== "완료") n.done = null;
+
+    // 변경된 필드를 로그로 기록 — det(상세내용)는 HTML이라 제외
+    const LABELS: Record<string, string> = {
+      task: "업무내용", who: "담당자", due: "마감기한",
+      pri: "우선순위", st: "상태", pid: "프로젝트", repeat: "반복",
+    };
+    const changes = Object.entries(u)
+      .filter(([k]) => LABELS[k])
+      .filter(([k, v]) => {
+        const old = String((t as any)[k] || "");
+        const nw = k === "repeat" ? fmtRepeat(v) : String(v || "");
+        return old !== nw;
+      })
+      .map(([k, v]) => ({
+        field: LABELS[k],
+        from: k === "repeat" ? fmtRepeat((t as any)[k]) : String((t as any)[k] || ""),
+        to: k === "repeat" ? fmtRepeat(v) : String(v || ""),
+      }));
+
+    if (changes.length > 0) {
+      const isComplete = u.st === "완료" && t.st !== "완료";
+      const isReopen = u.st && u.st !== "완료" && t.st === "완료";
+      const entry: ActivityLog = {
+        id: mkLogId(),
+        at: new Date().toISOString(),
+        who: currentUser || "시스템",
+        action: isComplete ? "complete" : isReopen ? "reopen" : "update",
+        changes,
+      };
+      n.logs = [...(t.logs || []), entry];
+    } else if (u.logs) {
+      // 메모 저장 등 logs 직접 업데이트 — 위 변경 감지에서 제외했으므로 그대로 반영
+      n.logs = u.logs;
+    }
     return n;
   }));
 
   const addTodo = (t: any) => {
     const id = nIdRef.current++; setNId(nIdRef.current);
-    const newTodo = { ...t, id, cre: td(), done: t.st === "완료" ? td() : null, repeat: t.repeat || "없음" };
+    // 업무 등록 시 생성 로그 자동 기록
+    const createLog: ActivityLog = {
+      id: mkLogId(),
+      at: new Date().toISOString(),
+      who: currentUser || "시스템",
+      action: "create",
+    };
+    const newTodo = { ...t, id, cre: td(), done: t.st === "완료" ? td() : null, repeat: t.repeat || "없음", logs: [createLog] };
     setTodosWithHistory((p: Todo[]) => [...p, newTodo]);
     return id;
   };

@@ -5,6 +5,16 @@ export interface Project {
   status: string;
 }
 
+// 활동 로그 엔트리 — todo의 생성/수정/완료/메모 이력을 기록
+export interface ActivityLog {
+  id: string;        // 고유 ID (타임스탬프+랜덤)
+  at: string;        // ISO 타임스탬프
+  who: string;       // 작성자 이름
+  action: "create" | "update" | "complete" | "reopen" | "comment";
+  changes?: { field: string; from: string; to: string }[]; // 변경된 필드 목록
+  comment?: string;  // 메모 본문
+}
+
 export interface Todo {
   id: number;
   pid: number;
@@ -19,6 +29,7 @@ export interface Todo {
   repeat: string;
   noteColor?: number;
   memoOrder?: number;
+  logs?: ActivityLog[];  // 활동 로그 기록
   _instance?: boolean;
   _originDue?: string;
 }

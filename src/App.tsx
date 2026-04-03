@@ -4,6 +4,7 @@ import { useIsMobile } from "./hooks/useMediaQuery";
 import { PermissionProvider } from "./auth/PermissionContext";
 import { S } from "./styles";
 import { REPEAT_OPTS, INIT_ST } from "./constants";
+import { ActivityLog } from "./types";
 import { FolderIcon, Cog6ToothIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, TrashIcon, KeyboardIcon, ChartBarIcon, ListBulletIcon, CalendarIcon, ViewColumnsIcon, ArrowPathIcon, UserIcon, BoltIcon, CheckCircleIcon, DocumentTextIcon, StarIcon as StarSolidIcon, StarOutlineIcon, PlusIcon, ClipboardDocumentIcon, CheckIcon, PencilSquareIcon, XMarkIcon, Bars3Icon, ICON_SM } from "./components/ui/Icons";
 import { BottomTabBar } from "./components/ui/BottomTabBar";
 import { SidebarDrawer } from "./components/sidebar/SidebarDrawer";
@@ -606,7 +607,10 @@ export default function App() {
     {isMobile ? (
       <BottomSheet open={!!editMod} onClose={()=>setEditMod(null)} title={editMod?.id?"업무 수정":"새 업무"} fullHeight>
         {editMod&&<>
-          <EditForm f={editMod} onChange={setEditMod} proj={visibleProj} members={visibleMembers} pris={pris} stats={stats}/>
+          <EditForm f={editMod} onChange={setEditMod} proj={visibleProj} members={visibleMembers} pris={pris} stats={stats}
+            currentUser={currentUser} gPr={gPr}
+            onAddComment={(text)=>{const entry:ActivityLog={id:`${Date.now()}-${Math.random().toString(36).slice(2,7)}`,at:new Date().toISOString(),who:currentUser||"시스템",action:"comment",comment:text};const next=[...(editMod.logs||[]),entry];updTodo(parseInt(editMod.id),{logs:next});setEditMod((f:any)=>({...f,logs:next}));}}
+          />
           <div style={{display:"flex",gap:8,marginTop:16,paddingTop:12,borderTop:"1px solid #e2e8f0"}}>
             {editMod?.id&&<button style={{...S.bd,marginRight:"auto"}} onClick={()=>{if(confirm(`"${editMod.task}" 업무를 삭제하시겠습니까?`)){const id=parseInt(editMod.id);setEditMod(null);delTodo(id)}}}><TrashIcon style={ICON_SM}/> 삭제</button>}
             <button style={S.bs} onClick={()=>setEditMod(null)}>취소</button>
@@ -616,7 +620,16 @@ export default function App() {
       </BottomSheet>
     ) : (
       <Modal open={!!editMod} onClose={()=>setEditMod(null)} title={editMod?.id?"업무 수정":"새 업무"} footer={<>{editMod?.id&&<button style={{...S.bd,marginRight:"auto"}} onClick={()=>{if(confirm(`"${editMod.task}" 업무를 삭제하시겠습니까?`)){const id=parseInt(editMod.id);setEditMod(null);delTodo(id)}}}><TrashIcon style={ICON_SM}/> 삭제</button>}<button style={S.bs} onClick={()=>setEditMod(null)}>취소</button><button style={S.bp} onClick={()=>saveMod(editMod)}>저장</button></>}>
-        {editMod&&<EditForm f={editMod} onChange={setEditMod} proj={visibleProj} members={visibleMembers} pris={pris} stats={stats}/>}
+        {editMod&&<EditForm f={editMod} onChange={setEditMod} proj={visibleProj} members={visibleMembers} pris={pris} stats={stats}
+          currentUser={currentUser} gPr={gPr}
+          onAddComment={(text)=>{
+            // 메모 저장 — 로그 배열에 추가 후 Firebase 동기화
+            const entry:ActivityLog={id:`${Date.now()}-${Math.random().toString(36).slice(2,7)}`,at:new Date().toISOString(),who:currentUser||"시스템",action:"comment",comment:text};
+            const next=[...(editMod.logs||[]),entry];
+            updTodo(parseInt(editMod.id),{logs:next});
+            setEditMod((f:any)=>({...f,logs:next}));
+          }}
+        />}
       </Modal>
     )}
 
