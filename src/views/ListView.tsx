@@ -809,12 +809,7 @@ export function ListView(props: ListViewProps) {
               style={{padding:"9px 22px",borderRadius:8,border:"none",background:"#2563eb",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>
               필터 초기화
             </button>
-          // 필터 없을 때: 업무 추가 직접 입력 탭으로 이동
-          : <button
-              onClick={()=>setAddTab("manual")}
-              style={{padding:"9px 22px",borderRadius:8,border:"none",background:"#2563eb",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>
-              + 첫 업무 추가하기
-            </button>
+          : null
         }
       </div>;
     })()}
