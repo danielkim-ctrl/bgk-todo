@@ -2,8 +2,8 @@ import { useState } from "react";
 import { S } from "../../styles";
 import { avColor, avColor2, avInitials } from "../../utils/avatarUtils";
 import { PROJ_PALETTE } from "../../constants";
-import { Project } from "../../types";
-import { UserIcon, BoltIcon, CheckCircleIcon, Cog6ToothIcon, FolderIcon, CheckIcon, PencilSquareIcon, TrashIcon, ICON_SM } from "../ui/Icons";
+import { Project, Team, TeamRole, TEAM_ROLE_LABELS } from "../../types";
+import { UserIcon, BoltIcon, CheckCircleIcon, Cog6ToothIcon, FolderIcon, CheckIcon, PencilSquareIcon, TrashIcon, PlusIcon, XMarkIcon, ICON_SM } from "../ui/Icons";
 
 export function SettingsMgr({
   members, setMembers,
@@ -13,6 +13,9 @@ export function SettingsMgr({
   memberColors, setMemberColor,
   projects, pNId, setPNId, onAddProj, onDelProj, onEditProj,
   todos, flash, apiKey, setApiKey,
+  teams, addTeam, updTeam, delTeam,
+  addTeamMember, removeTeamMember, setTeamMemberRole,
+  addTeamProject, removeTeamProject,
 }: {
   members: string[];
   setMembers: (fn: any) => void;
@@ -40,6 +43,16 @@ export function SettingsMgr({
   flash: (m: string, t?: string) => void;
   apiKey: string;
   setApiKey: (v: string) => void;
+  // 팀 관리
+  teams: Team[];
+  addTeam: (name: string, color: string) => string;
+  updTeam: (id: string, u: Partial<Team>) => void;
+  delTeam: (id: string) => void;
+  addTeamMember: (teamId: string, name: string, role?: TeamRole) => void;
+  removeTeamMember: (teamId: string, name: string) => void;
+  setTeamMemberRole: (teamId: string, name: string, role: TeamRole) => void;
+  addTeamProject: (teamId: string, pid: number) => void;
+  removeTeamProject: (teamId: string, pid: number) => void;
 }) {
   const [tab, setTab] = useState("members");
   const [nv, setNv] = useState("");
@@ -139,12 +152,22 @@ export function SettingsMgr({
   return <div>
     {/* ── 탭 네비게이션 ── */}
     <div style={{display:"flex",borderBottom:"1px solid #e2e8f0",marginBottom:14,flexWrap:"wrap" as const}}>
+      <button style={{...tS(tab==="teams"),display:"inline-flex",alignItems:"center",gap:4}} onClick={()=>setTab("teams")}>팀 ({teams.length})</button>
       <button style={{...tS(tab==="members"),display:"inline-flex",alignItems:"center",gap:4}} onClick={()=>setTab("members")}><UserIcon style={ICON_SM}/> 담당자 ({members.length})</button>
       <button style={{...tS(tab==="proj"),display:"inline-flex",alignItems:"center",gap:4}} onClick={()=>setTab("proj")}><FolderIcon style={ICON_SM}/> 프로젝트 ({projects.length})</button>
       <button style={{...tS(tab==="pris"),display:"inline-flex",alignItems:"center",gap:4}} onClick={()=>setTab("pris")}><BoltIcon style={ICON_SM}/> 우선순위 ({pris.length})</button>
       <button style={{...tS(tab==="stats"),display:"inline-flex",alignItems:"center",gap:4}} onClick={()=>setTab("stats")}><CheckCircleIcon style={ICON_SM}/> 상태 ({stats.length})</button>
       <button style={{...tS(tab==="apikey"),display:"inline-flex",alignItems:"center",gap:4}} onClick={()=>setTab("apikey")}><Cog6ToothIcon style={ICON_SM}/> API 키</button>
     </div>
+
+    {/* ── 팀 탭 ── */}
+    {tab==="teams"&&<TeamTab
+      teams={teams} members={members} projects={projects}
+      addTeam={addTeam} updTeam={updTeam} delTeam={delTeam}
+      addTeamMember={addTeamMember} removeTeamMember={removeTeamMember} setTeamMemberRole={setTeamMemberRole}
+      addTeamProject={addTeamProject} removeTeamProject={removeTeamProject}
+      flash={flash}
+    />}
 
     {/* ── API 키 탭 ── */}
     {tab==="apikey"&&<div>
@@ -247,4 +270,185 @@ export function SettingsMgr({
       </div>
     </>}
   </div>;
+}
+
+// ── 팀 관리 탭 컴포넌트 ──────────────────────────────────────────────────────
+// 팀 생성/편집/삭제, 멤버 배정+역할 설정, 프로젝트 연결을 한 화면에서 처리
+function TeamTab({
+  teams, members, projects, addTeam, updTeam, delTeam,
+  addTeamMember, removeTeamMember, setTeamMemberRole,
+  addTeamProject, removeTeamProject, flash,
+}: {
+  teams: Team[];
+  members: string[];
+  projects: Project[];
+  addTeam: (name: string, color: string) => string;
+  updTeam: (id: string, u: Partial<Team>) => void;
+  delTeam: (id: string) => void;
+  addTeamMember: (teamId: string, name: string, role?: TeamRole) => void;
+  removeTeamMember: (teamId: string, name: string) => void;
+  setTeamMemberRole: (teamId: string, name: string, role: TeamRole) => void;
+  addTeamProject: (teamId: string, pid: number) => void;
+  removeTeamProject: (teamId: string, pid: number) => void;
+  flash: (m: string, t?: string) => void;
+}) {
+  const [newName, setNewName] = useState("");
+  const [newColor, setNewColor] = useState("#2563eb");
+  // 현재 편집 중인 팀 ID (펼쳐진 팀)
+  const [editId, setEditId] = useState<string | null>(null);
+
+  // 팀에 소속되지 않은 멤버 목록
+  const assignedMembers = new Set(teams.flatMap(t => t.members.map(m => m.name)));
+  const unassignedMembers = members.filter(m => !assignedMembers.has(m));
+
+  // 팀에 연결되지 않은 프로젝트 목록
+  const assignedProjects = new Set(teams.flatMap(t => t.projectIds));
+  const unassignedProjects = projects.filter(p => !assignedProjects.has(p.id));
+
+  const handleAdd = () => {
+    if (!newName.trim()) return;
+    addTeam(newName.trim(), newColor);
+    setNewName("");
+  };
+
+  return <>
+    {/* 팀 목록 */}
+    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14, maxHeight: 420, overflowY: "auto" }}>
+      {teams.length === 0 && (
+        <div style={{ padding: "20px 0", textAlign: "center", color: "#94a3b8", fontSize: 12 }}>
+          아직 팀이 없습니다. 아래에서 팀을 추가하세요.
+        </div>
+      )}
+      {teams.map(team => {
+        const isOpen = editId === team.id;
+        return (
+          <div key={team.id} style={{ border: `1px solid ${isOpen ? "#93c5fd" : "#e2e8f0"}`, borderRadius: 8, overflow: "hidden", background: "#fff" }}>
+            {/* 팀 헤더 */}
+            <div
+              onClick={() => setEditId(isOpen ? null : team.id)}
+              style={{
+                display: "flex", alignItems: "center", gap: 8,
+                padding: "10px 12px", cursor: "pointer",
+                background: isOpen ? "#eff6ff" : "#f8fafc",
+                transition: "background .1s",
+              }}
+            >
+              <span style={{ width: 12, height: 12, borderRadius: "50%", background: team.color, flexShrink: 0 }} />
+              <span style={{ flex: 1, fontWeight: 700, fontSize: 13, color: "#0f172a" }}>{team.name}</span>
+              <span style={{ fontSize: 10, color: "#64748b" }}>멤버 {team.members.length}명 · 프로젝트 {team.projectIds.length}건</span>
+              <span style={{ fontSize: 10, color: "#94a3b8", transition: "transform .2s", display: "inline-block", transform: isOpen ? "rotate(90deg)" : "none" }}>▶</span>
+            </div>
+
+            {/* 펼쳐진 팀 편집 영역 */}
+            {isOpen && (
+              <div style={{ padding: "12px", borderTop: "1px solid #e2e8f0" }}>
+                {/* 기본 정보 */}
+                <div style={{ display: "flex", gap: 6, marginBottom: 12, alignItems: "center" }}>
+                  <input type="color" value={team.color} onChange={e => updTeam(team.id, { color: e.target.value })}
+                    style={{ width: 28, height: 28, borderRadius: 6, cursor: "pointer", border: "1px solid #e2e8f0", flexShrink: 0 }} />
+                  <input value={team.name} onChange={e => updTeam(team.id, { name: e.target.value })}
+                    style={{ flex: 1, padding: "6px 10px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: 12, fontFamily: "inherit" }} />
+                  <select value={team.visibility} onChange={e => updTeam(team.id, { visibility: e.target.value as "private" | "company" })}
+                    style={{ padding: "6px 8px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: 11, fontFamily: "inherit" }}>
+                    <option value="company">전사 공개</option>
+                    <option value="private">팀 내부만</option>
+                  </select>
+                  <button onClick={() => { if (confirm(`"${team.name}" 팀을 삭제하시겠습니까?\n소속 업무는 전사 공개로 변경됩니다.`)) delTeam(team.id); }}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626", display: "inline-flex", padding: 4 }}>
+                    <TrashIcon style={ICON_SM} />
+                  </button>
+                </div>
+
+                {/* 멤버 관리 */}
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#64748b", marginBottom: 6, letterSpacing: "0.5px" }}>소속 멤버</div>
+                  {team.members.map(m => (
+                    <div key={m.name} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 8px", marginBottom: 3, background: "#f8fafc", borderRadius: 6, fontSize: 12 }}>
+                      <span style={{
+                        width: 20, height: 20, borderRadius: "50%",
+                        background: `linear-gradient(135deg,${avColor(m.name)},${avColor2(m.name)})`,
+                        color: "#fff", fontSize: 8, fontWeight: 700,
+                        display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                      }}>{avInitials(m.name)}</span>
+                      <span style={{ flex: 1, fontWeight: 500 }}>{m.name}</span>
+                      <select value={m.role} onChange={e => setTeamMemberRole(team.id, m.name, e.target.value as TeamRole)}
+                        style={{ padding: "2px 6px", border: "1px solid #e2e8f0", borderRadius: 4, fontSize: 10, fontFamily: "inherit", color: m.role === "admin" ? "#dc2626" : m.role === "editor" ? "#2563eb" : "#64748b" }}>
+                        {(Object.entries(TEAM_ROLE_LABELS) as [TeamRole, string][]).map(([k, v]) => (
+                          <option key={k} value={k}>{v}</option>
+                        ))}
+                      </select>
+                      <button onClick={() => removeTeamMember(team.id, m.name)}
+                        style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", display: "inline-flex", padding: 2 }}>
+                        <XMarkIcon style={{ width: 12, height: 12 }} />
+                      </button>
+                    </div>
+                  ))}
+                  {/* 미배정 멤버 추가 드롭다운 */}
+                  {unassignedMembers.length > 0 && (
+                    <select
+                      value=""
+                      onChange={e => { if (e.target.value) addTeamMember(team.id, e.target.value, "editor"); }}
+                      style={{ width: "100%", padding: "5px 8px", border: "1.5px dashed #93c5fd", borderRadius: 6, fontSize: 11, color: "#2563eb", background: "#eff6ff", marginTop: 4, fontFamily: "inherit", cursor: "pointer" }}
+                    >
+                      <option value="">+ 멤버 추가...</option>
+                      {unassignedMembers.map(m => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                  )}
+                  {unassignedMembers.length === 0 && team.members.length < members.length && (
+                    <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 4 }}>모든 멤버가 팀에 배정되었습니다</div>
+                  )}
+                </div>
+
+                {/* 프로젝트 연결 */}
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#64748b", marginBottom: 6, letterSpacing: "0.5px" }}>담당 프로젝트</div>
+                  {team.projectIds.map(pid => {
+                    const p = projects.find(pr => pr.id === pid);
+                    if (!p) return null;
+                    return (
+                      <div key={pid} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 8px", marginBottom: 3, background: "#f8fafc", borderRadius: 6, fontSize: 12 }}>
+                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: p.color, flexShrink: 0 }} />
+                        <span style={{ flex: 1, fontWeight: 500 }}>{p.name}</span>
+                        <button onClick={() => removeTeamProject(team.id, pid)}
+                          style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", display: "inline-flex", padding: 2 }}>
+                          <XMarkIcon style={{ width: 12, height: 12 }} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                  {/* 미연결 프로젝트 추가 */}
+                  {unassignedProjects.length > 0 && (
+                    <select
+                      value=""
+                      onChange={e => { if (e.target.value) addTeamProject(team.id, parseInt(e.target.value)); }}
+                      style={{ width: "100%", padding: "5px 8px", border: "1.5px dashed #93c5fd", borderRadius: 6, fontSize: 11, color: "#2563eb", background: "#eff6ff", marginTop: 4, fontFamily: "inherit", cursor: "pointer" }}
+                    >
+                      <option value="">+ 프로젝트 연결...</option>
+                      {unassignedProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+
+    {/* 새 팀 추가 */}
+    <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: 12 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 6 }}>새 팀 추가</div>
+      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+        <input type="color" value={newColor} onChange={e => setNewColor(e.target.value)}
+          style={{ width: 32, height: 28, borderRadius: 6, cursor: "pointer", border: "1px solid #e2e8f0" }} />
+        <input value={newName} onChange={e => setNewName(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter") handleAdd(); }}
+          placeholder="팀 이름" style={{ flex: 1, padding: "6px 10px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: 12, outline: "none", fontFamily: "inherit" }} />
+        <button onClick={handleAdd}
+          style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)", color: "#fff", border: "none", padding: "6px 14px", borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+          추가
+        </button>
+      </div>
+    </div>
+  </>;
 }

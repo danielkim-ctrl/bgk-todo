@@ -29,6 +29,7 @@ export interface Todo {
   repeat: string;
   noteColor?: number;
   memoOrder?: number;
+  teamId?: string;       // 소속 팀 ID (미지정 시 전사 공개)
   logs?: ActivityLog[];  // 활동 로그 기록
   _instance?: boolean;
   _originDue?: string;
@@ -85,37 +86,40 @@ export interface NotePopupState {
   _newRow?: number;
 }
 
-// ─── 권한 시스템 ─────────────────────────────────────────────────────────────
+// ─── 팀·권한 시스템 ──────────────────────────────────────────────────────────
 
-/** 사용자 역할 */
-export type Role = "admin" | "manager" | "member" | "viewer";
+/** 팀 내 역할 — 3단계 */
+export type TeamRole = "admin" | "editor" | "viewer";
 
-/** 세분화된 권한 목록 */
-export type Permission =
-  | "todo.create"
-  | "todo.edit.own"    // 본인 할일만 수정
-  | "todo.edit.all"    // 모든 할일 수정
-  | "todo.delete.own"
-  | "todo.delete.all"
-  | "project.manage"
-  | "member.manage"
-  | "priority.manage"
-  | "settings.edit"
-  | "ai.use";
+/** 팀 소속 멤버 (1인 1팀 소속) */
+export interface TeamMember {
+  name: string;       // members 배열의 이름과 동일
+  role: TeamRole;     // 팀 내 역할
+}
 
-/** 역할별 기본 권한 매핑 (나중에 커스터마이징 가능하도록 Record 형태) */
-export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
-  admin:   ["todo.create","todo.edit.all","todo.delete.all","project.manage","member.manage","priority.manage","settings.edit","ai.use"],
-  manager: ["todo.create","todo.edit.all","todo.delete.own","project.manage","settings.edit","ai.use"],
-  member:  ["todo.create","todo.edit.own","todo.delete.own","ai.use"],
-  viewer:  [],
+/** 팀 (조직도 단위) */
+export interface Team {
+  id: string;                          // "team-001" 등 고유 ID
+  name: string;                        // "마케팅팀"
+  color: string;                       // "#2563eb"
+  visibility: "private" | "company";   // private=팀만 조회, company=전사 조회 가능
+  members: TeamMember[];               // 소속 멤버 + 역할
+  projectIds: number[];                // 담당 프로젝트 ID 목록
+  createdAt: string;                   // YYYY-MM-DD
+}
+
+/** 역할별 허용 동작 — UI에서 버튼 활성/비활성 판단용 */
+export const TEAM_ROLE_LABELS: Record<TeamRole, string> = {
+  admin: "관리자",
+  editor: "편집자",
+  viewer: "뷰어",
 };
 
-/** 사용자별 역할 정보 (나중에 Firestore에서 관리 예정) */
-export interface UserRole {
-  name: string;  // members 배열의 이름과 동일
-  role: Role;
-}
+export const TEAM_ROLE_PERMISSIONS: Record<TeamRole, string[]> = {
+  admin:  ["todo.create","todo.edit.all","todo.delete.all","project.manage","member.manage","settings.edit","ai.use"],
+  editor: ["todo.create","todo.edit.own","todo.delete.own","ai.use"],
+  viewer: [],
+};
 
 // ─── 반복 설정 (Google Tasks 스타일) ──────────────────────────────────────────
 // "없음" 문자열이면 반복 없음, 객체면 상세 반복 설정

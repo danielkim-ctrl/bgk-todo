@@ -1,17 +1,17 @@
 import { createContext, useContext, ReactNode } from "react";
-import { Role, Permission, ROLE_PERMISSIONS, UserRole } from "../types";
+import { TeamRole, Team, TEAM_ROLE_PERMISSIONS } from "../types";
 
 // ─── 컨텍스트 타입 ────────────────────────────────────────────────────────────
 
 interface PermissionContextValue {
-  /** 현재 사용자의 역할 */
-  role: Role;
+  /** 현재 사용자의 팀 내 역할 (팀 미소속 시 admin 기본값) */
+  role: TeamRole;
   /** 특정 권한 보유 여부 확인 */
-  can: (permission: Permission) => boolean;
+  can: (permission: string) => boolean;
   /** 현재 사용자가 특정 할일의 소유자인지 확인 */
   isOwner: (todoWho: string) => boolean;
-  /** 전체 사용자 역할 목록 (설정 화면에서 관리용) */
-  userRoles: UserRole[];
+  /** 현재 사용자의 소속 팀 (없으면 null) */
+  myTeam: Team | null;
 }
 
 // ─── 기본값: 지금은 모든 권한 허용 (Phase 1 - 뼈대만) ─────────────────────
@@ -20,7 +20,7 @@ const defaultValue: PermissionContextValue = {
   role: "admin",
   can: () => true,
   isOwner: () => true,
-  userRoles: [],
+  myTeam: null,
 };
 
 const PermissionContext = createContext<PermissionContextValue>(defaultValue);
@@ -30,26 +30,25 @@ const PermissionContext = createContext<PermissionContextValue>(defaultValue);
 interface PermissionProviderProps {
   children: ReactNode;
   currentUser: string | null;
-  /** 나중에 Firestore에서 불러온 사용자별 역할 목록을 주입 */
-  userRoles?: UserRole[];
+  teams?: Team[];
 }
 
 export function PermissionProvider({
   children,
   currentUser,
-  userRoles = [],
+  teams = [],
 }: PermissionProviderProps) {
-  // 현재 사용자의 역할 결정
-  // TODO: Phase 4 이후 Firestore의 userRoles에서 실제 역할을 읽어옴
-  // 지금은 모든 사용자를 admin으로 처리 (기존 동작 유지)
-  const role: Role = (() => {
+  // 현재 사용자의 소속 팀 + 역할 결정
+  const myTeam = teams.find(t => t.members.some(m => m.name === currentUser)) || null;
+  const role: TeamRole = (() => {
     if (!currentUser) return "viewer";
-    const found = userRoles.find(u => u.name === currentUser);
-    return found?.role ?? "admin"; // 역할 미지정 시 admin (기존 동작 유지)
+    if (!myTeam) return "admin"; // 팀 미소속 시 admin (기존 동작 유지, Phase 2에서 변경 예정)
+    const member = myTeam.members.find(m => m.name === currentUser);
+    return member?.role ?? "editor";
   })();
 
-  const can = (permission: Permission): boolean => {
-    return ROLE_PERMISSIONS[role].includes(permission);
+  const can = (permission: string): boolean => {
+    return TEAM_ROLE_PERMISSIONS[role].includes(permission);
   };
 
   const isOwner = (todoWho: string): boolean => {
@@ -57,7 +56,7 @@ export function PermissionProvider({
   };
 
   return (
-    <PermissionContext.Provider value={{ role, can, isOwner, userRoles }}>
+    <PermissionContext.Provider value={{ role, can, isOwner, myTeam }}>
       {children}
     </PermissionContext.Provider>
   );

@@ -6,7 +6,7 @@ import {
   initTodos, initProj
 } from "../constants";
 import { td, gP, stripHtml, isOD } from "../utils";
-import { Filters, NewRow, AiParsed, DatePopState, NotePopupState, Project, Todo, DeletedTodo, SavedFilter, ActivityLog } from "../types";
+import { Filters, NewRow, AiParsed, DatePopState, NotePopupState, Project, Todo, DeletedTodo, SavedFilter, ActivityLog, Team, TeamMember, TeamRole } from "../types";
 import { useAI } from "./useAI";
 import { useCalendar } from "./useCalendar";
 import { useUserSettings } from "./useUserSettings";
@@ -162,6 +162,9 @@ export function useTodoApp() {
   const [stBg, setStBg] = useState({ ...INIT_ST_BG });
   // 담당자별 커스텀 아바타 색상 — 설정에서 변경 가능, Firebase에 저장됨
   const [memberColors, setMemberColors] = useState<Record<string,string>>({});
+  // 팀 목록 — 조직도 단위, Firebase에 저장
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [teamNId, setTeamNId] = useState(1); // 팀 ID 자동 증가용
 
   const [view, setView] = useState("list");
   const [toast, setToast] = useState<{ m: string; t: string; action?: { label: string; fn: () => void } }>({ m: "", t: "" });
@@ -278,6 +281,9 @@ export function useTodoApp() {
       if (merge) { setMembers(prev => { const rs = new Set(rm); return [...rm, ...prev.filter((x: string) => !rs.has(x))]; }); }
       else setMembers(rm);
     }
+    // 팀 데이터 복원
+    if (d.teams) setTeams(d.teams);
+    if (d.teamNId) setTeamNId(d.teamNId);
     if (d.userSettings) setUserSettings(d.userSettings);
   };
 
@@ -344,14 +350,14 @@ export function useTodoApp() {
       const ver = ++writeVersion.current;
       const now = Date.now();
       lastKnownUpdatedAt.current = now;
-      const data = { todos, projects, nId, pNId, pris, stats, priC, priBg, stC, stBg, members, memberColors, userSettings, _clientId: clientId.current, _updatedAt: now };
+      const data = { todos, projects, nId, pNId, pris, stats, priC, priBg, stC, stBg, members, memberColors, teams, teamNId, userSettings, _clientId: clientId.current, _updatedAt: now };
       try { localStorage.setItem("todo-v5", JSON.stringify(data)); } catch (e) { }
       setDoc(FS_DOC, data)
         .catch(() => flash("저장 실패 — 네트워크를 확인하세요", "err"))
         .finally(() => { if (writeVersion.current === ver) pendingWrite.current = false; });
     }, 400);
     return () => clearTimeout(t);
-  }, [todos, projects, nId, pNId, members, pris, stats, priC, priBg, stC, stBg, memberColors, userSettings, loaded]);
+  }, [todos, projects, nId, pNId, members, pris, stats, priC, priBg, stC, stBg, memberColors, teams, teamNId, userSettings, loaded]);
 
   // action을 전달하면 토스트에 버튼이 표시됨 (예: AI 등록 후 "실행 취소")
   const flash = (m: string, t = "ok", action?: { label: string; fn: () => void }) => {
@@ -640,6 +646,55 @@ export function useTodoApp() {
 
   const todayStr = td();
 
+  // ── 팀 CRUD ────────────────────────────────────────────────────────────────
+  const addTeam = (name: string, color: string) => {
+    pushHistory();
+    const id = `team-${String(teamNId).padStart(3, "0")}`;
+    const team: Team = { id, name, color, visibility: "company", members: [], projectIds: [], createdAt: td() };
+    setTeams(p => [...p, team]);
+    setTeamNId(n => n + 1);
+    flash(`팀 "${name}"이(가) 추가되었습니다`);
+    return id;
+  };
+  const updTeam = (id: string, u: Partial<Team>) => {
+    pushHistory();
+    setTeams(p => p.map(t => t.id === id ? { ...t, ...u } : t));
+  };
+  const delTeam = (id: string) => {
+    const team = teams.find(t => t.id === id);
+    if (!team) return;
+    // 팀 삭제 시 해당 팀 todo → 전사 공개(teamId 제거)
+    setTodos(p => p.map(t => t.teamId === id ? { ...t, teamId: undefined } : t));
+    pushHistory();
+    setTeams(p => p.filter(t => t.id !== id));
+    flash(`팀 "${team.name}"이(가) 삭제되었습니다`, "err");
+  };
+  // 팀에 멤버 추가/제거/역할 변경
+  const addTeamMember = (teamId: string, name: string, role: TeamRole = "editor") => {
+    // 1인 1팀 — 다른 팀에 이미 소속 시 제거
+    setTeams(p => p.map(t => {
+      if (t.id === teamId) return { ...t, members: [...t.members.filter(m => m.name !== name), { name, role }] };
+      return { ...t, members: t.members.filter(m => m.name !== name) };
+    }));
+  };
+  const removeTeamMember = (teamId: string, name: string) => {
+    setTeams(p => p.map(t => t.id === teamId ? { ...t, members: t.members.filter(m => m.name !== name) } : t));
+  };
+  const setTeamMemberRole = (teamId: string, name: string, role: TeamRole) => {
+    setTeams(p => p.map(t => t.id === teamId ? { ...t, members: t.members.map(m => m.name === name ? { ...m, role } : m) } : t));
+  };
+  // 팀에 프로젝트 연결/해제
+  const addTeamProject = (teamId: string, pid: number) => {
+    // 1프로젝트 1팀 — 다른 팀에서 제거
+    setTeams(p => p.map(t => {
+      if (t.id === teamId) return { ...t, projectIds: [...new Set([...t.projectIds, pid])] };
+      return { ...t, projectIds: t.projectIds.filter(id => id !== pid) };
+    }));
+  };
+  const removeTeamProject = (teamId: string, pid: number) => {
+    setTeams(p => p.map(t => t.id === teamId ? { ...t, projectIds: t.projectIds.filter(id => id !== pid) } : t));
+  };
+
   // ── useCalendar: 캘린더 상태·로직 분리 ────────────────────────────────────
   const cal = useCalendar({ todos });
 
@@ -683,6 +738,11 @@ export function useTodoApp() {
     members, setMembers: setMembersGuarded, pris, setPris: setPrisGuarded, stats, setStats: setStatsGuarded,
     priC, setPriC: setPriCGuarded, priBg, setPriBg: setPriBgGuarded, stC, setStC: setStCGuarded, stBg, setStBg: setStBgGuarded,
     memberColors, setMemberColors: setMemberColorsGuarded,
+    // 팀
+    teams, setTeams, teamNId,
+    addTeam, updTeam, delTeam,
+    addTeamMember, removeTeamMember, setTeamMemberRole,
+    addTeamProject, removeTeamProject,
     view, setView, toast,
     search, setSearch, editCell, setEditCell,
     newRows, setNewRows, kbF, setKbF, kbFWho, setKbFWho,
