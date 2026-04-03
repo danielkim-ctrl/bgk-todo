@@ -287,8 +287,9 @@ export function useTodoApp() {
       if (merge) { setMembers(prev => { const rs = new Set(rm); return [...rm, ...prev.filter((x: string) => !rs.has(x))]; }); }
       else setMembers(rm);
     }
-    // 팀·역할·권한 데이터 복원
+    // 팀·역할·권한 데이터 복원 (API키는 ai 선언 후 별도 useEffect에서 처리)
     if (d.globalPermissions) setGlobalPermissions(d.globalPermissions);
+    if (d.sharedApiKey) sharedApiKeyRef.current = d.sharedApiKey;
     if (d.teams) setTeams(d.teams);
     if (d.memberRoles && Object.keys(d.memberRoles).length > 0) {
       setMemberRoles(d.memberRoles);
@@ -369,7 +370,7 @@ export function useTodoApp() {
       const ver = ++writeVersion.current;
       const now = Date.now();
       lastKnownUpdatedAt.current = now;
-      const data = { todos, projects, nId, pNId, pris, stats, priC, priBg, stC, stBg, members, memberColors, memberRoles, globalPermissions, teams, teamNId, userSettings, _clientId: clientId.current, _updatedAt: now };
+      const data = { todos, projects, nId, pNId, pris, stats, priC, priBg, stC, stBg, members, memberColors, memberRoles, globalPermissions, teams, teamNId, sharedApiKey: sharedApiKeyRef.current, userSettings, _clientId: clientId.current, _updatedAt: now };
       try { localStorage.setItem("todo-v5", JSON.stringify(data)); } catch (e) { }
       setDoc(FS_DOC, data)
         .catch(() => flash("저장 실패 — 네트워크를 확인하세요", "err"))
@@ -395,6 +396,9 @@ export function useTodoApp() {
       flash("Firestore 데이터로 복원되었습니다");
     } catch (e: any) { flash(`복원 실패: ${e.message}`, "err"); }
   };
+
+  // 공유 API 키 ref — applyData에서 저장, Firestore 동기화 시 참조
+  const sharedApiKeyRef = useRef<string>("");
 
   const aProj = projects.filter(p => p.status === "활성");
   const gPr = (id: number) => gP(projects, id);
@@ -431,6 +435,17 @@ export function useTodoApp() {
     flash,
     undo, // AI 등록 후 "실행 취소" 토스트 버튼에서 사용
   });
+
+  // 공유 API 키 복원 — Firestore에서 로드된 키를 ai state에 적용
+  useEffect(() => {
+    if (sharedApiKeyRef.current && !ai.apiKey) {
+      ai.setApiKey(sharedApiKeyRef.current);
+    }
+  }, [loaded]);
+  // ai.apiKey 변경 시 ref 동기화 + Firestore 저장 트리거
+  useEffect(() => {
+    if (ai.apiKey) sharedApiKeyRef.current = ai.apiKey;
+  }, [ai.apiKey]);
 
   // 활동 로그 ID 생성 — 타임스탬프+랜덤으로 충돌 방지
   const mkLogId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;

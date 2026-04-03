@@ -247,11 +247,11 @@ export function SettingsMgr({
 
     {/* ── API 키 탭 ── */}
     {tab==="apikey"&&<div>
-      <div style={{fontSize:12,color:"#64748b",marginBottom:10,lineHeight:1.6}}>Anthropic API 키를 입력하세요. 브라우저 로컬에 저장됩니다.</div>
+      <div style={{fontSize:12,color:"#64748b",marginBottom:10,lineHeight:1.6}}>Anthropic API 키를 입력하세요. 한 번 등록하면 모든 팀원이 사용할 수 있습니다.</div>
       <div style={{display:"flex",gap:6,marginBottom:8}}>
         <input type="password" value={keyDraft} onChange={e=>setKeyDraft(e.target.value)}
           placeholder="sk-ant-..." style={INP}/>
-        <button onClick={()=>{const k=keyDraft.trim();localStorage.setItem("team-todo-apikey",k);setApiKey(k);flash("API 키가 저장되었습니다");}}
+        <button onClick={()=>{const k=keyDraft.trim();setApiKey(k);flash("API 키가 저장되었습니다 (전체 공유)");}}
           style={BTN_ADD}>저장</button>
       </div>
       {apiKey&&<div style={{fontSize:11,color:"#16a34a",fontWeight:600,display:"flex",alignItems:"center",gap:4}}><CheckIcon style={ICON_SM}/> API 키 설정됨</div>}

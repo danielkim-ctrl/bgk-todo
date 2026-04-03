@@ -23,9 +23,8 @@ export function useAI({ currentUser, aProj, members, onAddTodos, flash, undo }: 
   const [aiFiles, setAiFiles] = useState<{ name: string; type: string; data: string; textContent?: string }[]>([]);
   const [aiLoad, setAiLoad] = useState(false);
   const [aiSt, setAiSt] = useState("");
-  const [apiKey, setApiKey] = useState(
-    () => localStorage.getItem("team-todo-apikey") || "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"
-  );
+  // API 키는 Firestore 공유 데이터에서 로드 — 초기값 빈 문자열, applyData에서 복원됨
+  const [apiKey, setApiKey] = useState("");
   const [aiParsed, setAiParsed] = useState<AiParsed[]>(() => {
     const u = localStorage.getItem("todo-current-user");
     if (!u) return [];
