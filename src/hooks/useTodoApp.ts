@@ -167,6 +167,10 @@ export function useTodoApp() {
   const [teamNId, setTeamNId] = useState(1); // 팀 ID 자동 증가용
   // 현재 선택된 팀 (null = 전체 보기)
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+  // 멤버별 역할 — 팀 소속과 독립적으로 관리 (팀 미배정이어도 역할 설정 가능)
+  const [memberRoles, setMemberRoles] = useState<Record<string, TeamRole>>({});
+  // 전역 역할별 권한 — 모든 팀에 일괄 적용 (미설정 시 TEAM_ROLE_PERMISSIONS 기본값)
+  const [globalPermissions, setGlobalPermissions] = useState<Record<TeamRole, string[]> | null>(null);
 
   const [view, setView] = useState("list");
   const [toast, setToast] = useState<{ m: string; t: string; action?: { label: string; fn: () => void } }>({ m: "", t: "" });
@@ -283,8 +287,21 @@ export function useTodoApp() {
       if (merge) { setMembers(prev => { const rs = new Set(rm); return [...rm, ...prev.filter((x: string) => !rs.has(x))]; }); }
       else setMembers(rm);
     }
-    // 팀 데이터 복원
+    // 팀·역할·권한 데이터 복원
+    if (d.globalPermissions) setGlobalPermissions(d.globalPermissions);
     if (d.teams) setTeams(d.teams);
+    if (d.memberRoles && Object.keys(d.memberRoles).length > 0) {
+      setMemberRoles(d.memberRoles);
+    } else if (d.teams?.length) {
+      // 마이그레이션: memberRoles가 없으면 team.members[].role에서 자동 생성
+      const roles: Record<string, TeamRole> = {};
+      d.teams.forEach((t: Team) => {
+        t.members?.forEach((m: { name: string; role: TeamRole }) => {
+          roles[m.name] = m.role;
+        });
+      });
+      if (Object.keys(roles).length > 0) setMemberRoles(roles);
+    }
     if (d.teamNId) setTeamNId(d.teamNId);
     if (d.userSettings) setUserSettings(d.userSettings);
   };
@@ -352,14 +369,14 @@ export function useTodoApp() {
       const ver = ++writeVersion.current;
       const now = Date.now();
       lastKnownUpdatedAt.current = now;
-      const data = { todos, projects, nId, pNId, pris, stats, priC, priBg, stC, stBg, members, memberColors, teams, teamNId, userSettings, _clientId: clientId.current, _updatedAt: now };
+      const data = { todos, projects, nId, pNId, pris, stats, priC, priBg, stC, stBg, members, memberColors, memberRoles, globalPermissions, teams, teamNId, userSettings, _clientId: clientId.current, _updatedAt: now };
       try { localStorage.setItem("todo-v5", JSON.stringify(data)); } catch (e) { }
       setDoc(FS_DOC, data)
         .catch(() => flash("저장 실패 — 네트워크를 확인하세요", "err"))
         .finally(() => { if (writeVersion.current === ver) pendingWrite.current = false; });
     }, 400);
     return () => clearTimeout(t);
-  }, [todos, projects, nId, pNId, members, pris, stats, priC, priBg, stC, stBg, memberColors, teams, teamNId, userSettings, loaded]);
+  }, [todos, projects, nId, pNId, members, pris, stats, priC, priBg, stC, stBg, memberColors, memberRoles, globalPermissions, teams, teamNId, userSettings, loaded]);
 
   // action을 전달하면 토스트에 버튼이 표시됨 (예: AI 등록 후 "실행 취소")
   const flash = (m: string, t = "ok", action?: { label: string; fn: () => void }) => {
@@ -545,11 +562,11 @@ export function useTodoApp() {
     });
   };
 
-  // 팀 필터 적용된 todo 목록 — 모든 뷰(리스트/캘린더/칸반/대시보드)에서 표시용으로 사용
-  // selectedTeamId가 null이면 전체 보기, 아니면 해당 팀 + 전사 공개(teamId 없는) todo만 표시
+  // 팀 필터 적용된 todo 목록 — 모든 뷰에서 표시용으로 사용
+  // 관리자(전체 보기): 모든 업무 / 팀 선택: 해당 팀 업무만 (teamId 없는 업무는 관리자만)
   const viewTodos = useMemo(() => {
-    if (!selectedTeamId) return todos;
-    return todos.filter(t => !t.teamId || t.teamId === selectedTeamId);
+    if (!selectedTeamId) return todos; // 관리자 전체 보기
+    return todos.filter(t => t.teamId === selectedTeamId);
   }, [todos, selectedTeamId]);
 
   // viewTodos(팀 필터 적용 후)를 기반으로 검색/필터 적용
@@ -661,7 +678,7 @@ export function useTodoApp() {
   const addTeam = (name: string, color: string) => {
     pushHistory();
     const id = `team-${String(teamNId).padStart(3, "0")}`;
-    const team: Team = { id, name, color, visibility: "company", members: [], projectIds: [], createdAt: td() };
+    const team: Team = { id, name, color, members: [], projectIds: [], createdAt: td() };
     setTeams(p => [...p, team]);
     setTeamNId(n => n + 1);
     flash(`팀 "${name}"이(가) 추가되었습니다`);
@@ -674,7 +691,7 @@ export function useTodoApp() {
   const delTeam = (id: string) => {
     const team = teams.find(t => t.id === id);
     if (!team) return;
-    // 팀 삭제 시 해당 팀 todo → 전사 공개(teamId 제거)
+    // 팀 삭제 시 해당 팀 todo의 teamId 제거 — 미배정 상태가 됨 (관리자만 조회 가능)
     setTodos(p => p.map(t => t.teamId === id ? { ...t, teamId: undefined } : t));
     pushHistory();
     setTeams(p => p.filter(t => t.id !== id));
@@ -687,12 +704,22 @@ export function useTodoApp() {
       if (t.id === teamId) return { ...t, members: [...t.members.filter(m => m.name !== name), { name, role }] };
       return { ...t, members: t.members.filter(m => m.name !== name) };
     }));
+    // 전역 역할도 동기화
+    setMemberRoles(p => ({ ...p, [name]: role }));
   };
   const removeTeamMember = (teamId: string, name: string) => {
     setTeams(p => p.map(t => t.id === teamId ? { ...t, members: t.members.filter(m => m.name !== name) } : t));
   };
   const setTeamMemberRole = (teamId: string, name: string, role: TeamRole) => {
     setTeams(p => p.map(t => t.id === teamId ? { ...t, members: t.members.map(m => m.name === name ? { ...m, role } : m) } : t));
+    setMemberRoles(p => ({ ...p, [name]: role }));
+  };
+  // 팀 미소속 멤버의 역할만 변경 (전역 memberRoles만 업데이트)
+  const setMemberRole = (name: string, role: TeamRole) => {
+    setMemberRoles(p => ({ ...p, [name]: role }));
+    // 팀에 소속된 경우 팀 내 역할도 동기화
+    const t = teams.find(tm => tm.members.some(m => m.name === name));
+    if (t) setTeamMemberRole(t.id, name, role);
   };
   // 팀에 프로젝트 연결/해제
   const addTeamProject = (teamId: string, pid: number) => {
@@ -705,6 +732,40 @@ export function useTodoApp() {
   const removeTeamProject = (teamId: string, pid: number) => {
     setTeams(p => p.map(t => t.id === teamId ? { ...t, projectIds: t.projectIds.filter(id => id !== pid) } : t));
   };
+
+  // 기존 업무를 프로젝트 기준으로 팀에 일괄 배정
+  // 프로젝트가 팀에 연결되어 있으면 해당 팀의 teamId를 업무에 설정
+  const assignTodosToTeams = () => {
+    // 프로젝트 → 팀 매핑 생성
+    const projTeamMap: Record<number, string> = {};
+    teams.forEach(t => t.projectIds.forEach(pid => { projTeamMap[pid] = t.id; }));
+    let count = 0;
+    pushHistory();
+    setTodos((prev: Todo[]) => prev.map(t => {
+      const teamId = projTeamMap[t.pid];
+      if (teamId && t.teamId !== teamId) { count++; return { ...t, teamId }; }
+      return t;
+    }));
+    flash(`${count}건의 업무가 프로젝트 기준으로 팀에 배정되었습니다`);
+  };
+
+  // 자동 마이그레이션 — 팀에 프로젝트가 연결되어 있고 미배정 todo가 있으면 자동 배정
+  // 로드 완료 후 1회만 실행
+  const autoAssignDone = useRef(false);
+  useEffect(() => {
+    if (!loaded || autoAssignDone.current) return;
+    if (!teams.length) return;
+    const projTeamMap: Record<number, string> = {};
+    teams.forEach(t => t.projectIds.forEach(pid => { projTeamMap[pid] = t.id; }));
+    const unassigned = todos.filter(t => !t.teamId && projTeamMap[t.pid]);
+    if (unassigned.length === 0) { autoAssignDone.current = true; return; }
+    autoAssignDone.current = true;
+    setTodos((prev: Todo[]) => prev.map(t => {
+      const tid = projTeamMap[t.pid];
+      if (tid && !t.teamId) return { ...t, teamId: tid };
+      return t;
+    }));
+  }, [loaded, teams, todos]);
 
   // ── useCalendar: 캘린더 상태·로직 분리 — 팀 필터 적용된 todos 전달 ──────
   const cal = useCalendar({ todos: viewTodos });
@@ -749,12 +810,13 @@ export function useTodoApp() {
     members, setMembers: setMembersGuarded, pris, setPris: setPrisGuarded, stats, setStats: setStatsGuarded,
     priC, setPriC: setPriCGuarded, priBg, setPriBg: setPriBgGuarded, stC, setStC: setStCGuarded, stBg, setStBg: setStBgGuarded,
     memberColors, setMemberColors: setMemberColorsGuarded,
-    // 팀
+    // 팀·역할
     teams, setTeams, teamNId,
     selectedTeamId, setSelectedTeamId,
+    memberRoles, setMemberRole, globalPermissions, setGlobalPermissions,
     addTeam, updTeam, delTeam,
     addTeamMember, removeTeamMember, setTeamMemberRole,
-    addTeamProject, removeTeamProject,
+    addTeamProject, removeTeamProject, assignTodosToTeams,
     view, setView, toast,
     search, setSearch, editCell, setEditCell,
     newRows, setNewRows, kbF, setKbF, kbFWho, setKbFWho,

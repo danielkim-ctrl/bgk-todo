@@ -38,9 +38,10 @@ export default function App() {
     priC, setPriC, priBg, setPriBg, stC, setStC, stBg, setStBg,
     memberColors, setMemberColors,
     teams, setTeams, selectedTeamId, setSelectedTeamId,
+    memberRoles, setMemberRole, globalPermissions, setGlobalPermissions,
     addTeam, updTeam, delTeam,
     addTeamMember, removeTeamMember, setTeamMemberRole,
-    addTeamProject, removeTeamProject,
+    addTeamProject, removeTeamProject, assignTodosToTeams,
     view, setView, toast, filters, setFilters, favSidebar, togFavSidebar,
     search, setSearch, editCell, setEditCell, sortCol, sortDir, setSortCol, setSortDir, customSortOrders, setCustomSortOrders, activeSortFields, setActiveSortFields,
     newRows, setNewRows, kbF, setKbF, kbFWho, setKbFWho,
@@ -125,12 +126,32 @@ export default function App() {
   const [showTrash, setShowTrash] = useState(false);         // 휴지통 팝업 열림 여부
 
   // ── 역할별 권한 헬퍼 ──────────────────────────────────────────────────
-  // 현재 사용자의 팀 내 역할을 기반으로 can() 함수 제공
-  // 팀 미소속 시 admin (기존 동작 유지)
+  // memberRoles에서 현재 사용자 역할 조회 → 미설정 시 admin (기존 동작 유지)
+  // globalPermissions가 있으면 전역 적용, 없으면 기본값
+  const myRole: TeamRole = (currentUser && memberRoles[currentUser]) || "admin";
   const myTeam = teams.find(t => t.members.some(m => m.name === currentUser));
-  const myRole: TeamRole = myTeam?.members.find(m => m.name === currentUser)?.role ?? "admin";
-  const can = (perm: string) => TEAM_ROLE_PERMISSIONS[myRole].includes(perm);
+  const myPerms = globalPermissions?.[myRole] ?? TEAM_ROLE_PERMISSIONS[myRole];
+  const can = (perm: string) => myPerms.includes(perm);
   const isOwner = (who: string) => who === currentUser;
+
+  // "타 팀 조회" 권한 여부
+  const canViewOtherTeams = can("team.view.other");
+
+  // 로그인 시 소속 팀 기본 선택 + 권한 없으면 타 팀 전환 차단
+  useEffect(() => {
+    if (!teams.length || !currentUser) return;
+    if (selectedTeamId) {
+      // 이미 팀 선택됨 — 타 팀 조회 권한 없으면 자기 팀으로 강제
+      if (!canViewOtherTeams) {
+        const myTm = teams.find(t => t.members.some(m => m.name === currentUser));
+        if (myTm && selectedTeamId !== myTm.id) setSelectedTeamId(myTm.id);
+      }
+      return;
+    }
+    // 미선택 — 소속 팀 자동 선택
+    const myTm = teams.find(t => t.members.some(m => m.name === currentUser));
+    if (myTm) setSelectedTeamId(myTm.id);
+  }, [teams, currentUser, selectedTeamId, canViewOtherTeams]);
 
   // ── 캘린더 팝오버 / 빠른 추가 상태 ──────────────────────────────
   const [calEvPop, setCalEvPop] = useState<{todo:any,x:number,y:number}|null>(null);
@@ -202,7 +223,11 @@ export default function App() {
       return { ...prev, [currentUser]: { ...prev[currentUser], hiddenProjects: n } };
     });
   };
-  const visibleProj = aProj.filter(p => !hiddenProjects.includes(p.id));
+  // 팀 필터 적용: 선택된 팀의 프로젝트만 표시 (전체 보기 시 전부)
+  const teamProj = selectedTeamId
+    ? aProj.filter(p => { const t = teams.find(tm => tm.id === selectedTeamId); return t ? t.projectIds.includes(p.id) : true; })
+    : aProj;
+  const visibleProj = teamProj.filter(p => !hiddenProjects.includes(p.id));
   // 숨겨진 담당자 — userSettings 기반 (Firestore 동기화)
   const hiddenMembers: string[] = currentUser ? (userSettings[currentUser]?.hiddenMembers ?? []) : [];
   const toggleHideMember = (name: string) => {
@@ -213,7 +238,11 @@ export default function App() {
       return { ...prev, [currentUser]: { ...prev[currentUser], hiddenMembers: n } };
     });
   };
-  const visibleMembers = members.filter(m => !hiddenMembers.includes(m));
+  // 팀 필터 적용: 선택된 팀의 멤버만 표시 (전체 보기 시 전부)
+  const teamMembers = selectedTeamId
+    ? members.filter(m => { const t = teams.find(tm => tm.id === selectedTeamId); return t ? t.members.some(tm => tm.name === m) : true; })
+    : members;
+  const visibleMembers = teamMembers.filter(m => !hiddenMembers.includes(m));
   const sidebarExpand = (id: number|null) => {
     // 다른 항목으로 전환 전 현재 세부정보 자동저장 (DOM에서 직접 읽기)
     if (sidebarDetId !== null) {
@@ -407,8 +436,11 @@ export default function App() {
                   backgroundImage:"url(\"data:image/svg+xml,%3Csvg viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='white' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E\")",
                   backgroundRepeat:"no-repeat",backgroundPosition:"right 8px center",backgroundSize:"8px",
                 }}>
-                <option value="" style={{color:"#334155"}}>전체 보기</option>
-                {teams.map(t=><option key={t.id} value={t.id} style={{color:"#334155"}}>{t.name}</option>)}
+                {/* 전체 보기: 타 팀 조회 권한 있을 때만 */}
+                {canViewOtherTeams&&<option value="" style={{color:"#334155"}}>전체 보기</option>}
+                {teams.filter(t=>
+                  canViewOtherTeams || t.members.some(m=>m.name===currentUser)
+                ).map(t=><option key={t.id} value={t.id} style={{color:"#334155"}}>{t.name}</option>)}
               </select>
             </>}
           </div>
@@ -446,7 +478,7 @@ export default function App() {
         onClose={()=>setDrawerOpen(false)}
         search={search} setSearch={setSearch}
         filters={filters} togF={togF}
-        todos={todos} aProj={aProj} members={members} pris={pris} priC={priC}
+        todos={todos} aProj={teamProj} members={teamMembers} pris={pris} priC={priC}
         stats={stats} stC={stC}
         favSidebar={favSidebar} togFavSidebar={togFavSidebar}
         isFav={isFav} gPr={gPr}
@@ -459,7 +491,7 @@ export default function App() {
 
     {/* ── 메인 콘텐츠 — 모바일: 하단 탭 바(56px) + safe-area 높이만큼 패딩 추가 */}
     <main style={isMobile ? {...S.main, paddingBottom:"calc(56px + env(safe-area-inset-bottom) + 16px)"} : S.main}>
-      {view==="dashboard"&&<Dashboard todos={todos} projects={projects} members={members} priC={priC} priBg={priBg} stC={stC} stBg={stBg} gPr={gPr} deletedLog={deletedLog}
+      {view==="dashboard"&&<Dashboard todos={todos} projects={teamProj} members={teamMembers} priC={priC} priBg={priBg} stC={stC} stBg={stBg} gPr={gPr} deletedLog={deletedLog}
         // KPI 카드 클릭 시 리스트 뷰로 이동하고 해당 상태 필터를 자동 적용
         onNavigate={(stF)=>{setView("list");setFilters({proj:[],who:[],pri:[],st:stF,repeat:[],fav:""});window.scrollTo(0,0);}}
         isMobile={isMobile}/>}
@@ -467,7 +499,7 @@ export default function App() {
       {view==="kanban"&&<KanbanView
         todos={todos} stats={stats} pris={pris} priC={priC} priBg={priBg} stC={stC} stBg={stBg}
         kbF={kbF} setKbF={setKbF} kbFWho={kbFWho} setKbFWho={setKbFWho}
-        members={members} visibleProj={visibleProj}
+        members={teamMembers} visibleProj={visibleProj}
         kanbanOrder={kanbanOrder} setKanbanOrder={setKanbanOrder}
         kbInsert={kbInsert} setKbInsert={setKbInsert}
         dragId={dragId} setDragId={setDragId}
@@ -478,7 +510,7 @@ export default function App() {
 
       {view==="list"&&<ListView
         search={search} setSearch={setSearch} filters={filters} setFilters={setFilters} togF={togF}
-        todos={todos} aProj={aProj} members={members} pris={pris} priC={priC} priBg={priBg}
+        todos={todos} aProj={teamProj} members={teamMembers} pris={pris} priC={priC} priBg={priBg}
         stats={stats} stC={stC} stBg={stBg} favSidebar={favSidebar} togFavSidebar={togFavSidebar}
         isFav={isFav} gPr={gPr} setChipAdd={setChipAdd} setChipVal={setChipVal}
         setChipColor={setChipColor} projects={projects}
@@ -524,7 +556,7 @@ export default function App() {
         weekDates={weekDates} customDates={customDates} agendaItems={agendaItems}
         ftodosExpanded={ftodosExpanded} evStyle={evStyle}
         calF={calF} setCalF={setCalF} calFWho={calFWho} setCalFWho={setCalFWho}
-        visibleProj={visibleProj} members={members} visibleMembers={visibleMembers}
+        visibleProj={visibleProj} members={teamMembers} visibleMembers={visibleMembers}
         gPr={gPr} pris={pris} priC={priC} priBg={priBg} stC={stC} stBg={stBg}
         todos={todos} updTodo={updTodo} addTodo={addTodo} delTodo={delTodo}
         flash={flash} setEditMod={setEditMod} currentUser={currentUser}
@@ -678,7 +710,7 @@ export default function App() {
       {detMod&&<DetailView t={detMod} p={gPr(detMod.pid)} stats={stats} stC={stC} stBg={stBg} priC={priC} priBg={priBg} onSt={st=>{updTodo(detMod.id,{st});setDetMod({...detMod,st});flash(`상태가 "${st}"(으)로 변경되었습니다`)}}/>}
     </Modal>
 
-    <Modal open={settMod} onClose={()=>setSettMod(false)} title="설정" footer={<button style={S.bs} onClick={()=>setSettMod(false)}>닫기</button>}>
+    <Modal open={settMod} onClose={()=>setSettMod(false)} title="설정" wide footer={<button style={S.bs} onClick={()=>setSettMod(false)}>닫기</button>}>
       <SettingsMgr
         members={members} setMembers={setMembers}
         pris={pris} setPris={setPris} stats={stats} setStats={setStats}
@@ -690,9 +722,9 @@ export default function App() {
         onDelProj={id=>{if(todos.some(t=>t.pid===id)){alert("해당 프로젝트에 업무가 존재하여 삭제할 수 없습니다.");return;}setProjects((p:any)=>p.filter((x:any)=>x.id!==id));flash("프로젝트가 삭제되었습니다","err")}}
         onEditProj={(id,u)=>{setProjects((p:any)=>p.map((x:any)=>{if(x.id!==id)return x;return{...x,...u};}));flash("프로젝트 정보가 수정되었습니다")}}
         todos={todos} flash={flash} apiKey={apiKey} setApiKey={setApiKey}
-        teams={teams} addTeam={addTeam} updTeam={updTeam} delTeam={delTeam}
+        teams={teams} setTeams={setTeams} memberRoles={memberRoles} setMemberRole={setMemberRole} globalPermissions={globalPermissions} setGlobalPermissions={setGlobalPermissions} addTeam={addTeam} updTeam={updTeam} delTeam={delTeam}
         addTeamMember={addTeamMember} removeTeamMember={removeTeamMember} setTeamMemberRole={setTeamMemberRole}
-        addTeamProject={addTeamProject} removeTeamProject={removeTeamProject}
+        addTeamProject={addTeamProject} removeTeamProject={removeTeamProject} assignTodosToTeams={assignTodosToTeams}
       />
     </Modal>
 

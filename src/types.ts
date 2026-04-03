@@ -29,7 +29,7 @@ export interface Todo {
   repeat: string;
   noteColor?: number;
   memoOrder?: number;
-  teamId?: string;       // 소속 팀 ID (미지정 시 전사 공개)
+  teamId?: string;       // 소속 팀 ID (미지정 시 관리자만 조회 가능)
   logs?: ActivityLog[];  // 활동 로그 기록
   _instance?: boolean;
   _originDue?: string;
@@ -102,7 +102,6 @@ export interface Team {
   id: string;                          // "team-001" 등 고유 ID
   name: string;                        // "마케팅팀"
   color: string;                       // "#2563eb"
-  visibility: "private" | "company";   // private=팀만 조회, company=전사 조회 가능
   members: TeamMember[];               // 소속 멤버 + 역할
   projectIds: number[];                // 담당 프로젝트 ID 목록
   createdAt: string;                   // YYYY-MM-DD
@@ -116,10 +115,24 @@ export const TEAM_ROLE_LABELS: Record<TeamRole, string> = {
 };
 
 export const TEAM_ROLE_PERMISSIONS: Record<TeamRole, string[]> = {
-  admin:  ["todo.create","todo.edit.all","todo.delete.all","project.manage","member.manage","settings.edit","ai.use"],
+  admin:  ["todo.create","todo.edit.all","todo.delete.all","team.view.other","project.manage","member.manage","settings.edit","ai.use"],
   editor: ["todo.create","todo.edit.own","todo.delete.own","ai.use"],
   viewer: [],
 };
+
+/** 권한 항목 목록 + 한글 라벨 — 관리자 권한 설정 UI에서 사용 */
+export const ALL_PERMISSIONS: { key: string; label: string }[] = [
+  { key: "todo.create",     label: "업무 생성" },
+  { key: "todo.edit.own",   label: "본인 업무 수정" },
+  { key: "todo.edit.all",   label: "타인 업무 수정" },
+  { key: "todo.delete.own", label: "본인 업무 삭제" },
+  { key: "todo.delete.all", label: "타인 업무 삭제" },
+  { key: "team.view.other", label: "타 팀 조회" },
+  { key: "project.manage",  label: "프로젝트 관리" },
+  { key: "member.manage",   label: "멤버 관리" },
+  { key: "settings.edit",   label: "설정 변경" },
+  { key: "ai.use",          label: "AI 자동입력" },
+];
 
 // ─── 반복 설정 (Google Tasks 스타일) ──────────────────────────────────────────
 // "없음" 문자열이면 반복 없음, 객체면 상세 반복 설정
