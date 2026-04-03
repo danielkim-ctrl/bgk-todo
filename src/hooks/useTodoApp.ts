@@ -169,8 +169,13 @@ export function useTodoApp() {
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   // 멤버별 역할 — 팀 소속과 독립적으로 관리 (팀 미배정이어도 역할 설정 가능)
   const [memberRoles, setMemberRoles] = useState<Record<string, TeamRole>>({});
+  // 멤버별 6자리 PIN 코드 — 로그인 인증용 (Firestore에 저장)
+  const [memberPins, setMemberPins] = useState<Record<string, string>>({});
   // 전역 역할별 권한 — 모든 팀에 일괄 적용 (미설정 시 TEAM_ROLE_PERMISSIONS 기본값)
   const [globalPermissions, setGlobalPermissions] = useState<Record<TeamRole, string[]> | null>(null);
+
+  // 6자리 PIN 생성 함수
+  const generatePin = () => String(Math.floor(100000 + Math.random() * 900000));
 
   const [view, setView] = useState("list");
   const [toast, setToast] = useState<{ m: string; t: string; action?: { label: string; fn: () => void } }>({ m: "", t: "" });
@@ -287,9 +292,17 @@ export function useTodoApp() {
       if (merge) { setMembers(prev => { const rs = new Set(rm); return [...rm, ...prev.filter((x: string) => !rs.has(x))]; }); }
       else setMembers(rm);
     }
-    // 팀·역할·권한 데이터 복원 (API키는 ai 선언 후 별도 useEffect에서 처리)
+    // 팀·역할·권한·PIN 데이터 복원
     if (d.globalPermissions) setGlobalPermissions(d.globalPermissions);
     if (d.sharedApiKey) sharedApiKeyRef.current = d.sharedApiKey;
+    // PIN 복원 — 없으면 기존 멤버 전원에게 자동 생성
+    if (d.memberPins && Object.keys(d.memberPins).length > 0) {
+      setMemberPins(d.memberPins);
+    } else if (d.members?.length) {
+      const pins: Record<string, string> = {};
+      d.members.forEach((m: string) => { pins[m] = String(Math.floor(100000 + Math.random() * 900000)); });
+      setMemberPins(pins);
+    }
     if (d.teams) setTeams(d.teams);
     if (d.memberRoles && Object.keys(d.memberRoles).length > 0) {
       setMemberRoles(d.memberRoles);
@@ -370,14 +383,14 @@ export function useTodoApp() {
       const ver = ++writeVersion.current;
       const now = Date.now();
       lastKnownUpdatedAt.current = now;
-      const data = { todos, projects, nId, pNId, pris, stats, priC, priBg, stC, stBg, members, memberColors, memberRoles, globalPermissions, teams, teamNId, sharedApiKey: sharedApiKeyRef.current, userSettings, _clientId: clientId.current, _updatedAt: now };
+      const data = { todos, projects, nId, pNId, pris, stats, priC, priBg, stC, stBg, members, memberColors, memberRoles, memberPins, globalPermissions, teams, teamNId, sharedApiKey: sharedApiKeyRef.current, userSettings, _clientId: clientId.current, _updatedAt: now };
       try { localStorage.setItem("todo-v5", JSON.stringify(data)); } catch (e) { }
       setDoc(FS_DOC, data)
         .catch(() => flash("저장 실패 — 네트워크를 확인하세요", "err"))
         .finally(() => { if (writeVersion.current === ver) pendingWrite.current = false; });
     }, 400);
     return () => clearTimeout(t);
-  }, [todos, projects, nId, pNId, members, pris, stats, priC, priBg, stC, stBg, memberColors, memberRoles, globalPermissions, teams, teamNId, userSettings, loaded]);
+  }, [todos, projects, nId, pNId, members, pris, stats, priC, priBg, stC, stBg, memberColors, memberRoles, memberPins, globalPermissions, teams, teamNId, userSettings, loaded]);
 
   // action을 전달하면 토스트에 버튼이 표시됨 (예: AI 등록 후 "실행 취소")
   const flash = (m: string, t = "ok", action?: { label: string; fn: () => void }) => {
@@ -578,11 +591,15 @@ export function useTodoApp() {
   };
 
   // 팀 필터 적용된 todo 목록 — 모든 뷰에서 표시용으로 사용
-  // 관리자(전체 보기): 모든 업무 / 팀 선택: 해당 팀 업무만 (teamId 없는 업무는 관리자만)
+  // null(전체 보기): 관리자=전체, 일반=소속 팀 전체 / 팀 선택: 해당 팀만
   const viewTodos = useMemo(() => {
-    if (!selectedTeamId) return todos; // 관리자 전체 보기
-    return todos.filter(t => t.teamId === selectedTeamId);
-  }, [todos, selectedTeamId]);
+    if (selectedTeamId) return todos.filter(t => t.teamId === selectedTeamId);
+    // 전체 보기 — 소속 팀 업무 합산 (관리자는 미배정 포함 전부)
+    const myTids = teams.filter(t => t.members.some(m => m.name === currentUser)).map(t => t.id);
+    const isAdmin = (currentUser && memberRoles[currentUser] === "admin") || !myTids.length;
+    if (isAdmin) return todos;
+    return todos.filter(t => t.teamId && myTids.includes(t.teamId));
+  }, [todos, selectedTeamId, teams, currentUser, memberRoles]);
 
   // viewTodos(팀 필터 적용 후)를 기반으로 검색/필터 적용
   const filtered = useMemo(() => viewTodos.filter(t => {
@@ -714,10 +731,10 @@ export function useTodoApp() {
   };
   // 팀에 멤버 추가/제거/역할 변경
   const addTeamMember = (teamId: string, name: string, role: TeamRole = "editor") => {
-    // 1인 1팀 — 다른 팀에 이미 소속 시 제거
+    // 복수 팀 소속 허용 — 해당 팀에만 추가 (다른 팀에서 제거하지 않음)
     setTeams(p => p.map(t => {
       if (t.id === teamId) return { ...t, members: [...t.members.filter(m => m.name !== name), { name, role }] };
-      return { ...t, members: t.members.filter(m => m.name !== name) };
+      return t;
     }));
     // 전역 역할도 동기화
     setMemberRoles(p => ({ ...p, [name]: role }));
@@ -738,10 +755,10 @@ export function useTodoApp() {
   };
   // 팀에 프로젝트 연결/해제
   const addTeamProject = (teamId: string, pid: number) => {
-    // 1프로젝트 1팀 — 다른 팀에서 제거
+    // 복수 팀 운영 허용 — 해당 팀에만 추가 (다른 팀에서 제거하지 않음)
     setTeams(p => p.map(t => {
       if (t.id === teamId) return { ...t, projectIds: [...new Set([...t.projectIds, pid])] };
-      return { ...t, projectIds: t.projectIds.filter(id => id !== pid) };
+      return t;
     }));
   };
   const removeTeamProject = (teamId: string, pid: number) => {
@@ -828,7 +845,8 @@ export function useTodoApp() {
     // 팀·역할
     teams, setTeams, teamNId,
     selectedTeamId, setSelectedTeamId,
-    memberRoles, setMemberRole, globalPermissions, setGlobalPermissions,
+    memberRoles, setMemberRole, memberPins, setMemberPins, generatePin,
+    globalPermissions, setGlobalPermissions,
     addTeam, updTeam, delTeam,
     addTeamMember, removeTeamMember, setTeamMemberRole,
     addTeamProject, removeTeamProject, assignTodosToTeams,

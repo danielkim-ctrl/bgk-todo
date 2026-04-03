@@ -38,7 +38,8 @@ export default function App() {
     priC, setPriC, priBg, setPriBg, stC, setStC, stBg, setStBg,
     memberColors, setMemberColors,
     teams, setTeams, selectedTeamId, setSelectedTeamId,
-    memberRoles, setMemberRole, globalPermissions, setGlobalPermissions,
+    memberRoles, setMemberRole, memberPins, setMemberPins, generatePin,
+    globalPermissions, setGlobalPermissions,
     addTeam, updTeam, delTeam,
     addTeamMember, removeTeamMember, setTeamMemberRole,
     addTeamProject, removeTeamProject, assignTodosToTeams,
@@ -136,21 +137,26 @@ export default function App() {
 
   // "타 팀 조회" 권한 여부
   const canViewOtherTeams = can("team.view.other");
+  // 현재 사용자가 소속된 팀 목록 (복수 가능)
+  const myTeamIds = teams.filter(t => t.members.some(m => m.name === currentUser)).map(t => t.id);
+  const isMultiTeam = myTeamIds.length > 1;
 
-  // 로그인 시 소속 팀 기본 선택 + 권한 없으면 타 팀 전환 차단
+  // 로그인 시 기본 팀 선택
+  // - 복수 팀 소속: "전체 보기"(null) → 소속 팀 전체 데이터 표시
+  // - 단일 팀 소속: 해당 팀 자동 선택
+  // - 타 팀 조회 권한 없으면 소속 팀 외 선택 차단
   useEffect(() => {
     if (!teams.length || !currentUser) return;
     if (selectedTeamId) {
-      // 이미 팀 선택됨 — 타 팀 조회 권한 없으면 자기 팀으로 강제
-      if (!canViewOtherTeams) {
-        const myTm = teams.find(t => t.members.some(m => m.name === currentUser));
-        if (myTm && selectedTeamId !== myTm.id) setSelectedTeamId(myTm.id);
+      // 이미 선택됨 — 권한 없는 팀이면 차단
+      if (!canViewOtherTeams && !myTeamIds.includes(selectedTeamId)) {
+        setSelectedTeamId(isMultiTeam ? null : myTeamIds[0] || null);
       }
       return;
     }
-    // 미선택 — 소속 팀 자동 선택
-    const myTm = teams.find(t => t.members.some(m => m.name === currentUser));
-    if (myTm) setSelectedTeamId(myTm.id);
+    // 미선택 — 복수 팀이면 전체 보기, 단일이면 해당 팀
+    if (myTeamIds.length === 1) setSelectedTeamId(myTeamIds[0]);
+    // 복수 팀이면 null(전체 보기) 유지
   }, [teams, currentUser, selectedTeamId, canViewOtherTeams]);
 
   // ── 캘린더 팝오버 / 빠른 추가 상태 ──────────────────────────────
@@ -223,10 +229,11 @@ export default function App() {
       return { ...prev, [currentUser]: { ...prev[currentUser], hiddenProjects: n } };
     });
   };
-  // 팀 필터 적용: 선택된 팀의 프로젝트만 표시 (전체 보기 시 전부)
+  // 팀 필터 적용: 선택된 팀 프로젝트 / 전체 보기 시 소속 팀 전체 프로젝트
   const teamProj = selectedTeamId
-    ? aProj.filter(p => { const t = teams.find(tm => tm.id === selectedTeamId); return t ? t.projectIds.includes(p.id) : true; })
-    : aProj;
+    ? aProj.filter(p => teams.some(t => t.id === selectedTeamId && t.projectIds.includes(p.id)))
+    : canViewOtherTeams ? aProj
+    : aProj.filter(p => teams.some(t => myTeamIds.includes(t.id) && t.projectIds.includes(p.id)));
   const visibleProj = teamProj.filter(p => !hiddenProjects.includes(p.id));
   // 숨겨진 담당자 — userSettings 기반 (Firestore 동기화)
   const hiddenMembers: string[] = currentUser ? (userSettings[currentUser]?.hiddenMembers ?? []) : [];
@@ -238,10 +245,11 @@ export default function App() {
       return { ...prev, [currentUser]: { ...prev[currentUser], hiddenMembers: n } };
     });
   };
-  // 팀 필터 적용: 선택된 팀의 멤버만 표시 (전체 보기 시 전부)
+  // 팀 필터 적용: 선택된 팀 멤버 / 전체 보기 시 소속 팀 전체 멤버
   const teamMembers = selectedTeamId
-    ? members.filter(m => { const t = teams.find(tm => tm.id === selectedTeamId); return t ? t.members.some(tm => tm.name === m) : true; })
-    : members;
+    ? members.filter(m => teams.some(t => t.id === selectedTeamId && t.members.some(tm => tm.name === m)))
+    : canViewOtherTeams ? members
+    : members.filter(m => teams.some(t => myTeamIds.includes(t.id) && t.members.some(tm => tm.name === m)));
   const visibleMembers = teamMembers.filter(m => !hiddenMembers.includes(m));
   const sidebarExpand = (id: number|null) => {
     // 다른 항목으로 전환 전 현재 세부정보 자동저장 (DOM에서 직접 읽기)
@@ -386,7 +394,7 @@ export default function App() {
 
   if (!currentUser) return (
     <PermissionProvider currentUser={null}>
-      <LoginScreen members={members} onLogin={name => setCurrentUser(name)}/>
+      <LoginScreen members={members} memberPins={memberPins} onLogin={name => setCurrentUser(name)}/>
     </PermissionProvider>
   );
 
@@ -436,8 +444,8 @@ export default function App() {
                   backgroundImage:"url(\"data:image/svg+xml,%3Csvg viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='white' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E\")",
                   backgroundRepeat:"no-repeat",backgroundPosition:"right 8px center",backgroundSize:"8px",
                 }}>
-                {/* 전체 보기: 타 팀 조회 권한 있을 때만 */}
-                {canViewOtherTeams&&<option value="" style={{color:"#334155"}}>전체 보기</option>}
+                {/* 전체 보기: 타 팀 조회 권한 있거나 복수 팀 소속일 때 */}
+                {(canViewOtherTeams||isMultiTeam)&&<option value="" style={{color:"#334155"}}>{canViewOtherTeams?"전체 보기":"내 팀 전체"}</option>}
                 {teams.filter(t=>
                   canViewOtherTeams || t.members.some(m=>m.name===currentUser)
                 ).map(t=><option key={t.id} value={t.id} style={{color:"#334155"}}>{t.name}</option>)}
@@ -717,12 +725,13 @@ export default function App() {
         priC={priC} setPriC={setPriC} priBg={priBg} setPriBg={setPriBg}
         stC={stC} setStC={setStC} stBg={stBg} setStBg={setStBg}
         memberColors={memberColors} setMemberColor={(name,c)=>setMemberColors((p:any)=>({...p,[name]:c}))}
-        projects={projects} pNId={pNId} setPNId={setPNId}
+        projects={projects} setProjects={setProjects} pNId={pNId} setPNId={setPNId}
         onAddProj={p=>{const np={...p,id:pNId};setProjects((prev:any)=>[...prev,np]);setPNId(pNId+1);flash(`"${p.name}" 프로젝트가 추가되었습니다`)}}
         onDelProj={id=>{if(todos.some(t=>t.pid===id)){alert("해당 프로젝트에 업무가 존재하여 삭제할 수 없습니다.");return;}setProjects((p:any)=>p.filter((x:any)=>x.id!==id));flash("프로젝트가 삭제되었습니다","err")}}
         onEditProj={(id,u)=>{setProjects((p:any)=>p.map((x:any)=>{if(x.id!==id)return x;return{...x,...u};}));flash("프로젝트 정보가 수정되었습니다")}}
         todos={todos} flash={flash} apiKey={apiKey} setApiKey={setApiKey}
-        teams={teams} setTeams={setTeams} memberRoles={memberRoles} setMemberRole={setMemberRole} globalPermissions={globalPermissions} setGlobalPermissions={setGlobalPermissions} addTeam={addTeam} updTeam={updTeam} delTeam={delTeam}
+        teams={teams} setTeams={setTeams} memberRoles={memberRoles} setMemberRole={setMemberRole} memberPins={memberPins} setMemberPins={setMemberPins} generatePin={generatePin}
+        globalPermissions={globalPermissions} setGlobalPermissions={setGlobalPermissions} addTeam={addTeam} updTeam={updTeam} delTeam={delTeam}
         addTeamMember={addTeamMember} removeTeamMember={removeTeamMember} setTeamMemberRole={setTeamMemberRole}
         addTeamProject={addTeamProject} removeTeamProject={removeTeamProject} assignTodosToTeams={assignTodosToTeams}
       />
@@ -868,7 +877,7 @@ export default function App() {
   </div>;
 
   return (
-    <PermissionProvider currentUser={currentUser} teams={teams}>
+    <PermissionProvider currentUser={currentUser} teams={teams} memberRoles={memberRoles} globalPermissions={globalPermissions}>
       {content}
     </PermissionProvider>
   );

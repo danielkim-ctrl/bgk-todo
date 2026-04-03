@@ -1,68 +1,59 @@
 import { createContext, useContext, ReactNode } from "react";
 import { TeamRole, Team, TEAM_ROLE_PERMISSIONS } from "../types";
 
-// ─── 컨텍스트 타입 ────────────────────────────────────────────────────────────
-
 interface PermissionContextValue {
-  /** 현재 사용자의 팀 내 역할 (팀 미소속 시 admin 기본값) */
   role: TeamRole;
-  /** 특정 권한 보유 여부 확인 */
   can: (permission: string) => boolean;
-  /** 현재 사용자가 특정 할일의 소유자인지 확인 */
   isOwner: (todoWho: string) => boolean;
-  /** 현재 사용자의 소속 팀 (없으면 null) */
-  myTeam: Team | null;
+  /** 수정 가능 여부 — 본인 업무이면 edit.own, 타인이면 edit.all 체크 */
+  canEdit: (todoWho: string) => boolean;
+  /** 삭제 가능 여부 — 본인 업무이면 delete.own, 타인이면 delete.all 체크 */
+  canDelete: (todoWho: string) => boolean;
 }
-
-// ─── 기본값: 지금은 모든 권한 허용 (Phase 1 - 뼈대만) ─────────────────────
 
 const defaultValue: PermissionContextValue = {
   role: "admin",
   can: () => true,
   isOwner: () => true,
-  myTeam: null,
+  canEdit: () => true,
+  canDelete: () => true,
 };
 
 const PermissionContext = createContext<PermissionContextValue>(defaultValue);
-
-// ─── Provider ─────────────────────────────────────────────────────────────────
 
 interface PermissionProviderProps {
   children: ReactNode;
   currentUser: string | null;
   teams?: Team[];
+  memberRoles?: Record<string, TeamRole>;
+  globalPermissions?: Record<TeamRole, string[]> | null;
 }
 
 export function PermissionProvider({
-  children,
-  currentUser,
-  teams = [],
+  children, currentUser, teams = [],
+  memberRoles = {}, globalPermissions,
 }: PermissionProviderProps) {
-  // 현재 사용자의 소속 팀 + 역할 결정
-  const myTeam = teams.find(t => t.members.some(m => m.name === currentUser)) || null;
-  const role: TeamRole = (() => {
-    if (!currentUser) return "viewer";
-    if (!myTeam) return "admin"; // 팀 미소속 시 admin (기존 동작 유지, Phase 2에서 변경 예정)
-    const member = myTeam.members.find(m => m.name === currentUser);
-    return member?.role ?? "editor";
-  })();
+  // memberRoles 기반 역할 결정 (팀 소속 여부와 무관)
+  const role: TeamRole = (currentUser && memberRoles[currentUser]) || "admin";
+  const perms = globalPermissions?.[role] ?? TEAM_ROLE_PERMISSIONS[role];
 
-  const can = (permission: string): boolean => {
-    return TEAM_ROLE_PERMISSIONS[role].includes(permission);
-  };
+  const can = (permission: string) => perms.includes(permission);
+  const isOwner = (todoWho: string) => todoWho === currentUser;
 
-  const isOwner = (todoWho: string): boolean => {
-    return todoWho === currentUser;
-  };
+  // 수정 권한: edit.all 있으면 전체, 아니면 본인 업무만 (edit.own)
+  const canEdit = (todoWho: string) =>
+    perms.includes("todo.edit.all") || (isOwner(todoWho) && perms.includes("todo.edit.own"));
+
+  // 삭제 권한: delete.all 있으면 전체, 아니면 본인 업무만 (delete.own)
+  const canDelete = (todoWho: string) =>
+    perms.includes("todo.delete.all") || (isOwner(todoWho) && perms.includes("todo.delete.own"));
 
   return (
-    <PermissionContext.Provider value={{ role, can, isOwner, myTeam }}>
+    <PermissionContext.Provider value={{ role, can, isOwner, canEdit, canDelete }}>
       {children}
     </PermissionContext.Provider>
   );
 }
-
-// ─── 훅 ──────────────────────────────────────────────────────────────────────
 
 export function usePermission() {
   return useContext(PermissionContext);

@@ -11,9 +11,9 @@ export function SettingsMgr({
   priC, setPriC, priBg, setPriBg,
   stC, setStC, stBg, setStBg,
   memberColors, setMemberColor,
-  projects, pNId, setPNId, onAddProj, onDelProj, onEditProj,
+  projects, setProjects, pNId, setPNId, onAddProj, onDelProj, onEditProj,
   todos, flash, apiKey, setApiKey,
-  teams, setTeams, memberRoles, setMemberRole, globalPermissions, setGlobalPermissions, addTeam, updTeam, delTeam,
+  teams, setTeams, memberRoles, setMemberRole, memberPins, setMemberPins, generatePin, globalPermissions, setGlobalPermissions, addTeam, updTeam, delTeam,
   addTeamMember, removeTeamMember, setTeamMemberRole,
   addTeamProject, removeTeamProject, assignTodosToTeams,
 }: {
@@ -34,6 +34,7 @@ export function SettingsMgr({
   memberColors: Record<string,string>;
   setMemberColor: (name: string, color: string) => void;
   projects: Project[];
+  setProjects: (fn: any) => void;
   pNId: number;
   setPNId: (v: number) => void;
   onAddProj: (p: Omit<Project,"id">) => void;
@@ -48,6 +49,9 @@ export function SettingsMgr({
   setTeams: (fn: any) => void;
   memberRoles: Record<string, TeamRole>;
   setMemberRole: (name: string, role: TeamRole) => void;
+  memberPins: Record<string, string>;
+  setMemberPins: (fn: any) => void;
+  generatePin: () => string;
   globalPermissions: Record<TeamRole, string[]> | null;
   setGlobalPermissions: (v: Record<TeamRole, string[]> | null) => void;
   addTeam: (name: string, color: string) => string;
@@ -65,6 +69,9 @@ export function SettingsMgr({
   const [nc, setNc] = useState("#8b5cf6");
   const [delConfirm, setDelConfirm] = useState<{value: string; tab: string} | null>(null);
   const [keyDraft, setKeyDraft] = useState(apiKey || "");
+  // 공통 드래그 정렬 상태
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
   // 프로젝트 탭용 신규 프로젝트 상태
   const usedColors = projects.map(p => p.color);
@@ -117,6 +124,29 @@ export function SettingsMgr({
     display: "inline-flex", alignItems: "center", padding: 4, borderRadius: 6,
     transition: "color .12s, background .12s",
   };
+  // 원형 도트 컬러 피커 — 팀 탭과 동일한 형태
+  // 원형 도트 컬러 피커 — 팀 탭의 10px 도트와 동일한 크기
+  const ColorDot = ({ color, onChange }: { color: string; onChange: (c: string) => void }) => (
+    <div style={{ position: "relative", width: 20, height: 20, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <span style={{ width: 12, height: 12, borderRadius: "50%", background: color, display: "block", boxShadow: `0 0 0 2px ${color}33` }} />
+      <input type="color" value={color} onChange={e => onChange(e.target.value)}
+        style={{ position: "absolute", inset: 0, width: 20, height: 20, opacity: 0, cursor: "pointer", padding: 0, border: "none" }} />
+    </div>
+  );
+  // 드래그 정렬 핸들러 생성 — 배열 재정렬 함수를 받아 이벤트 핸들러 반환
+  const mkDrag = (idx: number, reorder: (from: number, to: number) => void) => ({
+    draggable: true,
+    onDragStart: () => setDragIdx(idx),
+    onDragEnd: () => { setDragIdx(null); setDragOverIdx(null); },
+    onDragOver: (e: React.DragEvent) => { if (dragIdx !== null && dragIdx !== idx) { e.preventDefault(); setDragOverIdx(idx); } },
+    onDragLeave: () => setDragOverIdx(null),
+    onDrop: (e: React.DragEvent) => { e.preventDefault(); if (dragIdx !== null && dragIdx !== idx) reorder(dragIdx, idx); setDragIdx(null); setDragOverIdx(null); },
+  });
+  const dragStyle = (idx: number): React.CSSProperties => ({
+    opacity: dragIdx === idx ? 0.35 : 1,
+    borderTop: dragOverIdx === idx && dragIdx !== idx ? "2.5px solid #2563eb" : undefined,
+    transition: "opacity .15s",
+  });
 
   const items = tab === "members" ? members : tab === "pris" ? pris : stats;
 
@@ -124,7 +154,11 @@ export function SettingsMgr({
     if (!nv.trim()) return;
     const v = nv.trim();
     if (tab === "members") {
-      if (!members.includes(v)) setMembers((p: string[]) => [...p, v]);
+      if (!members.includes(v)) {
+        setMembers((p: string[]) => [...p, v]);
+        // 신규 멤버 PIN 자동 생성
+        setMemberPins((p: any) => ({ ...p, [v]: generatePin() }));
+      }
       flash(`담당자 "${v}"이(가) 추가되었습니다`);
     } else if (tab === "pris") {
       if (!pris.includes(v)) { setPris((p: string[]) => [...p, v]); setPriC((p: any) => ({...p,[v]:nc})); setPriBg((p: any) => ({...p,[v]:nc+"18"})); }
@@ -260,13 +294,37 @@ export function SettingsMgr({
     {/* ── 프로젝트 탭 ── */}
     {tab==="proj"&&<>
       <div style={{display:"flex",flexDirection:"column",marginBottom:14,maxHeight:340,overflowY:"auto"}}>
-        {projects.map(p=>{
+        {projects.map((p,i)=>{
           const c=todos.filter((t:any)=>t.pid===p.id).length;
-          return <div key={p.id} style={ROW}
+          const reorderProj=(from:number,to:number)=>{setProjects(()=>{const a=[...projects];const[m]=a.splice(from,1);a.splice(to,0,m);return a;});};
+          return <div key={p.id} style={{...ROW,...dragStyle(i),cursor:"grab"}}
+            {...mkDrag(i,reorderProj)}
             onMouseEnter={e=>{(e.currentTarget as HTMLElement).style.background="#f8fafc";}}
             onMouseLeave={e=>{(e.currentTarget as HTMLElement).style.background="#fff";}}>
-            <input type="color" value={p.color} onChange={e=>onEditProj(p.id,{color:e.target.value})} title="색상 변경" style={COLOR_PICK}/>
+            <Bars3Icon style={{width:12,height:12,color:"#cbd5e1",flexShrink:0}}/>
+            <ColorDot color={p.color} onChange={c=>onEditProj(p.id,{color:c})}/>
             <div style={{flex:1,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>{p.name}</div>
+            {/* 프로젝트 소속 팀 (복수 가능) */}
+            {teams.length>0&&(()=>{
+              const projTeams=teams.filter(t=>t.projectIds.includes(p.id));
+              const availTeams=teams.filter(t=>!t.projectIds.includes(p.id));
+              return <div style={{display:"flex",gap:3,alignItems:"center",flexWrap:"wrap" as const}}>
+                {projTeams.map(t=>(
+                  <span key={t.id} style={{display:"inline-flex",alignItems:"center",gap:2,padding:"1px 6px",background:"#eff6ff",borderRadius:99,fontSize:10,color:"#2563eb",fontWeight:500,border:"1px solid #bfdbfe",whiteSpace:"nowrap" as const}}>
+                    <span style={{width:6,height:6,borderRadius:"50%",background:t.color,flexShrink:0}}/>
+                    {t.name}
+                    <span onClick={()=>removeTeamProject(t.id,p.id)} style={{cursor:"pointer",color:"#93c5fd",marginLeft:1,fontSize:12,lineHeight:1}}>×</span>
+                  </span>
+                ))}
+                {availTeams.length>0&&(
+                  <select value="" onChange={e=>{if(e.target.value)addTeamProject(e.target.value,p.id);}}
+                    style={{padding:"1px 4px",border:"1px dashed #93c5fd",borderRadius:6,fontSize:10,fontFamily:"inherit",color:"#93c5fd",maxWidth:40,background:"#f8fbff"}}>
+                    <option value="">+</option>
+                    {availTeams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                )}
+              </div>;
+            })()}
             <span style={{fontSize:10,color:"#94a3b8",flexShrink:0}}>{c}건</span>
             <button onClick={()=>{const n=prompt("이름:",p.name);if(n)onEditProj(p.id,{name:n.trim()})}} style={ICON_BTN} onMouseEnter={e=>iconHover(e,true)} onMouseLeave={e=>iconHover(e,false)}><PencilSquareIcon style={ICON_SM}/></button>
             <button onClick={()=>{if(window.confirm("해당 프로젝트를 삭제하시겠습니까?"))onDelProj(p.id)}} style={ICON_BTN} onMouseEnter={e=>iconHover(e,true)} onMouseLeave={e=>iconHover(e,false)}><TrashIcon style={ICON_SM}/></button>
@@ -276,7 +334,7 @@ export function SettingsMgr({
       <div style={{borderTop:"1px solid #e2e8f0",paddingTop:12}}>
         <div style={SEC_LABEL}>새 프로젝트</div>
         <div style={{display:"flex",gap:6,alignItems:"center"}}>
-          <input type="color" value={projCo} onChange={e=>setProjCo(e.target.value)} style={COLOR_PICK}/>
+          <ColorDot color={projCo} onChange={setProjCo}/>
           <input value={projNm} onChange={e=>setProjNm(e.target.value)}
             onKeyDown={e=>{if(e.key==="Enter"&&projNm.trim()){onAddProj({name:projNm.trim(),color:projCo,status:"활성"});setProjNm("");const nu=[...usedColors,projCo];setProjCo(PROJ_PALETTE.find(c=>!nu.includes(c))||PROJ_PALETTE[0]);}}}
             placeholder="이름" style={INP}/>
@@ -289,16 +347,24 @@ export function SettingsMgr({
     {/* ── 담당자 / 우선순위 / 상태 탭 — 공통 목록 ── */}
     {(tab==="members"||tab==="pris"||tab==="stats")&&<>
       <div style={{marginBottom:14,maxHeight:340,overflowY:"auto"}}>
-        {items.map(v => {
+        {items.map((v, idx) => {
           const cnt = tab==="members" ? todos.filter((t:any)=>t.who===v).length
             : tab==="pris" ? todos.filter((t:any)=>t.pri===v).length
             : todos.filter((t:any)=>t.st===v).length;
           const isMember = tab === "members";
           const color = isMember ? undefined : tab==="pris" ? (priC[v]||"#94a3b8") : (stC[v]||"#94a3b8");
           const SEL: React.CSSProperties = {padding:"3px 8px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:10,fontFamily:"inherit"};
-          return <div key={v} style={ROW}
+          // 드래그 정렬 — 배열 재정렬 함수
+          const reorderItems = (from: number, to: number) => {
+            if (tab==="members") setMembers((p:string[])=>{const a=[...p];const[m]=a.splice(from,1);a.splice(to,0,m);return a;});
+            else if (tab==="pris") setPris((p:string[])=>{const a=[...p];const[m]=a.splice(from,1);a.splice(to,0,m);return a;});
+            else setStats((p:string[])=>{const a=[...p];const[m]=a.splice(from,1);a.splice(to,0,m);return a;});
+          };
+          return <div key={v} style={{...ROW,...dragStyle(idx),cursor:"grab"}}
+            {...mkDrag(idx, reorderItems)}
             onMouseEnter={e=>{(e.currentTarget as HTMLElement).style.background="#f8fafc";}}
             onMouseLeave={e=>{(e.currentTarget as HTMLElement).style.background="#fff";}}>
+            <Bars3Icon style={{width:12,height:12,color:"#cbd5e1",flexShrink:0}}/>
             {isMember ? (
               <div style={{position:"relative",display:"flex",alignItems:"center",flexShrink:0}}>
                 <span style={{width:24,height:24,borderRadius:"50%",background:memberAvatarBg(v),color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,flexShrink:0,letterSpacing:"-0.5px"}}>
@@ -308,30 +374,49 @@ export function SettingsMgr({
                   title="아바타 색상 변경" style={{position:"absolute",left:0,top:0,width:24,height:24,opacity:0,cursor:"pointer",padding:0,border:"none"}}/>
               </div>
             ) : (
-              <input type="color" value={color} onChange={e=>chgColor(v,e.target.value)} style={COLOR_PICK}/>
+              <ColorDot color={color!} onChange={c=>chgColor(v,c)}/>
             )}
             <span style={{flex:1,fontWeight:600,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>{v}</span>
-            {/* 담당자: 역할 + 소속 팀 */}
+            {/* 담당자: 역할 + 소속 팀 (복수 가능) */}
             {isMember && (()=>{
-              const memberTeam = teams.find(t => t.members.some(m => m.name === v));
+              const myTeams = teams.filter(t => t.members.some(m => m.name === v));
               const curRole = memberRoles[v] || "admin";
+              const availTeams = teams.filter(t => !t.members.some(m => m.name === v));
               return <>
                 <select value={curRole} onChange={e => setMemberRole(v, e.target.value as TeamRole)}
                   style={{...SEL,color:curRole==="admin"?"#dc2626":curRole==="viewer"?"#94a3b8":"#2563eb",maxWidth:64}}>
                   {(Object.entries(TEAM_ROLE_LABELS) as [TeamRole, string][]).map(([k,label]) => <option key={k} value={k}>{label}</option>)}
                 </select>
                 {teams.length > 0 && (
-                  <select value={memberTeam?.id || ""} onChange={e => {
-                    const newTeamId = e.target.value;
-                    if (newTeamId) addTeamMember(newTeamId, v, curRole);
-                    else if (memberTeam) removeTeamMember(memberTeam.id, v);
-                  }} style={{...SEL,color:memberTeam?"#334155":"#94a3b8",maxWidth:90}}>
-                    <option value="">팀 미배정</option>
-                    {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                  </select>
+                  <div style={{display:"flex",gap:3,alignItems:"center",flexWrap:"wrap" as const}}>
+                    {myTeams.map(t => (
+                      <span key={t.id} style={{display:"inline-flex",alignItems:"center",gap:2,padding:"1px 6px",background:"#eff6ff",borderRadius:99,fontSize:10,color:"#2563eb",fontWeight:500,border:"1px solid #bfdbfe",whiteSpace:"nowrap" as const}}>
+                        <span style={{width:6,height:6,borderRadius:"50%",background:t.color,flexShrink:0}}/>
+                        {t.name}
+                        <span onClick={()=>removeTeamMember(t.id,v)} style={{cursor:"pointer",color:"#93c5fd",marginLeft:1,fontSize:12,lineHeight:1}}>×</span>
+                      </span>
+                    ))}
+                    {availTeams.length > 0 && (
+                      <select value="" onChange={e=>{if(e.target.value)addTeamMember(e.target.value,v,curRole);}}
+                        style={{...SEL,color:"#93c5fd",maxWidth:40,padding:"1px 4px",border:"1px dashed #93c5fd",background:"#f8fbff"}}>
+                        <option value="">+</option>
+                        {availTeams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
+                      </select>
+                    )}
+                  </div>
                 )}
               </>;
             })()}
+            {/* PIN 코드 — 담당자 탭에서만 표시 */}
+            {isMember && (
+              <span style={{fontSize:10,fontFamily:"'Courier New',monospace",color:"#64748b",background:"#f1f5f9",padding:"2px 6px",borderRadius:4,flexShrink:0,letterSpacing:"1px",cursor:"pointer",border:"1px solid #e2e8f0",transition:"background .1s"}}
+                title="클릭하여 PIN 재생성"
+                onClick={e=>{e.stopPropagation();if(confirm(`"${v}"의 PIN을 재생성하시겠습니까?`)){setMemberPins((p:any)=>({...p,[v]:generatePin()}));flash(`${v}의 PIN이 재생성되었습니다`);}}}
+                onMouseEnter={e=>{(e.currentTarget as HTMLElement).style.background="#e2e8f0";}}
+                onMouseLeave={e=>{(e.currentTarget as HTMLElement).style.background="#f1f5f9";}}>
+                {memberPins[v]||"------"}
+              </span>
+            )}
             <span style={{fontSize:10,color:"#94a3b8",flexShrink:0}}>{cnt}건</span>
             <button onClick={()=>edit(v)} style={ICON_BTN} onMouseEnter={e=>iconHover(e,true)} onMouseLeave={e=>iconHover(e,false)}><PencilSquareIcon style={ICON_SM}/></button>
             <button onClick={()=>tryDel(v)} style={ICON_BTN} onMouseEnter={e=>iconHover(e,true)} onMouseLeave={e=>iconHover(e,false)}><TrashIcon style={ICON_SM}/></button>
@@ -352,7 +437,7 @@ export function SettingsMgr({
       <div style={{borderTop:"1px solid #e2e8f0",paddingTop:12}}>
         <div style={SEC_LABEL}>{tab==="members"?"새 담당자":tab==="pris"?"새 우선순위":"새 상태"} 추가</div>
         <div style={{display:"flex",gap:6,alignItems:"center"}}>
-          {tab!=="members"&&<input type="color" value={nc} onChange={e=>setNc(e.target.value)} style={COLOR_PICK}/>}
+          {tab!=="members"&&<ColorDot color={nc} onChange={setNc}/>}
           <input value={nv} onChange={e=>setNv(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")add()}}
             placeholder={tab==="members"?"이름":"항목명"} style={INP}/>
           <button style={BTN_ADD} onClick={add}>추가</button>

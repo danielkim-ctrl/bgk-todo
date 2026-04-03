@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect, useCallback, useMemo } from "react";
 import { S } from "../styles";
 import { isOD, dDay, fDow, fmt2, stripHtml, sanitize } from "../utils";
+import { usePermission } from "../auth/PermissionContext";
 import { REPEAT_OPTS } from "../constants";
 import { avColor, avColor2, avInitials } from "../utils/avatarUtils";
 import { Sidebar } from "../components/sidebar/Sidebar";
@@ -71,6 +72,9 @@ function HoverPopup({hoverRow,hoverRowRect,setHoverRow,setHoverRowRect,sorted,tb
     return () => document.removeEventListener("mousemove", onMove);
   }, [hoverRow, hoverRowRect, setHoverRow, setHoverRowRect, tblDivRef, popupOpen]);
 
+  // 권한 체크 — usePermission 훅으로 현재 사용자의 권한 확인
+  const { canEdit, canDelete } = usePermission();
+
   if (!hoverRow || !hoverRowRect) return null;
   const t = sorted.find((x:any) => x.id === hoverRow);
   if (!t) return null;
@@ -80,15 +84,18 @@ function HoverPopup({hoverRow,hoverRowRect,setHoverRow,setHoverRowRect,sorted,tb
   const tblRect = tblDivRef.current?.getBoundingClientRect();
   const visibleRight = tblRect ? tblRect.right / zoom : window.innerWidth / zoom - 16;
 
+  // 수정/삭제 권한 모두 없으면 팝업 자체를 숨김
+  if (!canEdit(t.who) && !canDelete(t.who)) return null;
+
   return <div ref={popupRef}
     style={{position:"fixed",top:hoverRowRect.top / zoom,left:visibleRight + 6,height:hoverRowRect.height / zoom,
       display:"flex",alignItems:"center",gap:4,zIndex:500,
       background:"#fff",borderRadius:8,boxShadow:"0 2px 10px rgba(0,0,0,.14)",
       border:"1px solid #e2e8f0",padding:"0 8px",pointerEvents:"auto"}}>
-    {!isDone&&<button onClick={()=>setEditMod(t)}
+    {!isDone&&canEdit(t.who)&&<button onClick={()=>setEditMod(t)}
       style={{background:"#f1f5f9",border:"none",cursor:"pointer",fontSize:11,color:"#475569",borderRadius:6,padding:"3px 7px",display:"inline-flex",alignItems:"center"}}><PencilSquareIcon style={ICON_SM}/></button>}
-    <button onClick={e=>{e.stopPropagation();if(confirm(`"${t.task}" 업무를 삭제하시겠습니까?`)){delTodo(t.id);setHoverRow(null);setHoverRowRect(null);}}}
-      style={{background:"#fee2e2",border:"none",cursor:"pointer",fontSize:11,color:"#dc2626",borderRadius:6,padding:"3px 7px",fontWeight:700,display:"inline-flex",alignItems:"center"}}><TrashIcon style={ICON_SM}/></button>
+    {canDelete(t.who)&&<button onClick={e=>{e.stopPropagation();if(confirm(`"${t.task}" 업무를 삭제하시겠습니까?`)){delTodo(t.id);setHoverRow(null);setHoverRowRect(null);}}}
+      style={{background:"#fee2e2",border:"none",cursor:"pointer",fontSize:11,color:"#dc2626",borderRadius:6,padding:"3px 7px",fontWeight:700,display:"inline-flex",alignItems:"center"}}><TrashIcon style={ICON_SM}/></button>}
   </div>;
 }
 
@@ -227,6 +234,8 @@ export function ListView(props: ListViewProps) {
     savedFilters, saveCurrentFilter, deleteSavedFilter,
     isMobile, onFilterOpen,
   } = props;
+
+  const { can, canEdit: permCanEdit, canDelete } = usePermission();
 
   // ── 저장 필터 이름 입력 상태 ────────────────────────────────────────────────
   const [sfSaving, setSfSaving] = useState(false);
@@ -431,13 +440,14 @@ export function ListView(props: ListViewProps) {
     const isE = editCell?.id === todo.id && editCell?.field === field;
     const stop = () => setEditCell(null);
     const start = (e: React.MouseEvent) => {
-      // 클릭한 td의 정확한 viewport 좌표를 ref에 저장 (re-render 전에 캡처)
+      // 수정 권한 없으면 인라인 편집 진입 차단
+      if (!permCanEdit(todo.who)) return;
       const r = e.currentTarget.getBoundingClientRect();
       clickRectRef.current = {top:r.top, left:r.left, bottom:r.bottom, right:r.right};
       setEditCell({id: todo.id, field});
     };
     const save = (val: string) => { updTodo(todo.id, {[field]: field === "pid" ? parseInt(val) : val}); stop(); };
-    if (!isE) return <td style={{...S.tdc,...tdStyle}} onClick={e => { if (field === "due") { const r = e.currentTarget.getBoundingClientRect(); setDatePop({id: todo.id, rect: {top:r.top,left:r.left,bottom:r.bottom,right:r.right}, value: todo.due || ""}); return; } start(e); }} onMouseEnter={e => { e.currentTarget.style.cursor = "pointer"; }} onMouseLeave={e => { e.currentTarget.style.cursor = ""; }}>{children}</td>;
+    if (!isE) return <td style={{...S.tdc,...tdStyle}} onClick={e => { if (!permCanEdit(todo.who)) return; if (field === "due") { const r = e.currentTarget.getBoundingClientRect(); setDatePop({id: todo.id, rect: {top:r.top,left:r.left,bottom:r.bottom,right:r.right}, value: todo.due || ""}); return; } start(e); }} onMouseEnter={e => { e.currentTarget.style.cursor = permCanEdit(todo.who) ? "pointer" : "default"; }} onMouseLeave={e => { e.currentTarget.style.cursor = ""; }}>{children}</td>;
     if (field === "task") return <td style={{...S.tdc, overflow:"visible"}}><input autoFocus defaultValue={todo.task} style={S.iinp} onKeyDown={e => { if ((e as any).key === "Enter") save((e.target as HTMLInputElement).value); if ((e as any).key === "Escape") stop(); }} onBlur={e => save(e.target.value)}/></td>;
     if (field === "due") return <td style={{...S.tdc, background:"#eff6ff"}}>{children}</td>;
     const ar = clickRectRef.current || undefined;
@@ -871,22 +881,22 @@ export function ListView(props: ListViewProps) {
                            onKeyDown={e=>{if((e as any).key==="Enter"){updTodo(t.id,{task:(e.target as HTMLInputElement).value});setEditCell(null);}if((e as any).key==="Escape")setEditCell(null);}}
                            onBlur={e=>{updTodo(t.id,{task:e.target.value});setEditCell(null);}}/>
                         :<div style={{display:"flex",alignItems:expandMode?"flex-start":"center",gap:3,minWidth:0}}>
-                           <span style={{fontWeight:taskWeight,color:taskColor,cursor:"pointer",fontSize:14,...(expandMode?{wordBreak:"break-word" as const}:{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,minWidth:0})}} onClick={()=>setEditCell({id:t.id,field:"task"})}>{t.task}</span>
+                           <span style={{fontWeight:taskWeight,color:taskColor,cursor:permCanEdit(t.who)?"pointer":"default",fontSize:14,...(expandMode?{wordBreak:"break-word" as const}:{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,minWidth:0})}} onClick={()=>{if(permCanEdit(t.who))setEditCell({id:t.id,field:"task"});}}>{t.task}</span>
                            <RepeatBadge repeat={t.repeat}/>
                            {od&&<span style={{color:"#dc2626",display:"inline-flex"}}><ExclamationTriangleIcon style={ICON_SM}/></span>}
                          </div>}
                     </div>
                   </div>
                 </td>
-                <td style={{...S.tdc,...priCellStyle,maxWidth:0,...(expandMode?{whiteSpace:"normal" as const,verticalAlign:"top" as const,cursor:"text",wordBreak:"break-word" as const}:{})}}
-                  onClick={expandMode?e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();setNotePopup({todo:t,x:r.left,y:r.bottom});}:undefined}>
+                <td style={{...S.tdc,...priCellStyle,maxWidth:0,...(expandMode?{whiteSpace:"normal" as const,verticalAlign:"top" as const,cursor:permCanEdit(t.who)?"text":"default",wordBreak:"break-word" as const}:{})}}
+                  onClick={expandMode&&permCanEdit(t.who)?e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();setNotePopup({todo:t,x:r.left,y:r.bottom});}:undefined}>
                   {expandMode
                     ?<div style={{fontSize:13,color:plain?"#374151":"#c0c8d4",lineHeight:1.7,padding:"4px 6px",fontStyle:plain?"normal":"italic",borderRadius:6,border:"1px solid transparent",transition:"border-color .15s"}}
-                        onMouseEnter={e=>{(e.currentTarget as HTMLDivElement).style.borderColor="#e2e8f0";(e.currentTarget as HTMLDivElement).style.background="#fafbfc";}}
+                        onMouseEnter={e=>{if(!permCanEdit(t.who))return;(e.currentTarget as HTMLDivElement).style.borderColor="#e2e8f0";(e.currentTarget as HTMLDivElement).style.background="#fafbfc";}}
                         onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.borderColor="transparent";(e.currentTarget as HTMLDivElement).style.background="transparent";}}
                         dangerouslySetInnerHTML={{__html:sanitize(t.det||"<span style='color:#c0c8d4;font-style:italic'>상세내용 추가...</span>")}}/>
-                    :<span onClick={e=>{e.stopPropagation();const r=e.currentTarget.closest("td")!.getBoundingClientRect();setNotePopup({todo:t,x:r.left,y:r.bottom});}}
-                        style={{fontSize:13,color:plain?"#475569":"#c0c8d4",fontStyle:plain?"normal":"italic",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,display:"block",cursor:"text"}}>
+                    :<span onClick={e=>{if(!permCanEdit(t.who))return;e.stopPropagation();const r=e.currentTarget.closest("td")!.getBoundingClientRect();setNotePopup({todo:t,x:r.left,y:r.bottom});}}
+                        style={{fontSize:13,color:plain?"#475569":"#c0c8d4",fontStyle:plain?"normal":"italic",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,display:"block",cursor:permCanEdit(t.who)?"text":"default"}}>
                         {plain?plain.slice(0,50)+(plain.length>50?"…":""):"상세내용 추가..."}
                       </span>}
                 </td>
@@ -902,8 +912,11 @@ export function ListView(props: ListViewProps) {
                   <CellEdit todo={t} field="st" tdStyle={priCellStyle}><span style={{...S.badge(stBg[t.st],stC[t.st],`1px solid ${stC[t.st]}55`),display:"inline-flex",alignItems:"center",gap:3,cursor:"pointer",transition:"filter .12s"}} onMouseEnter={e=>(e.currentTarget as HTMLElement).style.filter="brightness(.93)"} onMouseLeave={e=>(e.currentTarget as HTMLElement).style.filter="none"}>{t.st}<span style={{fontSize:8,opacity:.5}}>▾</span></span></CellEdit>
                 </>}
                 <td style={{...S.tdc,...priCellStyle,padding:"0 6px",textAlign:"center" as const,verticalAlign:"middle" as const}} onClick={e=>e.stopPropagation()}>
-                  <input type="checkbox" checked={selectedIds.has(t.id)} onChange={()=>{}} onClick={(e)=>{e.stopPropagation();handleCheck(t.id,(e as any).shiftKey);}}
-                    style={{width:15,height:15,cursor:"pointer",accentColor:"#2563eb"}}/>
+                  {/* 수정/삭제 권한이 하나라도 있을 때만 체크박스 표시 — 권한 없으면 빈 칸 */}
+                  {(permCanEdit(t.who)||canDelete(t.who))
+                    ?<input type="checkbox" checked={selectedIds.has(t.id)} onChange={()=>{}} onClick={(e)=>{e.stopPropagation();handleCheck(t.id,(e as any).shiftKey);}}
+                      style={{width:15,height:15,cursor:"pointer",accentColor:"#2563eb"}}/>
+                    :null}
                 </td>
               </tr>})}
             {/* 드래그 시 맨 끝에 놓을 수 있도록 드롭 영역 표시 */}

@@ -2,6 +2,7 @@ import { useRef, useState, useEffect } from "react";
 import { S } from "../styles";
 import { isOD, dateStr, fDow } from "../utils";
 import { repeatLabel } from "../constants";
+import { usePermission } from "../auth/PermissionContext";
 import { avColor, avColor2 } from "../utils/avatarUtils";
 import { Chip } from "../components/ui/Chip";
 import { RepeatBadge } from "../components/ui/RepeatBadge";
@@ -648,6 +649,8 @@ export function CalendarView(props: CalendarViewProps) {
     pendingComplete, handleSideComplete, detDivRefs, taskDivRefs,
     isMobile,
   } = props;
+
+  const { can, canEdit, canDelete } = usePermission();
 
   return <div style={{display:"flex",gap:14,alignItems:"flex-start"}}>
     {/* ── 메인 캘린더 영역 ── */}
@@ -1327,10 +1330,12 @@ export function CalendarView(props: CalendarViewProps) {
           <button onClick={()=>setCalEvPop(null)} style={{background:"none",border:"none",cursor:"pointer",color:"#94a3b8",padding:"0 2px",flexShrink:0,lineHeight:1,display:"flex",alignItems:"center"}}><XMarkIcon style={ICON_SM}/></button>
         </div>
         <div style={{padding:"8px 14px 12px",borderTop:"1px solid #f1f5f9",display:"flex",gap:6}}>
-          {/* 반복 인스턴스는 원본 수정 버튼으로 안내, 일반 업무는 직접 수정 */}
-          <button onClick={()=>{setEditMod(isInst?{...t,due:t._originDue}:t);setCalEvPop(null);}} style={{flex:1,padding:"6px 10px",borderRadius:6,border:"1px solid #e2e8f0",background:"#fff",cursor:"pointer",fontSize:12,color:"#475569",fontWeight:500,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:3}}><PencilSquareIcon style={ICON_SM}/> {isInst?"원본 수정":"수정"}</button>
-          {t.st!=="완료"&&!isInst&&<button onClick={()=>{updTodo(t.id,{st:"완료",done:todayStr});setCalEvPop(null);flash("완료 처리되었습니다");}} style={{flex:1,padding:"6px 10px",borderRadius:6,border:"1px solid #bbf7d0",background:"#f0fdf4",cursor:"pointer",fontSize:12,color:"#16a34a",fontWeight:600,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:3}}><CheckIcon style={{width:12,height:12}}/> 완료</button>}
-          {!isInst&&<button onClick={()=>{if(confirm(`"${t.task}" 업무를 삭제하시겠습니까?`)){delTodo(t.id);setCalEvPop(null);}}} style={{padding:"6px 10px",borderRadius:6,border:"1px solid #fca5a5",background:"#fff5f5",cursor:"pointer",fontSize:12,color:"#dc2626",display:"inline-flex",alignItems:"center"}}><TrashIcon style={ICON_SM}/></button>}
+          {/* 수정: canEdit 권한 체크 */}
+          {canEdit(t.who)&&<button onClick={()=>{setEditMod(isInst?{...t,due:t._originDue}:t);setCalEvPop(null);}} style={{flex:1,padding:"6px 10px",borderRadius:6,border:"1px solid #e2e8f0",background:"#fff",cursor:"pointer",fontSize:12,color:"#475569",fontWeight:500,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:3}}><PencilSquareIcon style={ICON_SM}/> {isInst?"원본 수정":"수정"}</button>}
+          {/* 완료: canEdit 권한 체크 */}
+          {t.st!=="완료"&&!isInst&&canEdit(t.who)&&<button onClick={()=>{updTodo(t.id,{st:"완료",done:todayStr});setCalEvPop(null);flash("완료 처리되었습니다");}} style={{flex:1,padding:"6px 10px",borderRadius:6,border:"1px solid #bbf7d0",background:"#f0fdf4",cursor:"pointer",fontSize:12,color:"#16a34a",fontWeight:600,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:3}}><CheckIcon style={{width:12,height:12}}/> 완료</button>}
+          {/* 삭제: canDelete 권한 체크 */}
+          {!isInst&&canDelete(t.who)&&<button onClick={()=>{if(confirm(`"${t.task}" 업무를 삭제하시겠습니까?`)){delTodo(t.id);setCalEvPop(null);}}} style={{padding:"6px 10px",borderRadius:6,border:"1px solid #fca5a5",background:"#fff5f5",cursor:"pointer",fontSize:12,color:"#dc2626",display:"inline-flex",alignItems:"center"}}><TrashIcon style={ICON_SM}/></button>}
         </div>
       </div>
     );})()}
