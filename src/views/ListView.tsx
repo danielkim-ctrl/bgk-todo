@@ -232,6 +232,84 @@ export function ListView(props: ListViewProps) {
   // sfSaving 활성화 시 입력 필드에 포커스
   useEffect(() => { if (sfSaving) sfInputRef.current?.focus(); }, [sfSaving]);
 
+  // ── 컬럼 너비 조절 상태 ──────────────────────────────────────────────────────
+  // 일반 모드(8컬럼) / 확장 모드(6컬럼) 각각 별도 유지 — 모드 전환 시에도 너비 기억
+  const [colWidthsNormal, setColWidthsNormal] = useState([13, 27, 16, 10, 12, 9, 9, 4]);
+  const [colWidthsExpand, setColWidthsExpand] = useState([13, 26, 35, 10, 12, 4]);
+  const headerTableRef = useRef<HTMLTableElement>(null);
+  const resizeLineRef = useRef<HTMLDivElement>(null);
+  // 드래그 중 상태를 ref로 관리 — setState 없이 최신값 유지
+  const colResizeDrag = useRef<{
+    colIdx: number; startX: number; startWidths: number[]; tableWidth: number; isExpand: boolean;
+  } | null>(null);
+
+  // 드래그 mousemove/mouseup 전역 등록 (마운트 1회 — setColWidths*는 stable reference)
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      const d = colResizeDrag.current;
+      if (!d) return;
+      const dx = e.clientX - d.startX;
+      const deltaPct = (dx / d.tableWidth) * 100;
+      const newW = [...d.startWidths];
+      const minW = 4; // 컬럼 최소 너비 4%
+      let cur = d.startWidths[d.colIdx] + deltaPct;
+      let nxt = d.startWidths[d.colIdx + 1] - deltaPct;
+      if (cur < minW) { nxt += (cur - minW); cur = minW; }
+      if (nxt < minW) { cur += (nxt - minW); nxt = minW; }
+      newW[d.colIdx] = cur;
+      newW[d.colIdx + 1] = nxt;
+      if (d.isExpand) setColWidthsExpand(newW); else setColWidthsNormal(newW);
+      // 드래그 라인 위치는 DOM 직접 조작 — 별도 state 업데이트 없이 반응형으로 처리
+      if (resizeLineRef.current) resizeLineRef.current.style.left = e.clientX + 'px';
+    };
+    const onUp = () => {
+      if (!colResizeDrag.current) return;
+      colResizeDrag.current = null;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      if (resizeLineRef.current) resizeLineRef.current.style.display = 'none';
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    return () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+  }, []);
+
+  // th 우측 끝 드래그 시작 — 해당 컬럼과 인접 컬럼 너비를 교환하는 방식
+  const onColResizeStart = (e: React.MouseEvent, colIdx: number) => {
+    e.preventDefault();
+    e.stopPropagation(); // th onClick(정렬/필터 드롭다운) 발동 차단
+    const tableEl = headerTableRef.current;
+    if (!tableEl) return;
+    const widths = expandMode ? colWidthsExpand : colWidthsNormal;
+    const headerRect = tableEl.getBoundingClientRect();
+    // 드래그 라인 높이 = 헤더 상단 ~ 바디 테이블 하단 (표 영역 안에서만 표시)
+    const bodyRect = tblDivRef.current?.getBoundingClientRect();
+    colResizeDrag.current = {
+      colIdx, startX: e.clientX,
+      startWidths: [...widths],
+      tableWidth: headerRect.width,
+      isExpand: expandMode,
+    };
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    if (resizeLineRef.current) {
+      const lineTop = headerRect.top;
+      const lineHeight = (bodyRect ? bodyRect.bottom : headerRect.bottom) - lineTop;
+      resizeLineRef.current.style.top = lineTop + 'px';
+      resizeLineRef.current.style.height = lineHeight + 'px';
+      resizeLineRef.current.style.left = e.clientX + 'px';
+      resizeLineRef.current.style.display = 'block';
+    }
+  };
+
+  // 더블클릭 — 현재 모드의 컬럼 너비를 기본값으로 복원
+  const onColResizeReset = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (expandMode) setColWidthsExpand([13, 26, 35, 10, 12, 4]);
+    else setColWidthsNormal([13, 27, 16, 10, 12, 9, 9, 4]);
+  };
+
   // 현재 필터+검색어가 저장된 필터와 완전히 일치하는지 비교
   // 배열 순서가 달라도 동일 판단이 되도록 정렬 후 JSON 비교
   const normF = (f: Filters) => JSON.stringify({
@@ -263,8 +341,8 @@ export function ListView(props: ListViewProps) {
   const [dragRowId, setDragRowId] = useState<number|null>(null);
   const [dropBeforeId, setDropBeforeId] = useState<number|null>(null);
   const [dropAtEnd, setDropAtEnd] = useState(false);
-  // 정렬이 적용 중이면 드래그 비활성
-  const canDrag = !sortCol && activeSortFields.length === 0;
+  // 드래그 정렬은 항상 활성 — 드롭 완료 시 컬럼 정렬을 초기화해 수동 순서를 최우선으로 적용
+  const canDrag = true;
 
   // ── 컬럼 필터 드롭다운 (Google Sheets 스타일) ──────────────────────────────
   const [filterOpenCol, setFilterOpenCol] = useState<string|null>(null);
@@ -594,19 +672,16 @@ export function ListView(props: ListViewProps) {
     </div>}
 
     {/* 테이블 헤더 — 리스트뷰일 때 sticky 안에 포함 */}
-    {todoView==="list"&&sorted.length>0&&<table style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
+    {todoView==="list"&&sorted.length>0&&<table ref={headerTableRef} style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
       <colgroup>
-        {expandMode?<>
-          <col style={{width:"13%"}}/><col style={{width:"26%"}}/><col style={{width:"35%"}}/><col style={{width:"10%"}}/><col style={{width:"12%"}}/><col style={{width:"4%"}}/>
-        </>:<>
-          <col style={{width:"13%"}}/><col style={{width:"27%"}}/><col style={{width:"16%"}}/><col style={{width:"10%"}}/><col style={{width:"12%"}}/><col style={{width:"9%"}}/><col style={{width:"9%"}}/><col style={{width:"4%"}}/>
-        </>}
+        {/* 컬럼 너비를 state로 관리 — 리사이즈 드래그 시 실시간 반영 */}
+        {(expandMode ? colWidthsExpand : colWidthsNormal).map((w,i) => <col key={i} style={{width:`${w}%`}}/>)}
       </colgroup>
       <thead><tr style={{background:"#f8fafc",borderBottom:"2px solid #e2e8f0"}}>
         {((expandMode
           ?[["pid","프로젝트"],["task","업무내용"],["det","상세내용"],["who","담당자"],["due","마감기한"]]
           :[["pid","프로젝트"],["task","업무내용"],["det","상세내용"],["who","담당자"],["due","마감기한"],["pri","우선순위"],["st","상태"]]
-         ) as [string,string][]).map(([col,label])=>{
+         ) as [string,string][]).map(([col,label], colIdx, colsList)=>{
           const fk = col === "pid" ? "proj" : col;
           const hasFilter = ["proj","who","pri","st"].includes(fk) && ((filters as any)[fk] as string[])?.length > 0;
           // 누적 정렬에서 해당 컬럼의 정렬 상태 확인
@@ -617,7 +692,9 @@ export function ListView(props: ListViewProps) {
           const sortRank = sf ? activeSortFields.indexOf(sf) + 1 : 0;
           const isActive = hasFilter || isSorted;
           const iconColor = isActive ? "#34a853" : "#5f6368";
-          return <th key={col} style={{...S.th,cursor:"pointer",userSelect:"none" as const}} onClick={e=>openColumnFilter(e,col)}>
+          // 마지막 컬럼(체크박스 바로 앞)은 핸들 없음 — 조절 시 체크박스가 줄어드는 것 방지
+          const hasResizeHandle = colIdx < colsList.length - 1;
+          return <th key={col} style={{...S.th,cursor:"pointer",userSelect:"none" as const,position:"relative" as const,borderRight:"1px solid #e8edf4"}} onClick={e=>openColumnFilter(e,col)}>
             <span style={{display:"inline-flex",alignItems:"center",gap:3}}>
               {label}
               {/* 정렬 상태 — 순번+방향을 하나로 통합 */}
@@ -629,6 +706,15 @@ export function ListView(props: ListViewProps) {
                 <span style={{fontSize:10,fontWeight:700,color:hasFilter?"#1a73e8":"#c0c8d4"}}>▼</span>
               )}
             </span>
+            {/* 리사이즈 핸들 — 헤더에만 존재, tbody td에는 절대 없음 */}
+            {hasResizeHandle&&<div
+              onMouseDown={e=>onColResizeStart(e,colIdx)}
+              onDoubleClick={onColResizeReset}
+              onClick={e=>e.stopPropagation()}
+              style={{position:"absolute",top:0,right:0,width:8,height:"100%",cursor:"col-resize",zIndex:10}}
+              onMouseEnter={e=>{const l=e.currentTarget.firstChild as HTMLElement;if(l)l.style.background="#2563eb";}}
+              onMouseLeave={e=>{const l=e.currentTarget.firstChild as HTMLElement;if(l)l.style.background="transparent";}}
+            ><span style={{position:"absolute",right:0,top:0,width:2,height:"100%",background:"transparent",transition:"background .1s",pointerEvents:"none"}}/></div>}
           </th>;
         })}
         <th style={{...S.th,padding:"0 6px",textAlign:"center" as const}}>
@@ -721,11 +807,8 @@ export function ListView(props: ListViewProps) {
     {todoView==="list"&&sorted.length>0&&<div ref={tblDivRef} onScroll={()=>{setHoverRow(null);setHoverRowRect(null);}} style={{...S.card,padding:0,borderRadius:"0 0 12px 12px",borderTop:"none"}}>
         <table style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
           <colgroup>
-            {expandMode?<>
-              <col style={{width:"13%"}}/><col style={{width:"26%"}}/><col style={{width:"35%"}}/><col style={{width:"10%"}}/><col style={{width:"12%"}}/><col style={{width:"4%"}}/>
-            </>:<>
-              <col style={{width:"13%"}}/><col style={{width:"27%"}}/><col style={{width:"16%"}}/><col style={{width:"10%"}}/><col style={{width:"12%"}}/><col style={{width:"9%"}}/><col style={{width:"9%"}}/><col style={{width:"4%"}}/>
-            </>}
+            {/* 헤더 테이블과 동일한 colWidths state 참조 — 리사이즈 시 자동 동기화 */}
+            {(expandMode ? colWidthsExpand : colWidthsNormal).map((w,i) => <col key={i} style={{width:`${w}%`}}/>)}
           </colgroup>
           <tbody>
             {sorted.filter(t=>t.st!=="완료").map((t,idx,arr)=>{const od=isOD(t.due,t.st);
@@ -751,7 +834,9 @@ export function ListView(props: ListViewProps) {
                 onDragStart={e=>{if(!canDrag)return;setDragRowId(t.id);e.dataTransfer.effectAllowed="move";(e.currentTarget as HTMLElement).style.opacity="0.4";}}
                 onDragEnd={()=>{setDragRowId(null);setDropBeforeId(null);setDropAtEnd(false);document.querySelectorAll<HTMLElement>("[data-rowid]").forEach(el=>el.style.opacity="");}}
                 onDragOver={e=>{if(!canDrag||dragRowId===null||dragRowId===t.id){return;}e.preventDefault();e.dataTransfer.dropEffect="move";const rect=(e.currentTarget as HTMLElement).getBoundingClientRect();const zoom=parseFloat(getComputedStyle(document.documentElement).zoom)||1;const mouseY=e.clientY/zoom;if(mouseY<rect.top+rect.height/2){setDropBeforeId(t.id);setDropAtEnd(false);}else{const next=arr[idx+1];setDropBeforeId(next?.id??null);setDropAtEnd(!next);}}}
-                onDrop={e=>{if(!canDrag||dragRowId===null||dragRowId===t.id)return;e.preventDefault();reorderTodo(dragRowId,dropAtEnd?null:dropBeforeId);setDragRowId(null);setDropBeforeId(null);setDropAtEnd(false);}}
+                onDrop={e=>{if(!canDrag||dragRowId===null||dragRowId===t.id)return;e.preventDefault();reorderTodo(dragRowId,dropAtEnd?null:dropBeforeId);setDragRowId(null);setDropBeforeId(null);setDropAtEnd(false);
+                  // 수동 드래그 순서가 최우선 — 드롭 완료 시 컬럼 정렬 해제
+                  setSortCol(null);setActiveSortFields([]);setCustomSortOrders({});}}
                 onMouseEnter={e=>{if(editCell||datePop)return;setHoverRow(t.id);const r=(e.currentTarget as HTMLTableRowElement).getBoundingClientRect();setHoverRowRect({top:r.top,height:r.height});}}
                 style={{borderBottom:"1px solid #f1f5f9",borderLeft:isSel?"3px solid #2563eb":undefined,
                   ...(showDropLine?{borderTop:"3px solid #2563eb"}:{}),
@@ -898,5 +983,9 @@ export function ListView(props: ListViewProps) {
       sorted={sorted} tblDivRef={tblDivRef}
       setEditMod={setEditMod} delTodo={delTodo}
       popupOpen={!!(editCell||datePop)}/>
+
+    {/* 컬럼 리사이즈 드래그 중 표 영역 안에서만 표시되는 파란 수직선 */}
+    {/* top/height는 onColResizeStart에서 표 범위로 동적 계산 */}
+    <div ref={resizeLineRef} style={{position:"fixed",top:0,left:0,width:2,height:0,background:"#1a73e8",boxShadow:"0 0 4px rgba(26,115,232,.4)",pointerEvents:"none",display:"none",zIndex:9999}}/>
   </div>;
 }

@@ -26,45 +26,127 @@ export const dateStr = (y: number, m: number, d: number) => `${y}-${fmt2(m+1)}-$
 export const stripHtml = (h: string) => h ? h.replace(/<[^>]*>/g,"").replace(/&nbsp;/g," ").trim() : "";
 
 // 반복 업무를 캘린더 범위 내에서 개별 인스턴스로 전개하는 함수
-// 예: "매주" 반복 업무의 due가 3/1이면 → 3/1, 3/8, 3/15... 각 날짜에 인스턴스 생성
+// ─────────────────────────────────────────────────────────────────────────────
+// repeat 필드는 두 가지 형식을 모두 지원:
+//   • 레거시 문자열: "매일" | "매주" | "매월"
+//   • RepeatConfig 객체: { interval, unit, start, endType, endDate?, endCount? }
+//
+// 핵심 동작:
+//   1. repeat.start가 있으면 해당 날짜 이전에는 인스턴스 생성하지 않음
+//   2. repeat.endDate / endCount 제한 준수
+//   3. 문자열 비교 대신 unit 필드로 처리 (객체 형식에서 "매주" 비교 실패 방지)
+//   4. 성능: 범위 외 구간을 한 번에 건너뛰어 불필요한 반복 최소화
 export function expandRepeats(todos: any[], startDs: string, endDs: string) {
   const result: any[] = [];
-  const start = new Date(startDs);
-  const end = new Date(endDs);
   todos.forEach(t => {
-    // 비반복 업무: 범위 안에 있으면 그대로 표시
+    // ── ① 비반복 업무 ────────────────────────────────────────────────────────
     if (!t.repeat || t.repeat === "없음") {
-      const dueDate = t.due ? t.due.split(" ")[0] : "";
-      if (dueDate && dueDate >= startDs && dueDate <= endDs) result.push({...t, _instance: false});
+      const d = t.due ? t.due.split(" ")[0] : "";
+      if (d && d >= startDs && d <= endDs) result.push({...t, _instance: false});
       return;
     }
-    // 반복 업무인데 마감기한이 없으면 원본만 표시
+
+    // ── ② 반복 설정 파싱 ─────────────────────────────────────────────────────
+    // RepeatConfig 객체 또는 레거시 문자열 모두 { interval, unit } 형태로 통일
+    let interval = 1;
+    let unit: "일" | "주" | "월" | null = null;
+    let repeatStartDs: string | null = null; // 반복 시작일 (이 날 이전에는 인스턴스 없음)
+    let repeatEndDs: string | null = null;   // 반복 종료일
+    let repeatMaxCount: number | null = null; // 최대 반복 횟수
+
+    if (typeof t.repeat === "string") {
+      // 레거시: "매일" → unit="일", "매주" → unit="주", "매월" → unit="월"
+      if (t.repeat === "매일") unit = "일";
+      else if (t.repeat === "매주") unit = "주";
+      else if (t.repeat === "매월") unit = "월";
+    } else if (t.repeat && typeof t.repeat === "object") {
+      // RepeatConfig 객체: RepeatPicker 저장 형식
+      interval = t.repeat.interval || 1;
+      unit = t.repeat.unit || null;
+      // repeat.start: 반복 시작일 — 이 날짜 이전의 인스턴스는 생성하지 않음
+      if (t.repeat.start) repeatStartDs = t.repeat.start;
+      if (t.repeat.endType === "date" && t.repeat.endDate) repeatEndDs = t.repeat.endDate;
+      if (t.repeat.endType === "count" && t.repeat.endCount) repeatMaxCount = t.repeat.endCount;
+    }
+
+    // 인식 불가 → 비반복으로 폴백
+    if (!unit) {
+      const d = t.due ? t.due.split(" ")[0] : "";
+      if (d && d >= startDs && d <= endDs) result.push({...t, _instance: false});
+      return;
+    }
+
     if (!t.due) { result.push({...t, _instance: false}); return; }
-    const originDs = t.due.split(" ")[0];
-    // 완료된 반복 업무는 원본 날짜만 표시하고 미래 인스턴스는 생성하지 않음
-    if (t.st === "완료") {
-      if (originDs >= startDs && originDs <= endDs) result.push({...t, _instance: false});
-      return;
-    }
-    // 반복 업무: 마감기한 기준으로 과거/미래 인스턴스를 범위 내에서 생성
-    let cur = new Date(t.due);
-    // 범위 시작점까지 과거로 이동
-    while (cur > start) {
-      if (t.repeat === "매일") cur.setDate(cur.getDate() - 1);
-      else if (t.repeat === "매주") cur.setDate(cur.getDate() - 7);
-      else if (t.repeat === "매월") cur.setMonth(cur.getMonth() - 1);
-      else break;
-    }
-    // 범위 끝까지 미래로 이동하며 인스턴스 생성
-    while (cur <= end) {
-      const ds = dateStr(cur.getFullYear(), cur.getMonth(), cur.getDate());
-      if (ds >= startDs && ds <= endDs) {
-        result.push({...t, due: ds, _instance: ds !== originDs, _originDue: originDs});
+    const originDs = t.due.split(" ")[0]; // t.due에 시간 포함 시 날짜만 추출
+    const isDone = t.st === "완료";
+
+    // ── ③ 실질적 생성 범위 결정 ─────────────────────────────────────────────
+    // instMinDs: max(캘린더범위시작, repeat.start)
+    //   → repeat.start가 있으면 그 이전에는 인스턴스 생성 안 함 (시작날짜 반영)
+    // instMaxDs: min(캘린더범위끝, repeat.endDate)
+    //   → endDate가 있으면 그 이후에는 인스턴스 생성 안 함 (마감날짜 반영)
+    const instMinDs = repeatStartDs && repeatStartDs > startDs ? repeatStartDs : startDs;
+    const instMaxDs = repeatEndDs && repeatEndDs < endDs ? repeatEndDs : endDs;
+    if (instMinDs > instMaxDs) return; // 유효 범위 없음
+
+    // ── ④ 날짜 이동 헬퍼 ────────────────────────────────────────────────────
+    const step = (d: Date, fwd: boolean) => {
+      const m = fwd ? 1 : -1;
+      if (unit === "일") d.setDate(d.getDate() + interval * m);
+      else if (unit === "주") d.setDate(d.getDate() + 7 * interval * m);
+      else if (unit === "월") d.setMonth(d.getMonth() + interval * m);
+    };
+
+    // ── ⑤ originDs 기준으로 instMinDs 직전까지 역방향 이동 ─────────────────
+    // 목표: cur이 instMinDs 이하가 되는 지점을 찾아 forward loop의 시작점으로 삼음
+    let cur = new Date(originDs);
+    const minDate = new Date(instMinDs);
+
+    if (cur > minDate) {
+      // originDs가 instMinDs 이후 → 역방향 이동
+      // 성능: 일/주 단위는 수학적으로 한 번에 건너뜀
+      if (unit === "일" || unit === "주") {
+        const stepMs = unit === "일" ? interval * 86400000 : interval * 7 * 86400000;
+        const diff = cur.getTime() - minDate.getTime();
+        const steps = Math.ceil(diff / stepMs);
+        if (unit === "일") cur.setDate(cur.getDate() - steps * interval);
+        else cur.setDate(cur.getDate() - steps * 7 * interval);
+        // 혹시 과거로 너무 갔으면 1스텝 앞으로
+        while (cur < minDate) step(cur, true);
+      } else {
+        // 월 단위: 반복 횟수가 적으므로 단순 반복
+        while (cur > minDate) step(cur, false);
       }
-      if (t.repeat === "매일") cur.setDate(cur.getDate() + 1);
-      else if (t.repeat === "매주") cur.setDate(cur.getDate() + 7);
-      else if (t.repeat === "매월") cur.setMonth(cur.getMonth() + 1);
-      else break;
+    } else if (cur < minDate) {
+      // originDs가 instMinDs 이전 → 앞으로 이동해서 instMinDs 직전 위치 찾기
+      if (unit === "일" || unit === "주") {
+        const stepMs = unit === "일" ? interval * 86400000 : interval * 7 * 86400000;
+        const diff = minDate.getTime() - cur.getTime();
+        const steps = Math.floor(diff / stepMs);
+        if (unit === "일") cur.setDate(cur.getDate() + steps * interval);
+        else cur.setDate(cur.getDate() + steps * 7 * interval);
+      } else {
+        while (cur < minDate) step(cur, true);
+        // 과거로 1스텝 후 forward loop에서 처리
+        if (cur > minDate) step(cur, false);
+      }
+    }
+    // cur이 instMinDs 이전에 위치 → forward loop에서 instMinDs 이상인 것만 push
+
+    // ── ⑥ forward loop: instMinDs ~ instMaxDs 범위 내 인스턴스 생성 ─────────
+    let count = 0;
+    const maxDate = new Date(instMaxDs);
+    while (cur <= maxDate) {
+      const ds = dateStr(cur.getFullYear(), cur.getMonth(), cur.getDate());
+      if (ds >= instMinDs && ds <= instMaxDs) {
+        // 원본 날짜: 완료 상태 그대로 / originDs 이후 인스턴스: 대기로 표시
+        const instSt = isDone && ds > originDs ? "대기" : t.st;
+        result.push({...t, st: instSt, due: ds, _instance: ds !== originDs, _originDue: originDs});
+        count++;
+        // endCount 초과 시 종료 (반복 횟수는 instMinDs 이후 기준으로 카운트)
+        if (repeatMaxCount !== null && count >= repeatMaxCount) break;
+      }
+      step(cur, true);
     }
   });
   return result;

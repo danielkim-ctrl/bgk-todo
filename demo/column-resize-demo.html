@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>컬럼 너비 조절 데모 — BGK Todo</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@latest/dist/web/static/pretendard.css">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Pretendard', system-ui, sans-serif;
+      background: #f0f4f8;
+      color: #1a2332;
+      min-height: 100vh;
+    }
+
+    /* ── 앱 헤더 ── */
+    .app-header {
+      height: 54px;
+      background: #172f5a;
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      gap: 12px;
+      box-shadow: 0 2px 8px rgba(23,47,90,.3);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .app-logo { font-size: 14px; font-weight: 800; color: #fff; letter-spacing: -0.3px; }
+
+    /* ── 탭 네비게이션 ── */
+    .nav-tabs {
+      background: #fff;
+      border-bottom: 1px solid #e2e8f0;
+      display: flex;
+      padding: 0 24px;
+      gap: 2px;
+    }
+    .nav-tab {
+      padding: 10px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #64748b;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+      user-select: none;
+    }
+    .nav-tab.active { color: #2563eb; border-bottom-color: #2563eb; }
+
+    /* ── 메인 영역 ── */
+    .main-content { padding: 16px 24px; }
+
+    /* ── 안내 배너 ── */
+    .demo-banner {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 8px;
+      padding: 9px 14px;
+      margin-bottom: 12px;
+      font-size: 12px;
+      color: #1d4ed8;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .demo-banner svg { flex-shrink: 0; }
+
+    /* ── 테이블 카드 ── */
+    .table-card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.07);
+      border: 1px solid #e2e8f0;
+      overflow: hidden;
+    }
+    .table-wrap {
+      overflow-x: auto;
+      overflow-y: auto;
+      max-height: 540px;
+    }
+
+    /* ── 테이블 ── */
+    #main-table {
+      border-collapse: collapse;
+      table-layout: fixed;
+      /* width는 JS에서 컬럼 합계로 동적 설정 */
+    }
+
+    /* 헤더 — sticky */
+    thead { position: sticky; top: 0; z-index: 5; }
+    thead tr { background: #f8fafc; border-bottom: 2px solid #e2e8f0; }
+
+    th {
+      padding: 10px 12px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 700;
+      color: #64748b;
+      background: #f8fafc;
+      white-space: nowrap;
+      overflow: hidden;
+      user-select: none;
+      cursor: pointer;
+      position: relative; /* resize-handle 위치 기준 */
+      /* 헤더 컬럼 구분선 — Google Sheets처럼 헤더에만 존재 */
+      border-right: 1px solid #e8edf4;
+    }
+    th:last-child { border-right: none; }
+
+    /* 바디 셀 — 수직선 없음 (사용자 요청) */
+    td {
+      padding: 10px 12px;
+      font-size: 13px;
+      color: #334155;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      border-bottom: 1px solid #f1f5f9;
+      /* border-right 없음 — 의도적으로 수직선 제거 */
+    }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: #f0f7ff; }
+
+    /* ── 리사이즈 핸들 — th 안에만 존재, td에는 없음 ── */
+    .resize-handle {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 8px;
+      height: 100%;
+      cursor: col-resize;
+      z-index: 10;
+    }
+
+    /* 핸들 위에 마우스가 있을 때 표시되는 수직 구분선 */
+    .resize-handle::after {
+      content: '';
+      position: absolute;
+      right: 0;
+      top: 0;
+      width: 3px;
+      height: 100%;
+      background: transparent;
+      transition: background 0.1s;
+    }
+    .resize-handle:hover::after     { background: #9aa0a6; }
+    .resize-handle.is-dragging::after { background: #1a73e8; }
+
+    /* ── 드래그 중 전체 높이 수직선 (fixed) ── */
+    #drag-line {
+      position: fixed;
+      top: 0;
+      width: 2px;
+      height: 100vh;
+      background: #1a73e8;
+      box-shadow: 0 0 6px rgba(26,115,232,.35);
+      pointer-events: none;
+      display: none;
+      z-index: 9999;
+    }
+
+    /* ── 드래그 중 너비 툴팁 ── */
+    #drag-tooltip {
+      position: fixed;
+      display: none;
+      background: #172f5a;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 4px;
+      pointer-events: none;
+      z-index: 10000;
+      transform: translateX(-50%);
+      white-space: nowrap;
+    }
+
+    .table-hint {
+      font-size: 11px;
+      color: #94a3b8;
+      padding: 7px 14px;
+      background: #f8fafc;
+      border-top: 1px solid #e2e8f0;
+      text-align: right;
+    }
+
+    /* ── 배지 ── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .pri-urgent { background: #fee2e2; color: #dc2626; }
+    .pri-high   { background: #fef3c7; color: #d97706; }
+    .pri-normal { background: #dbeafe; color: #2563eb; }
+    .pri-low    { background: #f1f5f9; color: #94a3b8; }
+    .st-wait    { background: #f1f5f9; color: #64748b; }
+    .st-prog    { background: #dbeafe; color: #2563eb; }
+    .st-review  { background: #fef3c7; color: #d97706; }
+    .st-done    { background: #dcfce7; color: #16a34a; }
+
+    /* ── 프로젝트 셀 ── */
+    .dot {
+      display: inline-block;
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .project-cell {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 12px;
+      font-weight: 600;
+      overflow: hidden;
+    }
+    .project-cell span:last-child { overflow: hidden; text-overflow: ellipsis; }
+
+    /* ── D-day ── */
+    .dday { font-size: 11px; font-weight: 600; }
+    .dday-over { color: #dc2626; }
+    .dday-soon { color: #d97706; }
+    .dday-fine { color: #64748b; }
+
+    /* ── 담당자 아바타 ── */
+    .avatar {
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      background: #dbeafe;
+      color: #2563eb;
+      font-size: 9px; font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .col-chk { text-align: center; }
+  </style>
+</head>
+<body>
+
+<!-- 드래그 중 표시되는 전체 높이 파란 수직선 -->
+<div id="drag-line"></div>
+<!-- 드래그 중 현재 너비를 보여주는 툴팁 -->
+<div id="drag-tooltip"></div>
+
+<!-- ── 앱 헤더 ── -->
+<header class="app-header">
+  <div class="app-logo">BGK Todo</div>
+  <div style="flex:1"></div>
+  <div style="font-size:11px;color:#fff;background:rgba(255,255,255,.15);padding:4px 10px;border-radius:6px;font-weight:600">
+    데모 · 컬럼 너비 조절
+  </div>
+</header>
+
+<!-- ── 탭 네비게이션 ── -->
+<nav class="nav-tabs">
+  <div class="nav-tab">대시보드</div>
+  <div class="nav-tab active">리스트</div>
+  <div class="nav-tab">칸반</div>
+  <div class="nav-tab">캘린더</div>
+</nav>
+
+<!-- ── 메인 콘텐츠 ── -->
+<div class="main-content">
+
+  <div class="demo-banner">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width:16px;height:16px">
+      <path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z"/>
+    </svg>
+    헤더 컬럼 오른쪽 끝에 마우스를 올리면 ↔ 커서로 바뀝니다. 드래그해서 너비를 조절하고, 더블클릭하면 기본값으로 복원됩니다.
+  </div>
+
+  <div class="table-card">
+    <div class="table-wrap">
+      <table id="main-table">
+        <colgroup id="main-colgroup"></colgroup>
+        <thead><tr id="header-row"></tr></thead>
+        <tbody id="main-tbody"></tbody>
+      </table>
+    </div>
+    <div class="table-hint">헤더 우측 드래그 → 너비 조절 &nbsp;|&nbsp; 더블클릭 → 기본값 복원</div>
+  </div>
+
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────
+// 컬럼 정의 — id / 레이블 / 기본 너비(px) / 리사이즈 여부
+// ─────────────────────────────────────────────────────────────
+const COLS = [
+  { id:'pid',  label:'프로젝트',  defaultW:150, resizable:true  },
+  { id:'task', label:'업무내용',  defaultW:290, resizable:true  },
+  { id:'det',  label:'상세내용',  defaultW:210, resizable:true  },
+  { id:'who',  label:'담당자',    defaultW:120, resizable:true  },
+  { id:'due',  label:'마감기한',  defaultW:140, resizable:true  },
+  { id:'pri',  label:'우선순위',  defaultW:110, resizable:true  },
+  { id:'st',   label:'상태',      defaultW:110, resizable:true  },
+  { id:'chk',  label:'',          defaultW: 48, resizable:false }, // 체크박스 고정
+];
+
+// 현재 컬럼 너비 배열 (인덱스 = 컬럼 인덱스)
+const widths = COLS.map(c => c.defaultW);
+
+// ─────────────────────────────────────────────────────────────
+// 샘플 데이터
+// ─────────────────────────────────────────────────────────────
+const DATA = [
+  { pid:'웹 개발',  pc:'#2563eb', task:'메인 페이지 리뉴얼',         det:'헤더 및 히어로 섹션 디자인 개선',          who:'김대윤', due:'2026-04-05', pri:'긴급', st:'진행중' },
+  { pid:'마케팅',   pc:'#f59e0b', task:'4월 SNS 캠페인 기획',         det:'인스타그램·링크드인 콘텐츠 캘린더 작성',   who:'이지은', due:'2026-04-08', pri:'높음',  st:'대기'   },
+  { pid:'디자인',   pc:'#8b5cf6', task:'UI 컴포넌트 라이브러리 정리', det:'버튼·배지·카드 스타일 가이드 문서화',      who:'박준호', due:'2026-04-10', pri:'보통',  st:'진행중' },
+  { pid:'인프라',   pc:'#10b981', task:'CI/CD 파이프라인 구축',        det:'GitHub Actions 워크플로우 설정',           who:'최수진', due:'2026-04-15', pri:'높음',  st:'대기'   },
+  { pid:'웹 개발',  pc:'#2563eb', task:'검색 기능 성능 최적화',        det:'Elasticsearch 인덱스 튜닝 및 쿼리 개선',   who:'김대윤', due:'2026-04-12', pri:'보통',  st:'검토'   },
+  { pid:'마케팅',   pc:'#f59e0b', task:'분기 성과 보고서 작성',        det:'Q1 KPI 분석 및 Q2 목표 설정',              who:'이지은', due:'2026-03-31', pri:'긴급',  st:'진행중' },
+  { pid:'디자인',   pc:'#8b5cf6', task:'모바일 앱 온보딩 화면 설계',  det:'신규 사용자 첫 진입 3단계 플로우 디자인',  who:'박준호', due:'2026-04-20', pri:'낮음',  st:'대기'   },
+  { pid:'인프라',   pc:'#10b981', task:'데이터베이스 백업 자동화',     det:'일간 스냅샷 및 S3 업로드 스크립트',         who:'최수진', due:'2026-04-07', pri:'높음',  st:'완료'   },
+  { pid:'웹 개발',  pc:'#2563eb', task:'API 문서 업데이트',            det:'Swagger UI 최신 엔드포인트 반영',           who:'김대윤', due:'2026-04-18', pri:'낮음',  st:'대기'   },
+  { pid:'마케팅',   pc:'#f59e0b', task:'이메일 뉴스레터 발송 준비',   det:'구독자 세그먼트별 맞춤 콘텐츠 기획',        who:'이지은', due:'2026-04-06', pri:'보통',  st:'진행중' },
+  { pid:'디자인',   pc:'#8b5cf6', task:'브랜드 로고 리프레시',         det:'색상 팔레트 및 타입페이스 재정의',          who:'박준호', due:'2026-04-25', pri:'낮음',  st:'대기'   },
+  { pid:'인프라',   pc:'#10b981', task:'서버 모니터링 대시보드 구성',  det:'Grafana + Prometheus 연동 설정',            who:'최수진', due:'2026-04-14', pri:'보통',  st:'진행중' },
+];
+
+// ─────────────────────────────────────────────────────────────
+// 날짜 유틸
+// ─────────────────────────────────────────────────────────────
+const TODAY = new Date('2026-04-03');
+TODAY.setHours(0, 0, 0, 0);
+
+function calcDday(str) {
+  const d = new Date(str);
+  d.setHours(0, 0, 0, 0);
+  return Math.round((d - TODAY) / 86400000);
+}
+
+function ddayHTML(diff) {
+  if (diff === 0) return `<span class="dday dday-over">D-day</span>`;
+  if (diff < 0)  return `<span class="dday dday-over">D+${-diff}</span>`;
+  if (diff <= 3) return `<span class="dday dday-soon">D-${diff}</span>`;
+  return             `<span class="dday dday-fine">D-${diff}</span>`;
+}
+
+// ─────────────────────────────────────────────────────────────
+// 배지 렌더러
+// ─────────────────────────────────────────────────────────────
+const PRI_CLS = { '긴급':'pri-urgent','높음':'pri-high','보통':'pri-normal','낮음':'pri-low' };
+const ST_CLS  = { '대기':'st-wait','진행중':'st-prog','검토':'st-review','완료':'st-done' };
+
+const priBadge = p => `<span class="badge ${PRI_CLS[p]||'pri-normal'}">${p}</span>`;
+const stBadge  = s => `<span class="badge ${ST_CLS[s]||'st-wait'}">${s}</span>`;
+
+// ─────────────────────────────────────────────────────────────
+// 테이블 빌드
+// ─────────────────────────────────────────────────────────────
+function buildColgroup() {
+  const cg = document.getElementById('main-colgroup');
+  cg.innerHTML = '';
+  COLS.forEach((_, i) => {
+    const col = document.createElement('col');
+    col.id = `col-${i}`;
+    col.style.width = widths[i] + 'px';
+    cg.appendChild(col);
+  });
+  syncTableWidth();
+}
+
+function buildHeader() {
+  const tr = document.getElementById('header-row');
+  tr.innerHTML = '';
+
+  COLS.forEach((col, i) => {
+    const th = document.createElement('th');
+
+    if (col.id === 'chk') {
+      // 체크박스 헤더 — 리사이즈 없음
+      th.className = 'col-chk';
+      th.innerHTML = `<input type="checkbox" style="cursor:pointer;width:14px;height:14px;accent-color:#2563eb;vertical-align:middle">`;
+    } else {
+      th.innerHTML = `<span style="display:inline-flex;align-items:center;gap:3px">${col.label}<span style="font-size:10px;font-weight:700;color:#c0c8d4">▼</span></span>`;
+
+      if (col.resizable) {
+        // 리사이즈 핸들 — th 우측 끝에만 배치, td에는 절대 없음
+        const handle = document.createElement('div');
+        handle.className = 'resize-handle';
+        handle.dataset.colIdx = i;
+        handle.title = '드래그: 너비 조절  |  더블클릭: 기본값 복원';
+        th.appendChild(handle);
+
+        // 드래그 시작
+        handle.addEventListener('mousedown', onResizeStart);
+
+        // 더블클릭 → 기본 너비 복원
+        handle.addEventListener('dblclick', e => {
+          e.stopPropagation();
+          const idx = +e.currentTarget.dataset.colIdx;
+          widths[idx] = COLS[idx].defaultW;
+          applyWidths();
+        });
+      }
+    }
+
+    tr.appendChild(th);
+  });
+}
+
+function buildBody() {
+  const tbody = document.getElementById('main-tbody');
+  tbody.innerHTML = '';
+
+  DATA.forEach(row => {
+    const tr = document.createElement('tr');
+    const diff = calcDday(row.due);
+
+    COLS.forEach(col => {
+      const td = document.createElement('td');
+
+      switch (col.id) {
+        case 'pid':
+          td.innerHTML = `<div class="project-cell"><span class="dot" style="background:${row.pc}"></span><span>${row.pid}</span></div>`;
+          break;
+        case 'task':
+          td.textContent = row.task;
+          td.style.cssText = 'font-weight:600;color:#0f172a';
+          break;
+        case 'det':
+          td.textContent = row.det;
+          td.style.color = '#64748b';
+          break;
+        case 'who':
+          td.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px"><span class="avatar">${row.who[0]}</span>${row.who}</span>`;
+          break;
+        case 'due':
+          td.innerHTML = `<span style="display:inline-flex;align-items:center;gap:6px"><span>${row.due.slice(5).replace('-','/')}</span>${ddayHTML(diff)}</span>`;
+          break;
+        case 'pri':
+          td.innerHTML = priBadge(row.pri);
+          break;
+        case 'st':
+          td.innerHTML = stBadge(row.st);
+          break;
+        case 'chk':
+          td.className = 'col-chk';
+          td.innerHTML = `<input type="checkbox" style="cursor:pointer;width:14px;height:14px;accent-color:#2563eb;vertical-align:middle">`;
+          break;
+      }
+
+      tr.appendChild(td);
+    });
+
+    tbody.appendChild(tr);
+  });
+}
+
+// ─────────────────────────────────────────────────────────────
+// 너비 동기화
+// ─────────────────────────────────────────────────────────────
+function applyWidths() {
+  COLS.forEach((_, i) => {
+    const colEl = document.getElementById(`col-${i}`);
+    if (colEl) colEl.style.width = widths[i] + 'px';
+  });
+  syncTableWidth();
+}
+
+// 테이블 전체 너비를 컬럼 합계로 설정
+function syncTableWidth() {
+  const total = widths.reduce((s, w) => s + w, 0);
+  document.getElementById('main-table').style.width = total + 'px';
+}
+
+// ─────────────────────────────────────────────────────────────
+// 리사이즈 드래그 로직
+// ─────────────────────────────────────────────────────────────
+let drag = null; // 현재 드래그 상태
+
+function onResizeStart(e) {
+  e.preventDefault();
+  e.stopPropagation(); // th 클릭 이벤트(정렬/필터)가 발동하지 않도록 차단
+
+  const idx = +e.currentTarget.dataset.colIdx;
+
+  drag = {
+    idx,
+    startX:     e.clientX,
+    startWidth: widths[idx],
+    handle:     e.currentTarget,
+  };
+
+  // 핸들 활성 스타일 적용
+  drag.handle.classList.add('is-dragging');
+
+  // 전체화면 드래그 라인 표시
+  const line = document.getElementById('drag-line');
+  line.style.left    = e.clientX + 'px';
+  line.style.display = 'block';
+
+  // 너비 툴팁 표시
+  const tip = document.getElementById('drag-tooltip');
+  tip.textContent   = widths[idx] + 'px';
+  tip.style.left    = e.clientX + 'px';
+  tip.style.top     = '110px'; // 헤더+탭 아래
+  tip.style.display = 'block';
+
+  // 드래그 중 전체 화면 커서 고정
+  document.body.style.cursor     = 'col-resize';
+  document.body.style.userSelect = 'none';
+}
+
+document.addEventListener('mousemove', e => {
+  if (!drag) return;
+
+  const dx       = e.clientX - drag.startX;
+  const newWidth = Math.max(60, drag.startWidth + dx); // 최소 너비 60px
+  widths[drag.idx] = newWidth;
+  applyWidths();
+
+  // 드래그 라인 + 툴팁 위치 갱신
+  document.getElementById('drag-line').style.left    = e.clientX + 'px';
+  const tip = document.getElementById('drag-tooltip');
+  tip.textContent = newWidth + 'px';
+  tip.style.left  = e.clientX + 'px';
+});
+
+document.addEventListener('mouseup', () => {
+  if (!drag) return;
+
+  drag.handle.classList.remove('is-dragging');
+  document.getElementById('drag-line').style.display    = 'none';
+  document.getElementById('drag-tooltip').style.display = 'none';
+  document.body.style.cursor     = '';
+  document.body.style.userSelect = '';
+  drag = null;
+});
+
+// ─────────────────────────────────────────────────────────────
+// 초기화
+// ─────────────────────────────────────────────────────────────
+buildColgroup();
+buildHeader();
+buildBody();
+</script>
+</body>
+</html>

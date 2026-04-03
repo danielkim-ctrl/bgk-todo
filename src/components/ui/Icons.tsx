@@ -33,6 +33,8 @@ export { ChevronDownIcon } from "@heroicons/react/24/outline";      // 펼치기
 export { ChevronRightIcon } from "@heroicons/react/24/outline";     // 접기
 export { ChevronLeftIcon } from "@heroicons/react/24/outline";      // 좁히기
 export { ChevronUpIcon } from "@heroicons/react/24/outline";        // 접기(위)
+export { ChevronDoubleLeftIcon } from "@heroicons/react/24/outline"; // 사이드바 완전 접기
+export { ChevronDoubleRightIcon } from "@heroicons/react/24/outline"; // 사이드바 완전 펼치기
 export { Bars3Icon } from "@heroicons/react/24/outline";            // 메뉴(☰)
 export { FunnelIcon } from "@heroicons/react/24/outline";           // 필터
 export { BookmarkIcon } from "@heroicons/react/24/outline";         // 즐겨찾기(outline)

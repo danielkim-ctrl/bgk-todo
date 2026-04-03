@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { PROJ_PALETTE } from "../../constants";
 import { Filters } from "../../types";
 import { Project } from "../../types";
-import { FolderIcon, UserIcon, BoltIcon, CheckCircleIcon, MagnifyingGlassIcon, EyeIcon, EyeSlashIcon, StarIcon, StarOutlineIcon, XMarkIcon, ChevronDownIcon, ChevronUpIcon, ChevronRightIcon, ChevronLeftIcon, AdjustmentsHorizontalIcon, ICON_SM } from "../ui/Icons";
+import { FolderIcon, UserIcon, BoltIcon, CheckCircleIcon, MagnifyingGlassIcon, EyeIcon, EyeSlashIcon, StarIcon, StarOutlineIcon, XMarkIcon, ChevronDownIcon, ChevronUpIcon, ChevronRightIcon, ChevronLeftIcon, ChevronDoubleLeftIcon, ChevronDoubleRightIcon, AdjustmentsHorizontalIcon, ICON_SM } from "../ui/Icons";
 
 interface SidebarProps {
   search: string;
@@ -40,6 +40,8 @@ export function Sidebar({
   hiddenMembers, toggleHideMember,
 }: SidebarProps) {
   const [expanded, setExpanded] = useState(false);
+  // 사이드바 완전 접기 — true 시 32px 띠로 축소, 펼치기 버튼만 표시
+  const [sidebarMin, setSidebarMin] = useState(false);
   const sidebarRef = React.useRef<HTMLDivElement>(null);
   const [fixedPos, setFixedPos] = useState<{left:number;width:number}>({left:0,width:196});
   const [hoverKey, setHoverKey] = useState<string | null>(null);
@@ -84,9 +86,10 @@ export function Sidebar({
     filters.st.length + filters.repeat.length + (filters.fav ? 1 : 0) + (search ? 1 : 0);
 
   const W_BASE = 196;
-  const W = expanded ? 300 : W_BASE;
-  // 확장 시 왼쪽으로 커지도록 음수 마진 적용 — 메인 콘텐츠가 밀리지 않음
-  const mLeft = expanded ? -(300 - W_BASE) : 0;
+  // sidebarMin 시 32px 띠로 축소, 아닐 때 expanded 여부로 196/300px 결정
+  const W = sidebarMin ? 32 : (expanded ? 300 : W_BASE);
+  // 확장 시 왼쪽으로 커지도록 음수 마진 적용 — 최소화 시에는 마진 0
+  const mLeft = sidebarMin ? 0 : (expanded ? -(300 - W_BASE) : 0);
 
   const gridStyle = {} as const;
 
@@ -155,6 +158,23 @@ export function Sidebar({
       /* 필터 초기화 플로팅 기준 */
       transition: "width .2s ease, margin-left .2s ease",
     }}>
+      {sidebarMin ? (
+        /* ── 완전 접힘 상태 — 32px 띠, 펼치기 버튼만 표시 ── */
+        <div style={{display:"flex",flexDirection:"column",alignItems:"center",paddingTop:12,gap:8,flex:1}}>
+          {activeCount > 0 && (
+            <span style={{fontSize:10,fontWeight:700,color:"#fff",background:"#2563eb",borderRadius:99,padding:"1px 5px",minWidth:16,textAlign:"center",lineHeight:1.5}}>
+              {activeCount}
+            </span>
+          )}
+          <button
+            onClick={() => setSidebarMin(false)}
+            title="필터 펼치기"
+            style={{background:"none",border:"none",cursor:"pointer",padding:6,color:"#94a3b8",display:"inline-flex",alignItems:"center",justifyContent:"center",borderRadius:6,transition:"color .12s"}}
+            onMouseEnter={e=>{e.currentTarget.style.color="#334155";(e.currentTarget.querySelector("svg") as SVGElement|null)?.setAttribute("stroke-width","2.5");}}
+            onMouseLeave={e=>{e.currentTarget.style.color="#94a3b8";(e.currentTarget.querySelector("svg") as SVGElement|null)?.setAttribute("stroke-width","1.5");}}
+          ><ChevronDoubleRightIcon style={{width:14,height:14}}/></button>
+        </div>
+      ) : <>
       {/* ── 즐겨찾기 ── */}
       <div style={{ padding: "8px 14px 6px", borderBottom: "1px solid #e2e8f0", flexShrink: 0 }}>
         <div
@@ -173,6 +193,7 @@ export function Sidebar({
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "8px 14px 6px", borderBottom: "1px solid #e2e8f0", flexShrink: 0,
       }}>
+        {/* 왼쪽: 필터 레이블 + 활성 뱃지 + 너비 조절 버튼 */}
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <span style={{ fontSize: 12, fontWeight: 700, color: "#334155", letterSpacing: 0 }}>
             필터
@@ -186,9 +207,10 @@ export function Sidebar({
               {activeCount}
             </span>
           )}
+          {/* 너비 조절: 196px ↔ 300px */}
           <button
             onClick={() => setExpanded(e => !e)}
-            title={expanded ? "필터 접기" : "필터 확장"}
+            title={expanded ? "필터 좁히기" : "필터 넓히기"}
             style={{
               background: "none", border: "none", borderRadius: 6,
               cursor: "pointer", padding: "3px 6px",
@@ -202,27 +224,47 @@ export function Sidebar({
             {expanded ? <ChevronLeftIcon style={{ width: 12, height: 12 }} /> : <ChevronRightIcon style={{ width: 12, height: 12 }} />}
           </button>
         </div>
-        <button
-          onClick={() => {
-            const keys = ["proj","who","pri","st"];
-            const allCollapsed = keys.every(k => collapsed[k]);
-            setCollapsed(allCollapsed ? {} : Object.fromEntries(keys.map(k => [k, true])));
-          }}
-          title={Object.values(collapsed).filter(Boolean).length >= 4 ? "모두 펼치기" : "모두 접기"}
-          style={{
-            background: "none", border: "none", borderRadius: 6,
-            cursor: "pointer", padding: "3px 6px",
-            color: "#94a3b8",
-            lineHeight: 1, display: "inline-flex", alignItems: "center",
-            transition: "color .12s",
-          }}
-          onMouseEnter={e => { e.currentTarget.style.color = "#334155"; (e.currentTarget.querySelector("svg") as SVGElement|null)?.setAttribute("stroke-width","2.5"); }}
-          onMouseLeave={e => { e.currentTarget.style.color = "#94a3b8"; (e.currentTarget.querySelector("svg") as SVGElement|null)?.setAttribute("stroke-width","1.5"); }}
-        >
-          {Object.values(collapsed).filter(Boolean).length >= 4
-            ? <ChevronDownIcon style={{ width: 12, height: 12 }} />
-            : <ChevronUpIcon style={{ width: 12, height: 12 }} />}
-        </button>
+        {/* 오른쪽: 섹션 모두 접기/펼치기 + 완전 닫기 (Google 패널 닫기 패턴) */}
+        <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+          {/* 완전 닫기 — 사이드바를 32px 띠로 축소 */}
+          <button
+            onClick={() => setSidebarMin(true)}
+            title="필터 닫기"
+            style={{
+              background: "none", border: "none", borderRadius: 6,
+              cursor: "pointer", padding: "3px 6px",
+              color: "#94a3b8",
+              lineHeight: 1, display: "inline-flex", alignItems: "center",
+              transition: "color .12s",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.color = "#334155"; (e.currentTarget.querySelector("svg") as SVGElement|null)?.setAttribute("stroke-width","2.5"); }}
+            onMouseLeave={e => { e.currentTarget.style.color = "#94a3b8"; (e.currentTarget.querySelector("svg") as SVGElement|null)?.setAttribute("stroke-width","1.5"); }}
+          >
+            <ChevronDoubleLeftIcon style={{ width: 12, height: 12 }} />
+          </button>
+          {/* 섹션 콘텐츠 일괄 접기/펼치기 — 각 섹션 헤더의 ▲/▼ 와 동일한 우측 끝 위치 */}
+          <button
+            onClick={() => {
+              const keys = ["proj","who","pri","st"];
+              const allCollapsed = keys.every(k => collapsed[k]);
+              setCollapsed(allCollapsed ? {} : Object.fromEntries(keys.map(k => [k, true])));
+            }}
+            title={Object.values(collapsed).filter(Boolean).length >= 4 ? "모두 펼치기" : "모두 접기"}
+            style={{
+              background: "none", border: "none", borderRadius: 6,
+              cursor: "pointer", padding: "3px 6px",
+              color: "#94a3b8",
+              lineHeight: 1, display: "inline-flex", alignItems: "center",
+              transition: "color .12s",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.color = "#334155"; (e.currentTarget.querySelector("svg") as SVGElement|null)?.setAttribute("stroke-width","2.5"); }}
+            onMouseLeave={e => { e.currentTarget.style.color = "#94a3b8"; (e.currentTarget.querySelector("svg") as SVGElement|null)?.setAttribute("stroke-width","1.5"); }}
+          >
+            {Object.values(collapsed).filter(Boolean).length >= 4
+              ? <ChevronDownIcon style={{ width: 12, height: 12 }} />
+              : <ChevronUpIcon style={{ width: 12, height: 12 }} />}
+          </button>
+        </div>
       </div>
 
       <div className="sidebar-scroll" style={{ flex: 1, overflowY: "scroll", scrollbarWidth: "thin", scrollbarColor: "#cbd5e1 transparent", paddingBottom: 44 }}>
@@ -515,11 +557,11 @@ export function Sidebar({
           </div>
         )}
       </div>
-
+      </>}
 
     </div>
-    {/* ── 필터 초기화 — 화면 하단 fixed ── */}
-    <div style={{
+    {/* ── 필터 초기화 — 화면 하단 fixed (완전 접힘 시 숨김) ── */}
+    {!sidebarMin && <div style={{
       position: "fixed", bottom: 16, left: fixedPos.left,
       width: fixedPos.width, zIndex: 50, boxSizing: "border-box",
       padding: "8px 14px", background: "rgba(255,255,255,.95)",
@@ -539,7 +581,7 @@ export function Sidebar({
           display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4,
         }}
       ><XMarkIcon style={{width:12,height:12}}/> 필터 초기화</button>
-    </div>
+    </div>}
     </>
   );
 }

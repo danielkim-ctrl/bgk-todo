@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect } from "react";
 import { S } from "../styles";
 import { isOD, dateStr, fDow } from "../utils";
+import { repeatLabel } from "../constants";
 import { avColor, avColor2 } from "../utils/avatarUtils";
 import { Chip } from "../components/ui/Chip";
 import { RepeatBadge } from "../components/ui/RepeatBadge";
@@ -1010,11 +1011,30 @@ export function CalendarView(props: CalendarViewProps) {
       const weekEndD=dateStr(we.getFullYear(),we.getMonth(),we.getDate());
       const qDays=(n:number)=>{const d=new Date(todayStr);d.setDate(d.getDate()+n);return dateStr(d.getFullYear(),d.getMonth(),d.getDate());};
 
+      // 반복 업무의 경우 원본 마감일이 과거여도 다음 발생일 기준으로 섹션 배치
+      // 예: "매주 월요일" 업무가 3/31 마감 → 다음 발생일 4/7 기준으로 "이번 주" 섹션에 표시
+      const getEffectiveDue=(t:any):string=>{
+        const originDs=t.due?.split(" ")[0]||"";
+        if(!originDs||!t.repeat||t.repeat==="없음")return originDs;
+        // 원본 날짜가 오늘 이후면 그대로 사용
+        if(originDs>=todayStr)return originDs;
+        // 원본 날짜가 과거이면 다음 발생일 계산
+        let cur=new Date(originDs);
+        const today=new Date(todayStr);
+        while(cur<today){
+          if(t.repeat==="매일")cur.setDate(cur.getDate()+1);
+          else if(t.repeat==="매주")cur.setDate(cur.getDate()+7);
+          else if(t.repeat==="매월")cur.setMonth(cur.getMonth()+1);
+          else break;
+        }
+        return dateStr(cur.getFullYear(),cur.getMonth(),cur.getDate());
+      };
+
       // 날짜 없음 섹션 분리
       const secNoDate=applyOrder(active.filter(t=>!t.due?.split(" ")[0]));
-      const secToday=applyOrder(active.filter(t=>{const d=t.due?.split(" ")[0]||"";return !!d&&d<=todayStr;}));
-      const secWeek=applyOrder(active.filter(t=>{const d=t.due?.split(" ")[0]||"";return !!d&&d>todayStr&&d<=weekEndD;}));
-      const secLater=applyOrder(active.filter(t=>{const d=t.due?.split(" ")[0]||"";return !!d&&d>weekEndD;}));
+      const secToday=applyOrder(active.filter(t=>{const d=getEffectiveDue(t);return !!d&&d<=todayStr;}));
+      const secWeek=applyOrder(active.filter(t=>{const d=getEffectiveDue(t);return !!d&&d>todayStr&&d<=weekEndD;}));
+      const secLater=applyOrder(active.filter(t=>{const d=getEffectiveDue(t);return !!d&&d>weekEndD;}));
 
       // 섹션 헤더 컴포넌트 (sticky + 접기/펼치기)
       const SecHdr=({label,count,open,onToggle}:{label:string,count:number,open:boolean,onToggle:()=>void})=>
@@ -1301,7 +1321,7 @@ export function CalendarView(props: CalendarViewProps) {
             <div style={{marginTop:8,display:"flex",gap:4,flexWrap:"wrap" as const}}>
               <span style={{...S.badge(priBg[t.pri],priC[t.pri]),fontSize:10}}>{t.pri}</span>
               <span style={{...S.badge(stBg[t.st],stC[t.st]),fontSize:10}}>{t.st}</span>
-              {t.repeat&&t.repeat!=="없음"&&<span style={{fontSize:10,padding:"1px 6px",borderRadius:99,background:"#f0fdf4",color:"#16a34a",display:"inline-flex",alignItems:"center",gap:2}}><ArrowPathIcon style={ICON_SM}/> {t.repeat}</span>}
+              {t.repeat&&t.repeat!=="없음"&&<span style={{fontSize:10,padding:"1px 6px",borderRadius:99,background:"#f0fdf4",color:"#16a34a",display:"inline-flex",alignItems:"center",gap:2}}><ArrowPathIcon style={ICON_SM}/> {repeatLabel(t.repeat)}</span>}
             </div>
           </div>
           <button onClick={()=>setCalEvPop(null)} style={{background:"none",border:"none",cursor:"pointer",color:"#94a3b8",padding:"0 2px",flexShrink:0,lineHeight:1,display:"flex",alignItems:"center"}}><XMarkIcon style={ICON_SM}/></button>
