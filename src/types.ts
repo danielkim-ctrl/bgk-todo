@@ -172,6 +172,30 @@ export interface SavedFilter {
 // ─── 삭제된 업무 기록 ──────────────────────────────────────────────────────────
 
 // 삭제된 업무 기록 (localStorage에 보관, 데일리 활동 로그에서 사용)
+// ── 업무 템플릿 — 반복되는 업무 묶음을 저장해두고 재사용 ──
+export interface TemplateItem {
+  task: string;          // 업무명
+  pid?: number;          // 프로젝트 ID (선택)
+  pri?: string;          // 우선순위
+  offsetDays?: number;   // 기준일 대비 마감일 (D+N)
+  det?: string;          // 상세내용
+  repeat?: string;       // 반복 설정
+}
+
+export interface TodoTemplate {
+  id: string;            // 고유 ID
+  name: string;          // 템플릿 이름 ("프로젝트 수주" 등)
+  items: TemplateItem[];
+  createdBy: string;     // 만든 사람
+  createdAt: string;     // 생성일 (YYYY-MM-DD)
+  teamId?: string;       // 소속 팀 (없으면 전체 공용)
+  color?: string;        // 구분 색상
+  category?: string;     // 카테고리 ("프로젝트" | "정기업무" | "인사/총무" | "영업" | "기타")
+  useCount?: number;     // 사용 횟수
+  lastUsedAt?: string;   // 마지막 사용 일시
+  description?: string;  // 한 줄 설명
+}
+
 export interface DeletedTodo {
   id: number;
   task: string;

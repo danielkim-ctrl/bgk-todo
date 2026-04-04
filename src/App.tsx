@@ -43,6 +43,7 @@ export default function App() {
     addTeam, updTeam, delTeam,
     addTeamMember, removeTeamMember, setTeamMemberRole,
     addTeamProject, removeTeamProject, assignTodosToTeams,
+    templates, addTemplate, updTemplate, delTemplate, applyTemplate, confirmTplItems, tplFavs, setTplFavs,
     view, setView, toast, filters, setFilters, favSidebar, togFavSidebar,
     search, setSearch, editCell, setEditCell, sortCol, sortDir, setSortCol, setSortDir, customSortOrders, setCustomSortOrders, activeSortFields, setActiveSortFields,
     newRows, setNewRows, kbF, setKbF, kbFWho, setKbFWho,
@@ -141,23 +142,30 @@ export default function App() {
   const myTeamIds = teams.filter(t => t.members.some(m => m.name === currentUser)).map(t => t.id);
   const isMultiTeam = myTeamIds.length > 1;
 
-  // 로그인 시 기본 팀 선택
+  // 로그인 시 기본 팀 선택 — 초기 1회만 실행
   // - 복수 팀 소속: "전체 보기"(null) → 소속 팀 전체 데이터 표시
   // - 단일 팀 소속: 해당 팀 자동 선택
-  // - 타 팀 조회 권한 없으면 소속 팀 외 선택 차단
+  const teamInitDone = useRef(false);
   useEffect(() => {
     if (!teams.length || !currentUser) return;
-    if (selectedTeamId) {
-      // 이미 선택됨 — 권한 없는 팀이면 차단
-      if (!canViewOtherTeams && !myTeamIds.includes(selectedTeamId)) {
-        setSelectedTeamId(isMultiTeam ? null : myTeamIds[0] || null);
-      }
-      return;
-    }
-    // 미선택 — 복수 팀이면 전체 보기, 단일이면 해당 팀
+    // 초기 세팅이 완료됐으면 다시 실행하지 않음 — 사용자의 드롭다운 선택을 덮어쓰지 않기 위함
+    if (teamInitDone.current) return;
+    teamInitDone.current = true;
+    // 단일 팀 소속이면 해당 팀 자동 선택, 복수 팀이면 전체 보기(null) 유지
     if (myTeamIds.length === 1) setSelectedTeamId(myTeamIds[0]);
-    // 복수 팀이면 null(전체 보기) 유지
-  }, [teams, currentUser, selectedTeamId, canViewOtherTeams]);
+  }, [teams, currentUser]);
+
+  // 사용자 전환 시 초기 세팅 플래그 리셋
+  useEffect(() => { teamInitDone.current = false; }, [currentUser]);
+
+  // 권한 없는 팀 선택 차단 — 드롭다운 onChange에서 직접 처리하지 않고 여기서 방어
+  // 타 팀 조회 권한이 없는데 소속 외 팀이 선택된 경우만 리셋
+  useEffect(() => {
+    if (!selectedTeamId || !currentUser || canViewOtherTeams) return;
+    if (!myTeamIds.includes(selectedTeamId)) {
+      setSelectedTeamId(isMultiTeam ? null : myTeamIds[0] || null);
+    }
+  }, [canViewOtherTeams]);
 
   // ── 캘린더 팝오버 / 빠른 추가 상태 ──────────────────────────────
   const [calEvPop, setCalEvPop] = useState<{todo:any,x:number,y:number}|null>(null);
@@ -554,6 +562,8 @@ export default function App() {
         savedFilters={savedFilters} saveCurrentFilter={saveCurrentFilter} deleteSavedFilter={deleteSavedFilter}
         isMobile={isMobile}
         onFilterOpen={() => setFilterBSOpen(true)}
+        templates={templates} addTemplate={addTemplate} updTemplate={updTemplate} delTemplate={delTemplate} applyTemplate={applyTemplate} confirmTplItems={confirmTplItems}
+        selectedTeamId={selectedTeamId} tplFavs={tplFavs} setTplFavs={setTplFavs}
       />}
 
       {view==="calendar"&&<CalendarView

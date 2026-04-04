@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>업무 템플릿 기능 데모 — BGK Todo</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.min.css"/>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Pretendard',system-ui,sans-serif;background:#f0f4f8;color:#1a2332;font-size:13px;line-height:1.5;}
+.wrap{max-width:1200px;margin:0 auto;padding:32px 24px;}
+
+/* 헤더 */
+.top{display:flex;align-items:center;gap:12px;margin-bottom:24px;}
+h2{font-size:18px;font-weight:800;color:#0f172a;}
+.tag{font-size:11px;font-weight:700;color:#7c3aed;background:#ede9fe;border-radius:99px;padding:3px 12px;}
+h3{font-size:15px;font-weight:700;color:#334155;margin:28px 0 12px;}
+
+/* 카드 패널 */
+.card{background:#fff;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;}
+
+/* 탭 바 */
+.tab-bar{display:flex;border-bottom:2px solid #e2e8f0;}
+.tab-bar button{flex:1;padding:12px;font-size:12px;font-weight:500;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;transition:all .12s;font-family:inherit;margin-bottom:-2px;}
+.tab-bar .active-manual{font-weight:700;color:#2563eb;background:#eff6ff;border-bottom:2px solid #2563eb;}
+.tab-bar .active-ai{font-weight:700;color:#7c3aed;background:#f5f3ff;border-bottom:2px solid #7c3aed;}
+.tab-bar .active-tpl{font-weight:700;color:#0891b2;background:#ecfeff;border-bottom:2px solid #0891b2;}
+.tab-bar .inactive{color:#64748b;background:#f8fafc;border-bottom:2px solid transparent;}
+.tab-bar .inactive:hover{background:#f1f5f9;color:#334155;}
+
+/* 템플릿 탭 본문 */
+.tpl-body{padding:18px 20px;}
+.tpl-guide{font-size:13px;color:#64748b;line-height:1.7;margin-bottom:16px;}
+.tpl-guide b{color:#334155;}
+
+/* 템플릿 리스트 */
+.tpl-list{display:flex;flex-direction:column;gap:6px;margin-bottom:16px;}
+.tpl-item{display:flex;align-items:center;gap:12px;padding:12px 16px;border:1.5px solid #e2e8f0;border-radius:10px;background:#fff;cursor:pointer;transition:all .15s;}
+.tpl-item:hover{border-color:#0891b2;background:#f0fdfa;box-shadow:0 2px 8px rgba(8,145,178,.08);}
+.tpl-item.selected{border-color:#0891b2;background:#ecfeff;box-shadow:0 2px 8px rgba(8,145,178,.12);}
+.tpl-icon{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px;}
+.tpl-info{flex:1;min-width:0;}
+.tpl-name{font-size:14px;font-weight:700;color:#0f172a;}
+.tpl-meta{font-size:11px;color:#94a3b8;margin-top:2px;display:flex;align-items:center;gap:8px;}
+.tpl-count{font-size:11px;font-weight:700;color:#0891b2;background:#ecfeff;border:1px solid #a5f3fc;border-radius:99px;padding:2px 10px;flex-shrink:0;}
+.tpl-actions{display:flex;gap:4px;flex-shrink:0;}
+.tpl-btn{background:#ecfeff;border:1px solid #a5f3fc;border-radius:6px;padding:5px 12px;font-size:12px;font-weight:600;color:#0891b2;cursor:pointer;font-family:inherit;transition:all .12s;display:inline-flex;align-items:center;gap:4px;}
+.tpl-btn:hover{background:#cffafe;border-color:#67e8f9;}
+.tpl-btn-pri{background:linear-gradient(135deg,#0891b2,#0e7490);color:#fff;border:none;padding:6px 16px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:5px;}
+.tpl-btn-pri:hover{box-shadow:0 4px 12px rgba(8,145,178,.3);transform:translateY(-1px);}
+
+/* 새 템플릿 버튼 */
+.new-tpl-btn{display:flex;align-items:center;justify-content:center;gap:6px;padding:14px;border:2px dashed #a5f3fc;border-radius:10px;color:#0891b2;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;background:#fafffe;}
+.new-tpl-btn:hover{border-color:#0891b2;background:#ecfeff;}
+
+/* 적용 미리보기 */
+.preview-head{padding:12px 18px;background:#ecfeff;border-top:1px solid #a5f3fc;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;}
+.preview-title{font-size:14px;font-weight:700;color:#0891b2;display:flex;align-items:center;gap:6px;}
+.config-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:12px 18px;background:#f0fdfa;border-bottom:1px solid #e2e8f0;}
+.config-label{font-size:12px;font-weight:600;color:#475569;}
+.config-input{padding:6px 12px;border:1.5px solid #a5f3fc;border-radius:8px;font-size:13px;font-family:inherit;outline:none;background:#fff;color:#0f172a;}
+.config-input:focus{border-color:#0891b2;box-shadow:0 0 0 3px rgba(8,145,178,.1);}
+.config-select{padding:6px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;font-family:inherit;cursor:pointer;background:#fff;}
+
+/* 결과 행 */
+.result-row{padding:13px 18px;border-bottom:1px solid #f0fdfa;display:flex;gap:12px;align-items:flex-start;transition:background .1s;}
+.result-row:hover{background:#f8fffe;}
+.result-row:last-child{border-bottom:none;}
+.task-name{font-size:14px;font-weight:600;color:#0f172a;margin-bottom:6px;border:none;border-bottom:1.5px solid transparent;outline:none;width:100%;background:transparent;font-family:inherit;padding:2px 0;}
+.task-name:focus{border-bottom-color:#0891b2;}
+.badges{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+.badge-pill{padding:4px 10px;border-radius:99px;font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:4px;}
+.badge-proj{background:#dbeafe;color:#1d4ed8;border:1px solid #93c5fd;}
+.badge-who{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;}
+.badge-date{background:#f1f5f9;color:#334155;border:1px solid #e2e8f0;}
+.badge-pri-normal{background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;}
+.badge-pri-high{background:#fef2f2;color:#dc2626;border:1px solid #fecaca;}
+.badge-pri-urgent{background:#fef2f2;color:#dc2626;border:1px solid #fecaca;}
+.badge-offset{background:#ecfeff;color:#0891b2;border:1px solid #a5f3fc;font-style:italic;}
+.detail-input{font-size:12px;color:#64748b;margin-top:5px;border:none;border-bottom:1.5px solid transparent;outline:none;width:100%;background:transparent;font-family:inherit;padding:3px 0;}
+.detail-input:focus{border-bottom-color:#0891b2;}
+
+/* 모달 */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:1000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px);padding:20px;}
+.modal-box{background:#fff;border-radius:12px;width:100%;max-width:600px;max-height:90vh;overflow-y:auto;box-shadow:0 12px 28px rgba(0,0,0,.15);animation:slideIn .25s ease;}
+@keyframes slideIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.modal-head{padding:18px 20px 0;display:flex;justify-content:space-between;align-items:center;}
+.modal-head h3{font-size:16px;font-weight:800;margin:0;}
+.modal-close{width:28px;height:28px;border-radius:50%;border:none;background:#f1f5f9;cursor:pointer;font-size:14px;color:#64748b;display:flex;align-items:center;justify-content:center;}
+.modal-body{padding:16px 20px;}
+.modal-footer{padding:0 20px 16px;display:flex;gap:6px;justify-content:flex-end;}
+
+/* 폼 */
+.form-label{font-size:12px;font-weight:600;color:#475569;margin-bottom:4px;display:block;}
+.form-input{width:100%;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;outline:none;font-family:inherit;margin-bottom:14px;}
+.form-input:focus{border-color:#0891b2;box-shadow:0 0 0 3px rgba(8,145,178,.1);}
+.item-row{display:flex;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid #f1f5f9;}
+.item-row input{flex:1;padding:6px 10px;border:1.5px solid #e2e8f0;border-radius:6px;font-size:13px;outline:none;font-family:inherit;}
+.item-row input:focus{border-color:#0891b2;}
+.item-row select{padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;font-family:inherit;}
+.item-row .offset{width:60px;text-align:center;}
+.item-row .remove{background:none;border:none;color:#cbd5e1;cursor:pointer;padding:4px;transition:color .12s;}
+.item-row .remove:hover{color:#dc2626;}
+.add-item-btn{display:flex;align-items:center;gap:4px;padding:8px 0;color:#0891b2;font-size:12px;font-weight:600;cursor:pointer;border:none;background:none;font-family:inherit;}
+.add-item-btn:hover{color:#0e7490;}
+
+/* 빈 상태 */
+.empty-state{padding:40px 20px;text-align:center;}
+.empty-state .icon{font-size:40px;margin-bottom:12px;opacity:.5;}
+.empty-state .title{font-size:14px;font-weight:600;color:#64748b;margin-bottom:4px;}
+.empty-state .sub{font-size:12px;color:#94a3b8;margin-bottom:16px;}
+
+/* 숨김 */
+.hidden{display:none!important;}
+
+/* SVG 아이콘 */
+.ico{width:14px;height:14px;display:inline-block;vertical-align:middle;}
+.ico-sm{width:12px;height:12px;}
+.ico-lg{width:16px;height:16px;}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+<div class="top">
+  <h2>업무 템플릿 기능 데모</h2>
+  <span class="tag">신규 기능</span>
+</div>
+
+<!-- ─────── 메인 카드 ─────── -->
+<div class="card" id="mainCard">
+  <!-- 탭 바 -->
+  <div class="tab-bar">
+    <button class="inactive" onclick="switchTab('manual')">
+      <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      직접 입력
+    </button>
+    <button class="inactive" onclick="switchTab('ai')">
+      <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L9.5 8.5 3 9.3l4.5 4.5L6.2 21 12 17.5l5.8 3.5-1.3-7.2 4.5-4.5-6.5-.8z"/></svg>
+      AI 자동 입력
+    </button>
+    <button class="active-tpl" onclick="switchTab('tpl')" id="tplTab">
+      <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg>
+      템플릿
+    </button>
+  </div>
+
+  <!-- 직접 입력 / AI 탭 (비활성) -->
+  <div id="panel-manual" class="hidden" style="padding:40px;text-align:center;color:#94a3b8;">
+    직접 입력 탭 (기존 기능)
+  </div>
+  <div id="panel-ai" class="hidden" style="padding:40px;text-align:center;color:#94a3b8;">
+    AI 자동 입력 탭 (기존 기능)
+  </div>
+
+  <!-- ─────── 템플릿 탭 ─────── -->
+  <div id="panel-tpl" class="tpl-body">
+    <p class="tpl-guide">
+      자주 반복되는 업무 묶음을 <b>템플릿으로 저장</b>해두고, 필요할 때 꺼내서 <b>담당자·날짜만 바꿔 한 번에 등록</b>하세요.
+    </p>
+
+    <!-- 템플릿 목록 -->
+    <div class="tpl-list" id="tplList">
+      <!-- JS로 렌더링 -->
+    </div>
+
+    <!-- 새 템플릿 만들기 -->
+    <div class="new-tpl-btn" onclick="openCreateModal()">
+      <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      새 템플릿 만들기
+    </div>
+  </div>
+
+  <!-- ─────── 적용 미리보기 ─────── -->
+  <div id="previewArea" class="hidden">
+    <div class="preview-head">
+      <span class="preview-title" id="previewTitle">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg>
+        <span id="previewName"></span>
+      </span>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="tpl-btn-pri" onclick="confirmApply()">
+          <svg class="ico" style="color:#fff" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+          등록
+        </button>
+        <button class="tpl-btn" onclick="cancelPreview()">취소</button>
+      </div>
+    </div>
+    <!-- 기준일 + 담당자 일괄 설정 -->
+    <div class="config-row">
+      <span class="config-label">기준일</span>
+      <input type="date" class="config-input" id="baseDate" value="2026-04-10" onchange="recalcDates()"/>
+      <span class="config-label" style="margin-left:12px;">담당자 일괄</span>
+      <select class="config-select" id="bulkWho" onchange="applyBulkWho()">
+        <option value="">선택...</option>
+        <option>김대윤</option>
+        <option>김성욱</option>
+        <option>서혜원</option>
+        <option>이지윤</option>
+        <option>나윤경</option>
+        <option>한희진</option>
+      </select>
+    </div>
+    <div id="previewRows"></div>
+  </div>
+</div>
+
+<!-- ─────── 기획 설명 ─────── -->
+<h3>기능 흐름 요약</h3>
+<div class="card" style="padding:20px;">
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">
+    <div style="text-align:center;padding:16px;">
+      <div style="width:48px;height:48px;border-radius:12px;background:#ecfeff;display:flex;align-items:center;justify-content:center;margin:0 auto 10px;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0891b2" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </div>
+      <div style="font-size:14px;font-weight:700;color:#0f172a;margin-bottom:4px;">1. 템플릿 만들기</div>
+      <div style="font-size:12px;color:#64748b;line-height:1.6;">반복되는 업무 묶음에 이름 붙여 저장<br/>업무명 + 우선순위 + 상대 마감일(D+N)</div>
+    </div>
+    <div style="text-align:center;padding:16px;">
+      <div style="width:48px;height:48px;border-radius:12px;background:#ecfeff;display:flex;align-items:center;justify-content:center;margin:0 auto 10px;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0891b2" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+      </div>
+      <div style="font-size:14px;font-weight:700;color:#0f172a;margin-bottom:4px;">2. 적용하기</div>
+      <div style="font-size:12px;color:#64748b;line-height:1.6;">기준일 입력 → 날짜 자동 계산<br/>담당자 일괄배정 → 미리보기 확인</div>
+    </div>
+    <div style="text-align:center;padding:16px;">
+      <div style="width:48px;height:48px;border-radius:12px;background:#ecfeff;display:flex;align-items:center;justify-content:center;margin:0 auto 10px;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0891b2" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <div style="font-size:14px;font-weight:700;color:#0f172a;margin-bottom:4px;">3. 등록</div>
+      <div style="font-size:12px;color:#64748b;line-height:1.6;">업무가 한 번에 생성됨<br/>AI 결과와 동일한 미리보기 UI 재활용</div>
+    </div>
+  </div>
+</div>
+
+<h3>상대 날짜(D+N) 개념</h3>
+<div class="card" style="padding:20px;">
+  <p style="font-size:13px;color:#64748b;line-height:1.7;margin-bottom:12px;">
+    템플릿의 마감일은 <b style="color:#0891b2;">절대 날짜가 아닌 상대 날짜</b>로 저장됩니다.
+    적용 시 <b style="color:#334155;">기준일</b>을 입력하면 자동으로 실제 날짜가 계산됩니다.
+  </p>
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="background:#f0fdfa;border-bottom:2px solid #e2e8f0;">
+        <th style="padding:10px 14px;text-align:left;font-weight:700;color:#64748b;">업무</th>
+        <th style="padding:10px 14px;text-align:center;font-weight:700;color:#64748b;">템플릿 저장값</th>
+        <th style="padding:10px 14px;text-align:center;font-weight:700;color:#64748b;">기준일 04/10 적용 시</th>
+        <th style="padding:10px 14px;text-align:center;font-weight:700;color:#64748b;">기준일 05/01 적용 시</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="border-bottom:1px solid #f1f5f9;">
+        <td style="padding:10px 14px;font-weight:600;">계약서 작성</td>
+        <td style="padding:10px 14px;text-align:center;"><span class="badge-pill badge-offset">D+3</span></td>
+        <td style="padding:10px 14px;text-align:center;color:#334155;">04/13 (일)</td>
+        <td style="padding:10px 14px;text-align:center;color:#334155;">05/04 (일)</td>
+      </tr>
+      <tr style="border-bottom:1px solid #f1f5f9;background:#fafffe;">
+        <td style="padding:10px 14px;font-weight:600;">수행계획서 작성</td>
+        <td style="padding:10px 14px;text-align:center;"><span class="badge-pill badge-offset">D+7</span></td>
+        <td style="padding:10px 14px;text-align:center;color:#334155;">04/17 (목)</td>
+        <td style="padding:10px 14px;text-align:center;color:#334155;">05/08 (목)</td>
+      </tr>
+      <tr style="border-bottom:1px solid #f1f5f9;">
+        <td style="padding:10px 14px;font-weight:600;">선금신청</td>
+        <td style="padding:10px 14px;text-align:center;"><span class="badge-pill badge-offset">D+5</span></td>
+        <td style="padding:10px 14px;text-align:center;color:#334155;">04/15 (화)</td>
+        <td style="padding:10px 14px;text-align:center;color:#334155;">05/06 (화)</td>
+      </tr>
+      <tr style="background:#fafffe;">
+        <td style="padding:10px 14px;font-weight:600;">착수보고</td>
+        <td style="padding:10px 14px;text-align:center;"><span class="badge-pill badge-offset">D+14</span></td>
+        <td style="padding:10px 14px;text-align:center;color:#334155;">04/24 (목)</td>
+        <td style="padding:10px 14px;text-align:center;color:#334155;">05/15 (목)</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+</div>
+
+<!-- ─────── 생성 모달 ─────── -->
+<div class="modal-overlay hidden" id="createModal" onclick="if(event.target===this)closeCreateModal()">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>새 템플릿 만들기</h3>
+      <button class="modal-close" onclick="closeCreateModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <label class="form-label">템플릿 이름</label>
+      <input class="form-input" id="newTplName" placeholder="예) 프로젝트 수주, 월간 정기보고, 신규 입사자 온보딩"/>
+
+      <label class="form-label">업무 항목</label>
+      <div style="border:1.5px solid #e2e8f0;border-radius:8px;padding:8px 12px;margin-bottom:14px;">
+        <div style="display:flex;gap:8px;align-items:center;padding-bottom:8px;border-bottom:1px solid #e2e8f0;margin-bottom:4px;">
+          <span style="flex:1;font-size:11px;font-weight:600;color:#94a3b8;">업무명</span>
+          <span style="width:70px;font-size:11px;font-weight:600;color:#94a3b8;text-align:center;">우선순위</span>
+          <span style="width:60px;font-size:11px;font-weight:600;color:#94a3b8;text-align:center;">D+일수</span>
+          <span style="width:24px;"></span>
+        </div>
+        <div id="modalItems"></div>
+        <button class="add-item-btn" onclick="addModalItem()">
+          <svg class="ico-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          항목 추가
+        </button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="tpl-btn" onclick="closeCreateModal()">취소</button>
+      <button class="tpl-btn-pri" onclick="saveNewTemplate()">
+        <svg class="ico" style="color:#fff" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+        저장
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── 샘플 데이터 (Firestore 실제 데이터 구조 기반) ──
+const templates = [
+  {
+    id: "tpl_1", name: "프로젝트 수주", color: "#0891b2",
+    createdBy: "김대윤", createdAt: "2026-03-15",
+    items: [
+      { task: "계약서 작성 및 검토", pri: "긴급", offsetDays: 3, det: "법무팀 검토 포함" },
+      { task: "수행계획서 작성", pri: "보통", offsetDays: 7, det: "프로젝트 범위, 일정, 투입 인력 정의" },
+      { task: "선금신청", pri: "긴급", offsetDays: 5, det: "계약금 30% 청구" },
+      { task: "착수보고 준비", pri: "보통", offsetDays: 14, det: "발주처 대상 착수보고회 자료 작성" },
+      { task: "프로젝트 킥오프 미팅", pri: "보통", offsetDays: 10, det: "내부 팀 킥오프" },
+    ]
+  },
+  {
+    id: "tpl_2", name: "월간 정기보고", color: "#7c3aed",
+    createdBy: "서혜원", createdAt: "2026-03-20",
+    items: [
+      { task: "실적 데이터 수집", pri: "보통", offsetDays: 1, det: "" },
+      { task: "보고서 초안 작성", pri: "보통", offsetDays: 3, det: "" },
+      { task: "팀장 검토 요청", pri: "높음", offsetDays: 5, det: "" },
+    ]
+  },
+  {
+    id: "tpl_3", name: "신규 입사자 온보딩", color: "#16a34a",
+    createdBy: "나윤경", createdAt: "2026-04-01",
+    items: [
+      { task: "계정 발급 (이메일, 사내 시스템)", pri: "긴급", offsetDays: 0, det: "" },
+      { task: "업무 환경 세팅 (PC, 모니터)", pri: "긴급", offsetDays: 0, det: "" },
+      { task: "팀 소개 및 조직도 안내", pri: "보통", offsetDays: 1, det: "" },
+      { task: "업무 프로세스 교육", pri: "보통", offsetDays: 3, det: "" },
+      { task: "멘토 배정", pri: "보통", offsetDays: 1, det: "" },
+      { task: "1주차 체크인 미팅", pri: "보통", offsetDays: 7, det: "" },
+      { task: "1개월 적응 면담", pri: "보통", offsetDays: 30, det: "" },
+      { task: "수습 평가", pri: "높음", offsetDays: 90, det: "" },
+    ]
+  }
+];
+
+let selectedTpl = null;
+let previewItems = [];
+
+// ── 렌더링 ──
+function renderList() {
+  const list = document.getElementById('tplList');
+  list.innerHTML = templates.map(t => `
+    <div class="tpl-item ${selectedTpl===t.id?'selected':''}" onclick="selectTemplate('${t.id}')">
+      <div class="tpl-icon" style="background:${t.color}18;color:${t.color};">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg>
+      </div>
+      <div class="tpl-info">
+        <div class="tpl-name">${t.name}</div>
+        <div class="tpl-meta">
+          <span>${t.createdBy} 작성</span>
+          <span>·</span>
+          <span>${t.createdAt}</span>
+        </div>
+      </div>
+      <span class="tpl-count">${t.items.length}개 업무</span>
+      <div class="tpl-actions">
+        <button class="tpl-btn" onclick="event.stopPropagation();applyTemplate('${t.id}')">
+          <svg class="ico-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          적용
+        </button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function selectTemplate(id) {
+  selectedTpl = selectedTpl === id ? null : id;
+  renderList();
+}
+
+function applyTemplate(id) {
+  const tpl = templates.find(t => t.id === id);
+  if (!tpl) return;
+  selectedTpl = id;
+  previewItems = tpl.items.map(it => ({...it, who: '', due: ''}));
+
+  document.getElementById('previewName').textContent = tpl.name + ' (' + tpl.items.length + '개 업무)';
+  document.getElementById('previewArea').classList.remove('hidden');
+  document.getElementById('tplList').parentElement.querySelector('.new-tpl-btn').classList.add('hidden');
+
+  recalcDates();
+  renderList();
+  document.getElementById('previewArea').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function recalcDates() {
+  const base = document.getElementById('baseDate').value;
+  if (!base) return;
+  const baseD = new Date(base);
+  const dow = ['일','월','화','수','목','금','토'];
+
+  previewItems.forEach(it => {
+    if (it.offsetDays !== undefined) {
+      const d = new Date(baseD);
+      d.setDate(d.getDate() + it.offsetDays);
+      it.due = d.toISOString().slice(0,10);
+    }
+  });
+
+  const rows = document.getElementById('previewRows');
+  rows.innerHTML = previewItems.map((it, i) => {
+    const priClass = it.pri === '긴급' ? 'badge-pri-urgent' : it.pri === '높음' ? 'badge-pri-high' : 'badge-pri-normal';
+    const d = it.due ? new Date(it.due) : null;
+    const dateStr = d ? `${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getDate().toString().padStart(2,'0')} (${dow[d.getDay()]})` : '';
+    return `
+    <div class="result-row">
+      <input type="checkbox" checked style="margin-top:4px;cursor:pointer;flex-shrink:0;accent-color:#0891b2;width:14px;height:14px;"/>
+      <div style="flex:1;min-width:0;">
+        <input class="task-name" value="${it.task}"/>
+        <div class="badges">
+          <span class="badge-pill badge-who">
+            <svg class="ico-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            ${it.who || '미배정'}
+          </span>
+          <span class="badge-pill badge-date">
+            <svg class="ico-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            ${dateStr}
+          </span>
+          <span class="badge-pill badge-offset">D+${it.offsetDays}</span>
+          <span class="badge-pill ${priClass}">
+            <svg class="ico-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            ${it.pri}
+          </span>
+        </div>
+        <input class="detail-input" value="${it.det||''}" placeholder="상세내용 입력..."/>
+      </div>
+      <button style="background:none;border:none;color:#cbd5e1;cursor:pointer;padding:4px;flex-shrink:0;" onmouseenter="this.style.color='#dc2626'" onmouseleave="this.style.color='#cbd5e1'">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>`;
+  }).join('');
+}
+
+function applyBulkWho() {
+  const who = document.getElementById('bulkWho').value;
+  if (!who) return;
+  previewItems.forEach(it => it.who = who);
+  recalcDates();
+}
+
+function cancelPreview() {
+  document.getElementById('previewArea').classList.add('hidden');
+  document.querySelector('.new-tpl-btn').classList.remove('hidden');
+  selectedTpl = null;
+  renderList();
+}
+
+function confirmApply() {
+  const count = previewItems.length;
+  alert(count + '건의 업무가 등록되었습니다!\n(데모이므로 실제 저장되지 않습니다)');
+  cancelPreview();
+}
+
+// ── 탭 전환 ──
+function switchTab(tab) {
+  document.querySelectorAll('.tab-bar button').forEach(b => b.className = 'inactive');
+  document.querySelectorAll('[id^="panel-"]').forEach(p => p.classList.add('hidden'));
+
+  const tabEl = document.querySelector(`.tab-bar button:nth-child(${tab==='manual'?1:tab==='ai'?2:3})`);
+  tabEl.className = tab === 'manual' ? 'active-manual' : tab === 'ai' ? 'active-ai' : 'active-tpl';
+  document.getElementById('panel-' + tab).classList.remove('hidden');
+  if (tab !== 'tpl') {
+    document.getElementById('previewArea').classList.add('hidden');
+  }
+}
+
+// ── 생성 모달 ──
+let modalItems = [
+  { task: '', pri: '보통', offsetDays: 0 }
+];
+
+function openCreateModal() {
+  modalItems = [{ task: '', pri: '보통', offsetDays: 0 }];
+  document.getElementById('newTplName').value = '';
+  renderModalItems();
+  document.getElementById('createModal').classList.remove('hidden');
+}
+
+function closeCreateModal() {
+  document.getElementById('createModal').classList.add('hidden');
+}
+
+function renderModalItems() {
+  const container = document.getElementById('modalItems');
+  container.innerHTML = modalItems.map((it, i) => `
+    <div class="item-row">
+      <input value="${it.task}" placeholder="업무명 입력" oninput="modalItems[${i}].task=this.value"/>
+      <select onchange="modalItems[${i}].pri=this.value" style="width:70px;">
+        <option ${it.pri==='긴급'?'selected':''}>긴급</option>
+        <option ${it.pri==='높음'?'selected':''}>높음</option>
+        <option ${it.pri==='보통'?'selected':''}>보통</option>
+        <option ${it.pri==='낮음'?'selected':''}>낮음</option>
+      </select>
+      <input class="offset" type="number" min="0" value="${it.offsetDays}" oninput="modalItems[${i}].offsetDays=parseInt(this.value)||0" placeholder="D+"/>
+      <button class="remove" onclick="modalItems.splice(${i},1);renderModalItems();">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+  `).join('');
+}
+
+function addModalItem() {
+  modalItems.push({ task: '', pri: '보통', offsetDays: 0 });
+  renderModalItems();
+  // 마지막 항목에 포커스
+  setTimeout(() => {
+    const inputs = document.querySelectorAll('#modalItems .item-row input:first-child');
+    if (inputs.length) inputs[inputs.length - 1].focus();
+  }, 50);
+}
+
+function saveNewTemplate() {
+  const name = document.getElementById('newTplName').value.trim();
+  if (!name) { alert('템플릿 이름을 입력해주세요.'); return; }
+  const validItems = modalItems.filter(it => it.task.trim());
+  if (!validItems.length) { alert('업무 항목을 1개 이상 입력해주세요.'); return; }
+
+  templates.push({
+    id: 'tpl_' + Date.now(),
+    name: name,
+    color: '#0891b2',
+    createdBy: '나',
+    createdAt: new Date().toISOString().slice(0, 10),
+    items: validItems.map(it => ({ task: it.task.trim(), pri: it.pri, offsetDays: it.offsetDays, det: '' }))
+  });
+
+  closeCreateModal();
+  renderList();
+}
+
+// ── 초기 렌더링 ──
+renderList();
+</script>
+</body>
+</html>

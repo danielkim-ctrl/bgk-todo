@@ -26,6 +26,7 @@ export { PlusIcon } from "@heroicons/react/24/outline";             // 추가
 export { DocumentTextIcon } from "@heroicons/react/24/outline";     // 메모
 export { PencilSquareIcon } from "@heroicons/react/24/outline";     // 수정
 export { ClipboardDocumentIcon } from "@heroicons/react/24/outline";// 복제
+export { RectangleStackIcon } from "@heroicons/react/24/outline";  // 템플릿(스택)
 export { BoltIcon } from "@heroicons/react/24/outline";             // 우선순위(번개)
 export { InformationCircleIcon } from "@heroicons/react/24/outline";// 정보
 export { EllipsisHorizontalIcon } from "@heroicons/react/24/outline"; // 더보기(···)

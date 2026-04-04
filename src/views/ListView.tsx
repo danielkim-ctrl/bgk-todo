@@ -14,7 +14,7 @@ import { RepeatBadge } from "../components/ui/RepeatBadge";
 import { ColumnFilterDropdown } from "../components/ui/ColumnFilterDropdown";
 import { Bars3Icon, ListBulletIcon, FolderIcon, UserIcon, ArrowPathIcon, MagnifyingGlassIcon, ExclamationTriangleIcon, CheckIcon, CheckCircleIcon, FlagIcon, PencilSquareIcon, TrashIcon, InboxIcon, StarIcon, StarOutlineIcon, XMarkIcon, BookmarkIcon, ICON_SM } from "../components/ui/Icons";
 import { Chip } from "../components/ui/Chip";
-import { SavedFilter, Filters } from "../types";
+import { SavedFilter, Filters, TodoTemplate } from "../types";
 
 // ── hover 플로팅 액션 팝업 (mouseLeave 없이 document mousemove로 좌표 감지) ──
 // DateTimePicker처럼 mouseEnter/mouseLeave를 사용하지 않고,
@@ -209,6 +209,16 @@ interface ListViewProps {
   // 모바일 전용 props
   isMobile?: boolean;
   onFilterOpen?: () => void;    // 모바일 필터 바텀 시트 열기
+  // 업무 템플릿
+  templates?: TodoTemplate[];
+  addTemplate?: (tpl: Omit<TodoTemplate, "id" | "createdAt" | "useCount" | "lastUsedAt">) => string;
+  updTemplate?: (id: string, patch: Partial<TodoTemplate>) => void;
+  delTemplate?: (id: string) => void;
+  applyTemplate?: (id: string, baseDate: string, defaultWho: string) => void;
+  confirmTplItems?: (items: Record<string, unknown>[]) => void;
+  selectedTeamId?: string | null;
+  tplFavs?: string[];
+  setTplFavs?: (fn: (prev: string[]) => string[]) => void;
 }
 
 export function ListView(props: ListViewProps) {
@@ -233,6 +243,8 @@ export function ListView(props: ListViewProps) {
     addSecRef, tblDivRef,
     savedFilters, saveCurrentFilter, deleteSavedFilter,
     isMobile, onFilterOpen,
+    templates, addTemplate, updTemplate, delTemplate, applyTemplate, confirmTplItems,
+    selectedTeamId, tplFavs, setTplFavs,
   } = props;
 
   const { can, canEdit: permCanEdit, canDelete } = usePermission();
@@ -526,6 +538,8 @@ export function ListView(props: ListViewProps) {
       aiHistory={aiHistory} restoreAiHistory={restoreAiHistory}
       priC={priC} priBg={priBg} currentUser={currentUser}
       setDatePop={setDatePop}
+      templates={templates} addTemplate={addTemplate} updTemplate={updTemplate} delTemplate={delTemplate} applyTemplate={applyTemplate} confirmTplItems={confirmTplItems}
+      addTodo={addTodo} flash={flash} selectedTeamId={selectedTeamId} tplFavs={tplFavs} setTplFavs={setTplFavs}
     />
     </div>
 
@@ -790,7 +804,7 @@ export function ListView(props: ListViewProps) {
     </div>{/* sticky div 끝 */}
 
 
-{todoView==="memo"&&<MemoView sorted={sorted} showDone={showDone} setShowDone={setShowDone} gPr={gPr} aProj={visibleProj} members={visibleMembers} pris={pris} stats={stats} priC={priC} priBg={priBg} stC={stC} stBg={stBg} updTodo={updTodo} addTodo={addTodo} currentUser={currentUser} delTodo={delTodo} isFav={isFav} toggleFav={toggleFav} flash={flash} setDatePop={setDatePop} cols={memoCols}/>}
+{todoView==="memo"&&<MemoView sorted={sorted} showDone={showDone} setShowDone={setShowDone} gPr={gPr} aProj={visibleProj} members={visibleMembers} pris={pris} stats={stats} priC={priC} priBg={priBg} stC={stC} stBg={stBg} updTodo={updTodo} addTodo={addTodo} currentUser={currentUser} delTodo={delTodo} isFav={isFav} toggleFav={toggleFav} flash={flash} setDatePop={setDatePop} cols={memoCols} memberColors={memberColors}/>}
     {todoView==="list"&&sorted.length===0&&(()=>{
       // 필터/검색이 적용된 경우와 아닌 경우를 구분해 다른 안내 메시지와 CTA를 표시
       const hasFilter = filters.proj.length||filters.who.length||filters.pri.length||filters.st.length||filters.repeat.length||filters.fav||search;
@@ -895,7 +909,7 @@ export function ListView(props: ListViewProps) {
                         {plain?plain.slice(0,50)+(plain.length>50?"…":""):"상세내용 추가..."}
                       </span>}
                 </td>
-                <CellEdit todo={t} field="who" tdStyle={priCellStyle}><div style={{display:"flex",alignItems:"center",gap:6,...(expandMode?{alignSelf:"flex-start" as const}:{})}}><span style={{width:26,height:26,borderRadius:"50%",background:`linear-gradient(135deg,${avColor(t.who)},${avColor2(t.who)})`,color:"#fff",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,flexShrink:0,letterSpacing:"-0.5px",boxShadow:"0 1px 3px rgba(0,0,0,.15)"}} title={t.who}>{avInitials(t.who)}</span><span style={{fontSize:13}}>{t.who}</span></div></CellEdit>
+                <CellEdit todo={t} field="who" tdStyle={priCellStyle}><div style={{display:"flex",alignItems:"center",gap:6,...(expandMode?{alignSelf:"flex-start" as const}:{})}}><span style={{width:26,height:26,borderRadius:"50%",background:memberColors[t.who]||`linear-gradient(135deg,${avColor(t.who)},${avColor2(t.who)})`,color:"#fff",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,flexShrink:0,letterSpacing:"-0.5px",boxShadow:"0 1px 3px rgba(0,0,0,.15)"}} title={t.who}>{avInitials(t.who)}</span><span style={{fontSize:13}}>{t.who}</span></div></CellEdit>
                 {/* 마감기한 셀 — 날짜+D-day 뱃지 세로 배치 시 행 높이 증가 방지
                     padding을 10px→3px로 줄이고 뱃지 lineHeight 압축해 표준 행 높이 유지 */}
                 <CellEdit todo={t} field="due" tdStyle={{...priCellStyle,padding:"3px 12px",verticalAlign:"middle" as const}}>{(()=>{const[dpart,tpart]=(t.due||"").split(" ");const fmt12v=(v: string)=>{if(!v)return "";const[hh,mm]=v.split(":").map(Number);const ap=hh<12?"오전":"오후";const h12=hh===0?12:hh>12?hh-12:hh;return `${ap} ${h12}:${fmt2(mm)}`;};const dd=dDay(t.due,t.st);return <div style={{display:"flex",flexDirection:"column" as const,alignItems:"center",gap:1}}>
@@ -973,7 +987,7 @@ export function ListView(props: ListViewProps) {
                     ?<div style={{fontSize:13,color:plain?"#94a3b8":"#c0c8d4",lineHeight:1.7,padding:"2px 0",textDecoration:plain?"line-through":"none"}} dangerouslySetInnerHTML={{__html:sanitize(t.det||"—")}}/>
                     :<span style={{fontSize:13,color:"#c0c8d4",fontStyle:"italic",display:"block",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>{plain?plain.slice(0,50):"—"}</span>}
                 </td>
-                <td style={S.tdc}><div style={{display:"flex",alignItems:"center",gap:6}}><span style={{width:26,height:26,borderRadius:"50%",background:`linear-gradient(135deg,${avColor(t.who)},${avColor2(t.who)})`,color:"#fff",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,flexShrink:0,letterSpacing:"-0.5px",opacity:.5}} title={t.who}>{avInitials(t.who)}</span><span style={{fontSize:13,color:"#94a3b8"}}>{t.who}</span></div></td>
+                <td style={S.tdc}><div style={{display:"flex",alignItems:"center",gap:6}}><span style={{width:26,height:26,borderRadius:"50%",background:memberColors[t.who]||`linear-gradient(135deg,${avColor(t.who)},${avColor2(t.who)})`,color:"#fff",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,flexShrink:0,letterSpacing:"-0.5px",opacity:.5}} title={t.who}>{avInitials(t.who)}</span><span style={{fontSize:13,color:"#94a3b8"}}>{t.who}</span></div></td>
                 <td style={S.tdc}><span style={{fontSize:13,color:"#94a3b8",textDecoration:"line-through"}}>{t.due}</span></td>
                 {!expandMode&&<>
                   <td style={S.tdc}><span style={{...S.badge("#f1f5f9","#94a3b8")}}>{t.pri}</span></td>

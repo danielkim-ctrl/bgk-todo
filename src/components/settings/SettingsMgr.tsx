@@ -81,7 +81,7 @@ export function SettingsMgr({
 
   // ── 공통 스타일 토큰 — 모든 탭에서 동일하게 적용 ──────────────────────────
   const tS = (a: boolean): React.CSSProperties => ({
-    padding: "10px 16px", fontSize: 13, fontWeight: a ? 600 : 500,
+    padding: "12px 18px", fontSize: 14, fontWeight: a ? 600 : 500,
     color: a ? "#2563eb" : "#64748b",
     background: a ? "#eff6ff" : "transparent",
     border: "none", borderBottom: a ? "2px solid #2563eb" : "2px solid transparent",
@@ -90,29 +90,29 @@ export function SettingsMgr({
   // 목록 행 공통 스타일
   const ROW: React.CSSProperties = {
     display: "flex", alignItems: "center", gap: 10,
-    padding: "10px 12px", background: "#fff", borderRadius: 8,
-    border: "1px solid #e2e8f0", fontSize: 13, marginBottom: 4,
+    padding: "12px 14px", background: "#fff", borderRadius: 8,
+    border: "1px solid #e2e8f0", fontSize: 14, marginBottom: 5,
     transition: "background .1s",
   };
   // 텍스트 입력 공통 스타일
   const INP: React.CSSProperties = {
-    flex: 1, padding: "8px 12px", border: "1.5px solid #e2e8f0",
-    borderRadius: 8, fontSize: 13, outline: "none", fontFamily: "inherit",
+    flex: 1, padding: "10px 14px", border: "1.5px solid #e2e8f0",
+    borderRadius: 8, fontSize: 14, outline: "none", fontFamily: "inherit",
   };
   // 추가 버튼 공통 스타일
   const BTN_ADD: React.CSSProperties = {
     background: "linear-gradient(135deg,#2563eb,#1d4ed8)", color: "#fff",
-    border: "none", padding: "8px 16px", borderRadius: 8,
-    fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+    border: "none", padding: "10px 18px", borderRadius: 8,
+    fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
   };
   // 색상 피커 공통 스타일
   const COLOR_PICK: React.CSSProperties = {
-    width: 28, height: 28, borderRadius: 6, cursor: "pointer",
+    width: 32, height: 32, borderRadius: 6, cursor: "pointer",
     border: "1px solid #e2e8f0", flexShrink: 0, padding: 0,
   };
   // 섹션 라벨 공통 스타일
   const SEC_LABEL: React.CSSProperties = {
-    fontSize: 13, fontWeight: 600, color: "#334155", marginBottom: 8,
+    fontSize: 14, fontWeight: 600, color: "#334155", marginBottom: 10,
   };
   // 아이콘 버튼 hover 핸들러
   const iconHover = (e: React.MouseEvent, enter: boolean) => {
@@ -176,8 +176,15 @@ export function SettingsMgr({
     const v = n.trim();
     if (tab === "members") {
       setMembers((p: string[]) => p.map((m: string) => m === old ? v : m));
-      // 색상도 이전 이름에서 새 이름으로 이전
+      // 색상, PIN, 역할을 이전 이름에서 새 이름으로 전이
       if (memberColors[old]) setMemberColor(v, memberColors[old]);
+      if (memberPins[old]) setMemberPins((p: any) => { const c = { ...p }; c[v] = c[old]; delete c[old]; return c; });
+      if (memberRoles[old]) setMemberRole(v, memberRoles[old]);
+      // 소속 팀의 멤버명도 변경
+      teams.forEach(t => {
+        const m = t.members.find(m => m.name === old);
+        if (m) { removeTeamMember(t.id, old); addTeamMember(t.id, v, m.role); }
+      });
     } else if (tab === "pris") {
       setPris((p: string[]) => p.map((x: string) => x === old ? v : x));
       setPriC((p: any) => { const c={...p}; c[v]=c[old]; delete c[old]; return c; });
@@ -203,7 +210,15 @@ export function SettingsMgr({
   const doDel = () => {
     if (!delConfirm) return;
     const v = delConfirm.value;
-    if (delConfirm.tab === "members") setMembers((p: string[]) => p.filter((m: string) => m !== v));
+    if (delConfirm.tab === "members") {
+      setMembers((p: string[]) => p.filter((m: string) => m !== v));
+      // 관련 데이터 정리 — 고아 레코드 방지
+      setMemberPins((p: any) => { const c = { ...p }; delete c[v]; return c; });
+      // 소속 팀에서도 제거
+      teams.forEach(t => {
+        if (t.members.some(m => m.name === v)) removeTeamMember(t.id, v);
+      });
+    }
     else if (delConfirm.tab === "pris") {
       setPris((p: string[]) => p.filter((x: string) => x !== v));
       setPriC((p: any) => { const c={...p}; delete c[v]; return c; });
@@ -239,16 +254,16 @@ export function SettingsMgr({
     {key:"apikey",  icon:<Cog6ToothIcon style={ICON_SM}/>,   label:"API 키"},
   ];
 
-  return <div style={{ display:"flex", height: 480, margin: "-16px -18px -0px" }}>
+  return <div style={{ display:"flex", height: "calc(80vh - 80px)", maxHeight: 800, margin: "-16px -18px -0px" }}>
     {/* ── 좌측 메뉴 ── */}
-    <div style={{ width: 170, flexShrink: 0, borderRight: "1px solid #e2e8f0", padding: "12px 0", display: "flex", flexDirection: "column", gap: 2 }}>
+    <div style={{ width: 190, flexShrink: 0, borderRight: "1px solid #e2e8f0", padding: "14px 0", display: "flex", flexDirection: "column", gap: 2 }}>
       {menuItems.filter(m => m.show !== false).map(m => {
         const active = tab === m.key;
         return <button key={m.key} onClick={() => setTab(m.key)}
           style={{
-            display: "flex", alignItems: "center", gap: 8,
-            padding: "9px 16px", border: "none", cursor: "pointer",
-            fontSize: 13, fontWeight: active ? 600 : 500, fontFamily: "inherit",
+            display: "flex", alignItems: "center", gap: 10,
+            padding: "11px 18px", border: "none", cursor: "pointer",
+            fontSize: 14, fontWeight: active ? 600 : 500, fontFamily: "inherit",
             color: active ? "#2563eb" : "#475569",
             background: active ? "#eff6ff" : "transparent",
             borderRight: active ? "2px solid #2563eb" : "2px solid transparent",
@@ -259,13 +274,13 @@ export function SettingsMgr({
         >
           {m.icon}
           <span style={{ flex: 1 }}>{m.label}</span>
-          {m.count !== undefined && <span style={{ fontSize: 10, color: active ? "#2563eb" : "#94a3b8", fontWeight: 600 }}>{m.count}</span>}
+          {m.count !== undefined && <span style={{ fontSize: 12, color: active ? "#2563eb" : "#94a3b8", fontWeight: 600 }}>{m.count}</span>}
         </button>;
       })}
     </div>
 
-    {/* ── 우측 콘텐츠 ── */}
-    <div style={{ flex: 1, padding: "12px 18px", overflowY: "auto", height: 480 }}>
+    {/* ── 우측 콘텐츠 — flex column으로 목록은 스크롤, 추가 영역은 하단 고정 ── */}
+    <div style={{ flex: 1, padding: "14px 20px", display: "flex", flexDirection: "column", overflow: "hidden" }}>
 
     {/* ── 팀 탭 ── */}
     {tab==="teams"&&<TeamTab
@@ -281,19 +296,19 @@ export function SettingsMgr({
 
     {/* ── API 키 탭 ── */}
     {tab==="apikey"&&<div>
-      <div style={{fontSize:13,color:"#64748b",marginBottom:12,lineHeight:1.6}}>Anthropic API 키를 입력하세요. 한 번 등록하면 모든 팀원이 사용할 수 있습니다.</div>
+      <div style={{fontSize:14,color:"#64748b",marginBottom:14,lineHeight:1.6}}>Anthropic API 키를 입력하세요. 한 번 등록하면 모든 팀원이 사용할 수 있습니다.</div>
       <div style={{display:"flex",gap:6,marginBottom:8}}>
         <input type="password" value={keyDraft} onChange={e=>setKeyDraft(e.target.value)}
           placeholder="sk-ant-..." style={INP}/>
         <button onClick={()=>{const k=keyDraft.trim();setApiKey(k);flash("API 키가 저장되었습니다 (전체 공유)");}}
           style={BTN_ADD}>저장</button>
       </div>
-      {apiKey&&<div style={{fontSize:11,color:"#16a34a",fontWeight:600,display:"flex",alignItems:"center",gap:4}}><CheckIcon style={ICON_SM}/> API 키 설정됨</div>}
+      {apiKey&&<div style={{fontSize:13,color:"#16a34a",fontWeight:600,display:"flex",alignItems:"center",gap:4}}><CheckIcon style={ICON_SM}/> API 키 설정됨</div>}
     </div>}
 
     {/* ── 프로젝트 탭 ── */}
-    {tab==="proj"&&<>
-      <div style={{display:"flex",flexDirection:"column",marginBottom:14,maxHeight:340,overflowY:"auto"}}>
+    {tab==="proj"&&<div style={{display:"flex",flexDirection:"column",flex:1,minHeight:0}}>
+      <div style={{display:"flex",flexDirection:"column",flex:1,overflowY:"auto",marginBottom:14}}>
         {projects.map((p,i)=>{
           const c=todos.filter((t:any)=>t.pid===p.id).length;
           const reorderProj=(from:number,to:number)=>{setProjects(()=>{const a=[...projects];const[m]=a.splice(from,1);a.splice(to,0,m);return a;});};
@@ -310,28 +325,28 @@ export function SettingsMgr({
               const availTeams=teams.filter(t=>!t.projectIds.includes(p.id));
               return <div style={{display:"flex",gap:3,alignItems:"center",flexWrap:"wrap" as const}}>
                 {projTeams.map(t=>(
-                  <span key={t.id} style={{display:"inline-flex",alignItems:"center",gap:2,padding:"2px 8px",background:"#eff6ff",borderRadius:99,fontSize:11,color:"#2563eb",fontWeight:500,border:"1px solid #bfdbfe",whiteSpace:"nowrap" as const}}>
-                    <span style={{width:6,height:6,borderRadius:"50%",background:t.color,flexShrink:0}}/>
+                  <span key={t.id} style={{display:"inline-flex",alignItems:"center",gap:3,padding:"3px 10px",background:"#eff6ff",borderRadius:99,fontSize:12,color:"#2563eb",fontWeight:500,border:"1px solid #bfdbfe",whiteSpace:"nowrap" as const}}>
+                    <span style={{width:7,height:7,borderRadius:"50%",background:t.color,flexShrink:0}}/>
                     {t.name}
-                    <span onClick={()=>removeTeamProject(t.id,p.id)} style={{cursor:"pointer",color:"#93c5fd",marginLeft:1,fontSize:12,lineHeight:1}}>×</span>
+                    <span onClick={()=>removeTeamProject(t.id,p.id)} style={{cursor:"pointer",color:"#93c5fd",marginLeft:2,fontSize:13,lineHeight:1}}>×</span>
                   </span>
                 ))}
                 {availTeams.length>0&&(
                   <select value="" onChange={e=>{if(e.target.value)addTeamProject(e.target.value,p.id);}}
-                    style={{padding:"1px 4px",border:"1px dashed #93c5fd",borderRadius:6,fontSize:10,fontFamily:"inherit",color:"#93c5fd",maxWidth:40,background:"#f8fbff"}}>
+                    style={{padding:"2px 6px",border:"1px dashed #93c5fd",borderRadius:6,fontSize:12,fontFamily:"inherit",color:"#93c5fd",maxWidth:44,background:"#f8fbff"}}>
                     <option value="">+</option>
                     {availTeams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
                   </select>
                 )}
               </div>;
             })()}
-            <span style={{fontSize:10,color:"#94a3b8",flexShrink:0}}>{c}건</span>
+            <span style={{fontSize:12,color:"#94a3b8",flexShrink:0}}>{c}건</span>
             <button onClick={()=>{const n=prompt("이름:",p.name);if(n)onEditProj(p.id,{name:n.trim()})}} style={ICON_BTN} onMouseEnter={e=>iconHover(e,true)} onMouseLeave={e=>iconHover(e,false)}><PencilSquareIcon style={ICON_SM}/></button>
             <button onClick={()=>{if(window.confirm("해당 프로젝트를 삭제하시겠습니까?"))onDelProj(p.id)}} style={ICON_BTN} onMouseEnter={e=>iconHover(e,true)} onMouseLeave={e=>iconHover(e,false)}><TrashIcon style={ICON_SM}/></button>
           </div>;
         })}
       </div>
-      <div style={{borderTop:"1px solid #e2e8f0",paddingTop:12}}>
+      <div style={{borderTop:"1px solid #e2e8f0",paddingTop:12,flexShrink:0}}>
         <div style={SEC_LABEL}>새 프로젝트</div>
         <div style={{display:"flex",gap:6,alignItems:"center"}}>
           <ColorDot color={projCo} onChange={setProjCo}/>
@@ -342,74 +357,57 @@ export function SettingsMgr({
             onClick={()=>{if(!projNm.trim())return;onAddProj({name:projNm.trim(),color:projCo,status:"활성"});setProjNm("");const nu=[...usedColors,projCo];setProjCo(PROJ_PALETTE.find(c=>!nu.includes(c))||PROJ_PALETTE[0]);}}>추가</button>
         </div>
       </div>
-    </>}
+    </div>}
 
     {/* ── 담당자 / 우선순위 / 상태 탭 — 공통 목록 ── */}
-    {(tab==="members"||tab==="pris"||tab==="stats")&&<>
-      <div style={{marginBottom:14,maxHeight:340,overflowY:"auto"}}>
+    {(tab==="members"||tab==="pris"||tab==="stats")&&<div style={{display:"flex",flexDirection:"column",flex:1,minHeight:0}}>
+      <div style={{flex:1,overflowY:"auto",marginBottom:14}}>
         {items.map((v, idx) => {
           const cnt = tab==="members" ? todos.filter((t:any)=>t.who===v).length
             : tab==="pris" ? todos.filter((t:any)=>t.pri===v).length
             : todos.filter((t:any)=>t.st===v).length;
           const isMember = tab === "members";
           const color = isMember ? undefined : tab==="pris" ? (priC[v]||"#94a3b8") : (stC[v]||"#94a3b8");
-          const SEL: React.CSSProperties = {padding:"4px 8px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:12,fontFamily:"inherit"};
+          const SEL: React.CSSProperties = {padding:"5px 10px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13,fontFamily:"inherit"};
           // 드래그 정렬 — 배열 재정렬 함수
           const reorderItems = (from: number, to: number) => {
             if (tab==="members") setMembers((p:string[])=>{const a=[...p];const[m]=a.splice(from,1);a.splice(to,0,m);return a;});
             else if (tab==="pris") setPris((p:string[])=>{const a=[...p];const[m]=a.splice(from,1);a.splice(to,0,m);return a;});
             else setStats((p:string[])=>{const a=[...p];const[m]=a.splice(from,1);a.splice(to,0,m);return a;});
           };
-          return <div key={v} style={{...ROW,...dragStyle(idx),cursor:"grab"}}
+          /* 담당자 행: 팀 배지가 많으면 잘리지 않도록 2행 구조로 분리 */
+          const myTeams = isMember ? teams.filter(t => t.members.some(m => m.name === v)) : [];
+          const curRole = isMember ? (memberRoles[v] || "admin") : "admin";
+          const availTeams = isMember ? teams.filter(t => !t.members.some(m => m.name === v)) : [];
+          const hasTeamRow = isMember && teams.length > 0 && (myTeams.length > 0 || availTeams.length > 0);
+          return <div key={v} style={{...ROW,...dragStyle(idx),cursor:"grab",flexWrap:"wrap" as const}}
             {...mkDrag(idx, reorderItems)}
             onMouseEnter={e=>{(e.currentTarget as HTMLElement).style.background="#f8fafc";}}
             onMouseLeave={e=>{(e.currentTarget as HTMLElement).style.background="#fff";}}>
+            {/* 상단 행: 드래그핸들 + 아바타 + 이름 + 역할 + PIN + 건수 + 버튼 */}
             <Bars3Icon style={{width:12,height:12,color:"#cbd5e1",flexShrink:0}}/>
             {isMember ? (
               <div style={{position:"relative",display:"flex",alignItems:"center",flexShrink:0}}>
-                <span style={{width:24,height:24,borderRadius:"50%",background:memberAvatarBg(v),color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,flexShrink:0,letterSpacing:"-0.5px"}}>
+                <span style={{width:28,height:28,borderRadius:"50%",background:memberAvatarBg(v),color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,flexShrink:0,letterSpacing:"-0.5px"}}>
                   {avInitials(v)}
                 </span>
                 <input type="color" value={memberColors[v] || avColor(v)} onChange={e => setMemberColor(v, e.target.value)}
-                  title="아바타 색상 변경" style={{position:"absolute",left:0,top:0,width:24,height:24,opacity:0,cursor:"pointer",padding:0,border:"none"}}/>
+                  title="아바타 색상 변경" style={{position:"absolute",left:0,top:0,width:28,height:28,opacity:0,cursor:"pointer",padding:0,border:"none"}}/>
               </div>
             ) : (
               <ColorDot color={color!} onChange={c=>chgColor(v,c)}/>
             )}
-            <span style={{flex:1,fontWeight:600,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>{v}</span>
-            {/* 담당자: 역할 + 소속 팀 (복수 가능) */}
-            {isMember && (()=>{
-              const myTeams = teams.filter(t => t.members.some(m => m.name === v));
-              const curRole = memberRoles[v] || "admin";
-              const availTeams = teams.filter(t => !t.members.some(m => m.name === v));
-              return <>
-                <select value={curRole} onChange={e => setMemberRole(v, e.target.value as TeamRole)}
-                  style={{...SEL,color:curRole==="admin"?"#dc2626":curRole==="viewer"?"#94a3b8":"#2563eb",maxWidth:64}}>
-                  {(Object.entries(TEAM_ROLE_LABELS) as [TeamRole, string][]).map(([k,label]) => <option key={k} value={k}>{label}</option>)}
-                </select>
-                {teams.length > 0 && (
-                  <div style={{display:"flex",gap:3,alignItems:"center",flexWrap:"wrap" as const}}>
-                    {myTeams.map(t => (
-                      <span key={t.id} style={{display:"inline-flex",alignItems:"center",gap:2,padding:"2px 8px",background:"#eff6ff",borderRadius:99,fontSize:11,color:"#2563eb",fontWeight:500,border:"1px solid #bfdbfe",whiteSpace:"nowrap" as const}}>
-                        <span style={{width:6,height:6,borderRadius:"50%",background:t.color,flexShrink:0}}/>
-                        {t.name}
-                        <span onClick={()=>removeTeamMember(t.id,v)} style={{cursor:"pointer",color:"#93c5fd",marginLeft:1,fontSize:12,lineHeight:1}}>×</span>
-                      </span>
-                    ))}
-                    {availTeams.length > 0 && (
-                      <select value="" onChange={e=>{if(e.target.value)addTeamMember(e.target.value,v,curRole);}}
-                        style={{...SEL,color:"#93c5fd",maxWidth:40,padding:"1px 4px",border:"1px dashed #93c5fd",background:"#f8fbff"}}>
-                        <option value="">+</option>
-                        {availTeams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
-                      </select>
-                    )}
-                  </div>
-                )}
-              </>;
-            })()}
+            <span style={{fontWeight:600,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,...(isMember?{flex:"0 1 auto",maxWidth:120}:{flex:1})}}>{v}</span>
+            {/* 담당자: 역할 드롭다운 — maxWidth 제거하여 텍스트 잘림 방지 */}
+            {isMember && (
+              <select value={curRole} onChange={e => setMemberRole(v, e.target.value as TeamRole)}
+                style={{...SEL,color:curRole==="admin"?"#dc2626":curRole==="viewer"?"#94a3b8":"#2563eb",flexShrink:0}}>
+                {(Object.entries(TEAM_ROLE_LABELS) as [TeamRole, string][]).map(([k,label]) => <option key={k} value={k}>{label}</option>)}
+              </select>
+            )}
             {/* PIN 코드 — 클릭: 복사 / 더블클릭: 직접 수정 */}
             {isMember && (
-              <span style={{fontSize:12,fontFamily:"'Courier New',monospace",color:"#64748b",background:"#f1f5f9",padding:"3px 8px",borderRadius:4,flexShrink:0,letterSpacing:"1px",cursor:"pointer",border:"1px solid #e2e8f0",transition:"background .1s"}}
+              <span style={{fontSize:13,fontFamily:"inherit",color:"#64748b",background:"#f1f5f9",padding:"4px 10px",borderRadius:6,flexShrink:0,letterSpacing:"1.5px",cursor:"pointer",border:"1px solid #e2e8f0",transition:"background .1s",fontWeight:600}}
                 title="클릭: 복사 / 더블클릭: 수정"
                 onClick={e=>{e.stopPropagation();const p=memberPins[v];if(p){navigator.clipboard.writeText(p);flash(`${v}의 PIN이 복사되었습니다`);}}}
                 onDoubleClick={e=>{e.stopPropagation();const cur=memberPins[v]||"";const n=prompt(`${v}의 PIN 수정 (6자리 숫자)`,cur);if(n===null)return;const cleaned=n.replace(/\D/g,"").slice(0,6);if(cleaned.length!==6){flash("6자리 숫자를 입력해주세요","err");return;}setMemberPins((p:any)=>({...p,[v]:cleaned}));flash(`${v}의 PIN이 변경되었습니다`);}}
@@ -418,24 +416,43 @@ export function SettingsMgr({
                 {memberPins[v]||"------"}
               </span>
             )}
-            <span style={{fontSize:12,color:"#94a3b8",flexShrink:0}}>{cnt}건</span>
+            <span style={{fontSize:13,color:"#94a3b8",flexShrink:0}}>{cnt}건</span>
             <button onClick={()=>edit(v)} style={ICON_BTN} onMouseEnter={e=>iconHover(e,true)} onMouseLeave={e=>iconHover(e,false)}><PencilSquareIcon style={ICON_SM}/></button>
             <button onClick={()=>tryDel(v)} style={ICON_BTN} onMouseEnter={e=>iconHover(e,true)} onMouseLeave={e=>iconHover(e,false)}><TrashIcon style={ICON_SM}/></button>
+            {/* 하단 행: 소속 팀 배지 — 팀이 있을 때만 전체 너비로 표시 */}
+            {hasTeamRow && (
+              <div style={{width:"100%",display:"flex",gap:4,alignItems:"center",flexWrap:"wrap" as const,paddingTop:6,paddingLeft:42,borderTop:"1px solid #f1f5f9",marginTop:4}}>
+                {myTeams.map(t => (
+                  <span key={t.id} style={{display:"inline-flex",alignItems:"center",gap:3,padding:"3px 10px",background:"#eff6ff",borderRadius:99,fontSize:12,color:"#2563eb",fontWeight:500,border:"1px solid #bfdbfe",whiteSpace:"nowrap" as const}}>
+                    <span style={{width:7,height:7,borderRadius:"50%",background:t.color,flexShrink:0}}/>
+                    {t.name}
+                    <span onClick={()=>removeTeamMember(t.id,v)} style={{cursor:"pointer",color:"#93c5fd",marginLeft:2,fontSize:13,lineHeight:1}}>×</span>
+                  </span>
+                ))}
+                {availTeams.length > 0 && (
+                  <select value="" onChange={e=>{if(e.target.value)addTeamMember(e.target.value,v,curRole);}}
+                    style={{...SEL,color:"#93c5fd",maxWidth:44,padding:"2px 6px",border:"1px dashed #93c5fd",background:"#f8fbff",fontSize:12}}>
+                    <option value="">+</option>
+                    {availTeams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                )}
+              </div>
+            )}
           </div>;
         })}
       </div>
 
       {/* 삭제 확인 */}
-      {delConfirm&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,padding:"10px 14px",marginBottom:12,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-        <span style={{fontSize:12,color:"#dc2626",fontWeight:600}}>"{delConfirm.value}" 삭제할까요?</span>
-        <div style={{display:"flex",gap:4}}>
-          <button onClick={doDel} style={{background:"#dc2626",color:"#fff",border:"none",padding:"5px 12px",borderRadius:6,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>삭제</button>
-          <button onClick={()=>setDelConfirm(null)} style={{background:"#f1f5f9",color:"#334155",border:"none",padding:"5px 12px",borderRadius:6,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>취소</button>
+      {delConfirm&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,padding:"12px 16px",marginBottom:12,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <span style={{fontSize:13,color:"#dc2626",fontWeight:600}}>"{delConfirm.value}" 삭제할까요?</span>
+        <div style={{display:"flex",gap:6}}>
+          <button onClick={doDel} style={{background:"#dc2626",color:"#fff",border:"none",padding:"6px 14px",borderRadius:6,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>삭제</button>
+          <button onClick={()=>setDelConfirm(null)} style={{background:"#f1f5f9",color:"#334155",border:"none",padding:"6px 14px",borderRadius:6,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>취소</button>
         </div>
       </div>}
 
-      {/* 항목 추가 */}
-      <div style={{borderTop:"1px solid #e2e8f0",paddingTop:12}}>
+      {/* 항목 추가 — 하단 고정 */}
+      <div style={{borderTop:"1px solid #e2e8f0",paddingTop:12,flexShrink:0}}>
         <div style={SEC_LABEL}>{tab==="members"?"새 담당자":tab==="pris"?"새 우선순위":"새 상태"} 추가</div>
         <div style={{display:"flex",gap:6,alignItems:"center"}}>
           {tab!=="members"&&<ColorDot color={nc} onChange={setNc}/>}
@@ -444,7 +461,7 @@ export function SettingsMgr({
           <button style={BTN_ADD} onClick={add}>추가</button>
         </div>
       </div>
-    </>}
+    </div>}
   </div></div>;
 }
 
@@ -499,13 +516,13 @@ function TeamTab({
     setNewColor(PROJ_PALETTE.find(c => !used.includes(c)) || PROJ_PALETTE[0]);
   };
 
-  return <>
-    {/* 팀 목록 */}
-    <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 14, maxHeight: 460, overflowY: "auto", overflowX: "hidden" }}>
+  return <div style={{display:"flex",flexDirection:"column",flex:1,minHeight:0}}>
+    {/* 팀 목록 — 스크롤 영역 */}
+    <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 14, flex: 1, overflowY: "auto", overflowX: "hidden" }}>
       {teams.length === 0 && (
-        <div style={{ padding: "28px 0", textAlign: "center" }}>
-          <div style={{ fontSize: 13, color: "#64748b", fontWeight: 600, marginBottom: 4 }}>아직 팀이 없습니다</div>
-          <div style={{ fontSize: 11, color: "#94a3b8" }}>아래에서 첫 번째 팀을 추가해 보세요</div>
+        <div style={{ padding: "32px 0", textAlign: "center" }}>
+          <div style={{ fontSize: 14, color: "#64748b", fontWeight: 600, marginBottom: 4 }}>아직 팀이 없습니다</div>
+          <div style={{ fontSize: 13, color: "#94a3b8" }}>아래에서 첫 번째 팀을 추가해 보세요</div>
         </div>
       )}
       {teams.map(team => {
@@ -556,7 +573,7 @@ function TeamTab({
               {/* 색상 도트 */}
               <span style={{ width: 10, height: 10, borderRadius: "50%", background: team.color, flexShrink: 0, boxShadow: `0 0 0 2px ${team.color}33` }} />
               {/* 팀 이름 */}
-              <span style={{ flex: 1, fontWeight: 700, fontSize: 13, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, minWidth: 0 }}>{team.name}</span>
+              <span style={{ flex: 1, fontWeight: 700, fontSize: 14, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, minWidth: 0 }}>{team.name}</span>
               {/* 멤버 아바타 미리보기 (접힌 상태) */}
               {!isOpen && team.members.length > 0 && (
                 <div style={{ display: "flex", marginRight: 4 }}>
@@ -574,7 +591,7 @@ function TeamTab({
                 </div>
               )}
               {/* 요약 뱃지 */}
-              <span style={{ fontSize: 10, color: "#94a3b8", flexShrink: 0, whiteSpace: "nowrap" as const }}>{team.members.length}명 · {team.projectIds.length}건</span>
+              <span style={{ fontSize: 12, color: "#94a3b8", flexShrink: 0, whiteSpace: "nowrap" as const }}>{team.members.length}명 · {team.projectIds.length}건</span>
               {/* 접기/펼치기 아이콘 — Heroicons 사용 */}
               <ChevronRightIcon style={{ width: 12, height: 12, color: "#94a3b8", transition: "transform .2s", transform: isOpen ? "rotate(90deg)" : "none", flexShrink: 0 }} />
             </div>
@@ -584,44 +601,44 @@ function TeamTab({
               <div style={{ borderTop: "1px solid #e2e8f0" }}>
                 {/* 기본 정보 — 이름 + 색상 */}
                 <div style={{ padding: "12px 12px 10px", background: "#fafbfc", borderRadius: "0 0 0 0" }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: "#64748b", marginBottom: 6 }}>기본 정보</div>
-                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#64748b", marginBottom: 8 }}>기본 정보</div>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                     <input type="color" value={team.color} onChange={e => updTeam(team.id, { color: e.target.value })}
-                      style={{ width: 30, height: 30, borderRadius: 8, cursor: "pointer", border: "1.5px solid #e2e8f0", flexShrink: 0 }} />
+                      style={{ width: 32, height: 32, borderRadius: 8, cursor: "pointer", border: "1.5px solid #e2e8f0", flexShrink: 0 }} />
                     <input value={team.name} onChange={e => updTeam(team.id, { name: e.target.value })}
-                      style={{ flex: 1, padding: "7px 10px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: 12, fontFamily: "inherit", background: "#fff" }} />
+                      style={{ flex: 1, padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: 14, fontFamily: "inherit", background: "#fff" }} />
                   </div>
                 </div>
 
                 {/* 소속 멤버 — 읽기 전용 요약 */}
                 <div style={{ padding: "10px 12px", borderTop: "1px solid #f1f5f9" }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: "#64748b", marginBottom: 6, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#64748b", marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <span>소속 멤버 ({team.members.length})</span>
-                    <span style={{ fontWeight: 400, color: "#94a3b8", fontSize: 9 }}>담당자 탭에서 변경</span>
+                    <span style={{ fontWeight: 400, color: "#94a3b8", fontSize: 11 }}>담당자 탭에서 변경</span>
                   </div>
                   {team.members.length > 0 ? (
                     <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                       {team.members.map(m => (
-                        <span key={m.name} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px 3px 4px", background: "#fff", borderRadius: 99, fontSize: 11, color: "#475569", border: "1px solid #e2e8f0" }}>
-                          <span style={{ width: 18, height: 18, borderRadius: "50%", background: `linear-gradient(135deg,${avColor(m.name)},${avColor2(m.name)})`, color: "#fff", fontSize: 7, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{avInitials(m.name)}</span>
+                        <span key={m.name} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px 4px 5px", background: "#fff", borderRadius: 99, fontSize: 12, color: "#475569", border: "1px solid #e2e8f0" }}>
+                          <span style={{ width: 20, height: 20, borderRadius: "50%", background: `linear-gradient(135deg,${avColor(m.name)},${avColor2(m.name)})`, color: "#fff", fontSize: 8, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{avInitials(m.name)}</span>
                           {m.name}
-                          <span style={{ fontSize: 9, padding: "0 4px", borderRadius: 4, background: m.role === "admin" ? "#fef2f2" : m.role === "editor" ? "#eff6ff" : "#f1f5f9", color: m.role === "admin" ? "#dc2626" : m.role === "editor" ? "#2563eb" : "#94a3b8", fontWeight: 600 }}>{TEAM_ROLE_LABELS[m.role]}</span>
+                          <span style={{ fontSize: 10, padding: "1px 5px", borderRadius: 4, background: m.role === "admin" ? "#fef2f2" : m.role === "editor" ? "#eff6ff" : "#f1f5f9", color: m.role === "admin" ? "#dc2626" : m.role === "editor" ? "#2563eb" : "#94a3b8", fontWeight: 600 }}>{TEAM_ROLE_LABELS[m.role]}</span>
                         </span>
                       ))}
                     </div>
                   ) : (
-                    <div style={{ fontSize: 11, color: "#94a3b8", padding: "6px 0" }}>담당자 탭에서 멤버를 이 팀에 배정하세요</div>
+                    <div style={{ fontSize: 13, color: "#94a3b8", padding: "6px 0" }}>담당자 탭에서 멤버를 이 팀에 배정하세요</div>
                   )}
                 </div>
 
                 {/* 담당 프로젝트 */}
                 <div style={{ padding: "10px 12px", borderTop: "1px solid #f1f5f9" }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: "#64748b", marginBottom: 6 }}>담당 프로젝트 ({team.projectIds.length})</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#64748b", marginBottom: 8 }}>담당 프로젝트 ({team.projectIds.length})</div>
                   {team.projectIds.length > 0 ? team.projectIds.map(pid => {
                     const p = projects.find(pr => pr.id === pid);
                     if (!p) return null;
                     return (
-                      <div key={pid} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 8px", marginBottom: 3, background: "#fff", borderRadius: 6, fontSize: 12, border: "1px solid #f1f5f9" }}>
+                      <div key={pid} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", marginBottom: 4, background: "#fff", borderRadius: 6, fontSize: 13, border: "1px solid #f1f5f9" }}>
                         <span style={{ width: 8, height: 8, borderRadius: "50%", background: p.color, flexShrink: 0 }} />
                         <span style={{ flex: 1, fontWeight: 500, color: "#334155" }}>{p.name}</span>
                         <button onClick={() => removeTeamProject(team.id, pid)}
@@ -633,11 +650,11 @@ function TeamTab({
                       </div>
                     );
                   }) : (
-                    <div style={{ fontSize: 11, color: "#94a3b8", padding: "4px 0" }}>연결된 프로젝트 없음</div>
+                    <div style={{ fontSize: 13, color: "#94a3b8", padding: "4px 0" }}>연결된 프로젝트 없음</div>
                   )}
                   {unassignedProjects.length > 0 && (
                     <select value="" onChange={e => { if (e.target.value) addTeamProject(team.id, parseInt(e.target.value)); }}
-                      style={{ width: "100%", padding: "5px 8px", border: "1.5px dashed #93c5fd", borderRadius: 6, fontSize: 11, color: "#2563eb", background: "#eff6ff", marginTop: 4, fontFamily: "inherit", cursor: "pointer" }}>
+                      style={{ width: "100%", padding: "6px 10px", border: "1.5px dashed #93c5fd", borderRadius: 6, fontSize: 13, color: "#2563eb", background: "#eff6ff", marginTop: 4, fontFamily: "inherit", cursor: "pointer" }}>
                       <option value="">+ 프로젝트 연결...</option>
                       {unassignedProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
@@ -647,7 +664,7 @@ function TeamTab({
                 {/* 위험 영역 — 삭제 (편집과 분리) */}
                 <div style={{ padding: "10px 12px", borderTop: "1px solid #f1f5f9", display: "flex", justifyContent: "flex-end", borderRadius: "0 0 9px 9px" }}>
                   <button onClick={() => { if (confirm(`"${team.name}" 팀을 삭제하시겠습니까?\n소속 업무는 미배정 상태가 됩니다.`)) delTeam(team.id); }}
-                    style={{ background: "none", border: "1px solid #fecaca", borderRadius: 6, cursor: "pointer", color: "#dc2626", display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", fontSize: 11, fontFamily: "inherit", transition: "background .12s" }}
+                    style={{ background: "none", border: "1px solid #fecaca", borderRadius: 6, cursor: "pointer", color: "#dc2626", display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 12px", fontSize: 13, fontFamily: "inherit", transition: "background .12s" }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#fef2f2"; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "none"; }}>
                     <TrashIcon style={{ width: 12, height: 12 }} /> 팀 삭제
@@ -660,17 +677,17 @@ function TeamTab({
       })}
     </div>
 
-    {/* 새 팀 추가 */}
-    <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: 12 }}>
-      <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 6 }}>새 팀 추가</div>
-      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+    {/* 새 팀 추가 — 하단 고정 */}
+    <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: 12, flexShrink: 0 }}>
+      <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>새 팀 추가</div>
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <input type="color" value={newColor} onChange={e => setNewColor(e.target.value)}
-          style={{ width: 32, height: 28, borderRadius: 6, cursor: "pointer", border: "1px solid #e2e8f0" }} />
+          style={{ width: 32, height: 32, borderRadius: 6, cursor: "pointer", border: "1px solid #e2e8f0" }} />
         <input value={newName} onChange={e => setNewName(e.target.value)}
           onKeyDown={e => { if (e.key === "Enter") handleAdd(); }}
-          placeholder="팀 이름" style={{ flex: 1, padding: "6px 10px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: 12, outline: "none", fontFamily: "inherit" }} />
+          placeholder="팀 이름" style={{ flex: 1, padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: 14, outline: "none", fontFamily: "inherit" }} />
         <button onClick={handleAdd}
-          style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)", color: "#fff", border: "none", padding: "6px 14px", borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+          style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)", color: "#fff", border: "none", padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
           추가
         </button>
       </div>
@@ -683,17 +700,17 @@ function TeamTab({
       return <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: 12, marginTop: 8 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "#334155" }}>미배정 업무 일괄 배정</div>
-            <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>프로젝트-팀 연결 기준으로 {unassigned}건의 미배정 업무를 팀에 배정합니다</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>미배정 업무 일괄 배정</div>
+            <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 2 }}>프로젝트-팀 연결 기준으로 {unassigned}건의 미배정 업무를 팀에 배정합니다</div>
           </div>
           <button onClick={assignTodosToTeams}
-            style={{ padding: "6px 14px", borderRadius: 7, border: "1px solid #2563eb", background: "#eff6ff", color: "#2563eb", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" as const }}>
+            style={{ padding: "8px 16px", borderRadius: 7, border: "1px solid #2563eb", background: "#eff6ff", color: "#2563eb", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" as const }}>
             일괄 배정
           </button>
         </div>
       </div>;
     })()}
-  </>;
+  </div>;
 }
 
 // ── 권한 설정 탭 ─────────────────────────────────────────────────────────────
@@ -716,27 +733,27 @@ function PermsTab({ globalPermissions, setGlobalPermissions }: {
   };
 
   return <>
-    <div style={{ fontSize: 12, color: "#64748b", marginBottom: 12, lineHeight: 1.6 }}>
+    <div style={{ fontSize: 14, color: "#64748b", marginBottom: 14, lineHeight: 1.6 }}>
       역할별 허용 동작을 설정합니다. 모든 팀에 동일하게 적용됩니다.
     </div>
 
     {/* 권한 매트릭스 */}
     <div style={{ border: "1px solid #e2e8f0", borderRadius: 8, overflow: "hidden" }}>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 72px 72px 72px", background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
-        <div style={{ padding: "8px 12px", fontSize: 11, fontWeight: 700, color: "#64748b" }}>권한 항목</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 80px 80px 80px", background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
+        <div style={{ padding: "10px 14px", fontSize: 13, fontWeight: 700, color: "#64748b" }}>권한 항목</div>
         {roles.map(r => (
-          <div key={r} style={{ padding: "8px 4px", fontSize: 11, fontWeight: 700, color: r === "admin" ? "#dc2626" : r === "editor" ? "#2563eb" : "#64748b", textAlign: "center" }}>
+          <div key={r} style={{ padding: "10px 4px", fontSize: 13, fontWeight: 700, color: r === "admin" ? "#dc2626" : r === "editor" ? "#2563eb" : "#64748b", textAlign: "center" }}>
             {TEAM_ROLE_LABELS[r]}
           </div>
         ))}
       </div>
       {ALL_PERMISSIONS.map(({ key, label }, i) => (
-        <div key={key} style={{ display: "grid", gridTemplateColumns: "1fr 72px 72px 72px", borderBottom: i < ALL_PERMISSIONS.length - 1 ? "1px solid #f1f5f9" : "none", background: i % 2 ? "#fafbfc" : "#fff" }}>
-          <div style={{ padding: "7px 12px", fontSize: 12, color: "#334155" }}>{label}</div>
+        <div key={key} style={{ display: "grid", gridTemplateColumns: "1fr 80px 80px 80px", borderBottom: i < ALL_PERMISSIONS.length - 1 ? "1px solid #f1f5f9" : "none", background: i % 2 ? "#fafbfc" : "#fff" }}>
+          <div style={{ padding: "9px 14px", fontSize: 13, color: "#334155" }}>{label}</div>
           {roles.map(role => (
-            <div key={role} style={{ padding: "6px 0", textAlign: "center" }}>
+            <div key={role} style={{ padding: "8px 0", textAlign: "center" }}>
               <input type="checkbox" checked={(perms[role] || []).includes(key)} onChange={() => toggle(role, key)}
-                style={{ cursor: "pointer", accentColor: "#2563eb", width: 15, height: 15 }} />
+                style={{ cursor: "pointer", accentColor: "#2563eb", width: 16, height: 16 }} />
             </div>
           ))}
         </div>
@@ -746,11 +763,11 @@ function PermsTab({ globalPermissions, setGlobalPermissions }: {
     <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end" }}>
       {globalPermissions ? (
         <button onClick={() => setGlobalPermissions(null)}
-          style={{ fontSize: 11, color: "#2563eb", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 6, padding: "5px 12px", cursor: "pointer", fontFamily: "inherit" }}>
+          style={{ fontSize: 13, color: "#2563eb", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontFamily: "inherit" }}>
           기본값으로 복원
         </button>
       ) : (
-        <span style={{ fontSize: 11, color: "#94a3b8" }}>현재 기본 권한 설정 사용 중</span>
+        <span style={{ fontSize: 13, color: "#94a3b8" }}>현재 기본 권한 설정 사용 중</span>
       )}
     </div>
   </>;

@@ -6,7 +6,7 @@ import {
   initTodos, initProj
 } from "../constants";
 import { td, gP, stripHtml, isOD } from "../utils";
-import { Filters, NewRow, AiParsed, DatePopState, NotePopupState, Project, Todo, DeletedTodo, SavedFilter, ActivityLog, Team, TeamMember, TeamRole } from "../types";
+import { Filters, NewRow, AiParsed, DatePopState, NotePopupState, Project, Todo, DeletedTodo, SavedFilter, ActivityLog, Team, TeamMember, TeamRole, TodoTemplate, TemplateItem } from "../types";
 import { useAI } from "./useAI";
 import { useCalendar } from "./useCalendar";
 import { useUserSettings } from "./useUserSettings";
@@ -61,6 +61,8 @@ export function useTodoApp() {
     memberColors: Record<string,string>;
     filters: Filters;
     savedFilters: SavedFilter[];
+    // 어떤 사용자가 이 스냅샷을 생성했는지 기록 — undo/redo 시 본인 작업만 되돌리기 위함
+    owner?: string;
   };
 
   // 현재 앱 상태의 스냅샷을 생성하는 함수
@@ -106,7 +108,10 @@ export function useTodoApp() {
   const pushHistory = () => {
     if (historyPushedThisFrame.current) return;
     historyPushedThisFrame.current = true;
-    historyRef.current = [...historyRef.current.slice(-49), takeSnapshot()];
+    // 현재 사용자를 owner로 기록 — undo/redo 시 본인 작업만 되돌리기 위함
+    const snap = takeSnapshot();
+    snap.owner = currentUser || "";
+    historyRef.current = [...historyRef.current.slice(-49), snap];
     redoRef.current = [];
     // 다음 마이크로태스크에서 플래그 리셋 — 같은 이벤트 핸들러 내 연속 호출은 1번으로 병합
     Promise.resolve().then(() => { historyPushedThisFrame.current = false; });
@@ -129,21 +134,42 @@ export function useTodoApp() {
   const setStBgGuarded = (fn: any) => { guard(); pushHistory(); setStBg(fn); };
   const setMemberColorsGuarded = (fn: any) => { guard(); pushHistory(); setMemberColors(fn); };
 
+  // 배열에서 조건에 맞는 마지막 인덱스를 찾는 헬퍼 — ES2023 findLastIndex 대체
+  const findLastIdx = (arr: AppSnapshot[], pred: (s: AppSnapshot) => boolean) => {
+    for (let i = arr.length - 1; i >= 0; i--) { if (pred(arr[i])) return i; }
+    return -1;
+  };
+
+  // 본인이 만든 스냅샷만 되돌리기 — 타 사용자의 작업은 건드리지 않음
   const undo = () => {
-    if (!historyRef.current.length) return;
-    const snap = historyRef.current.pop()!;
-    // 현재 상태를 redo 스택에 저장
-    redoRef.current = [...redoRef.current.slice(-49), takeSnapshot()];
+    const me = currentUser || "";
+    // 히스토리 스택에서 현재 사용자의 마지막 스냅샷을 찾음
+    const idx = findLastIdx(historyRef.current, s => s.owner === me);
+    if (idx < 0) return;
+    const snap = historyRef.current[idx];
+    // 해당 스냅샷을 히스토리에서 제거
+    historyRef.current.splice(idx, 1);
+    // 현재 상태를 redo 스택에 저장 (owner 유지)
+    const redoSnap = takeSnapshot();
+    redoSnap.owner = me;
+    redoRef.current = [...redoRef.current.slice(-49), redoSnap];
     guard();
     restoreSnapshot(snap);
     flash("이전 상태로 복원되었습니다");
   };
 
   const redo = () => {
-    if (!redoRef.current.length) return;
-    const snap = redoRef.current.pop()!;
-    // 현재 상태를 history 스택에 저장
-    historyRef.current = [...historyRef.current.slice(-49), takeSnapshot()];
+    const me = currentUser || "";
+    // redo 스택에서 현재 사용자의 마지막 스냅샷을 찾음
+    const idx = findLastIdx(redoRef.current, s => s.owner === me);
+    if (idx < 0) return;
+    const snap = redoRef.current[idx];
+    // 해당 스냅샷을 redo에서 제거
+    redoRef.current.splice(idx, 1);
+    // 현재 상태를 history 스택에 저장 (owner 유지)
+    const histSnap = takeSnapshot();
+    histSnap.owner = me;
+    historyRef.current = [...historyRef.current.slice(-49), histSnap];
     guard();
     restoreSnapshot(snap);
     flash("작업이 다시 실행되었습니다");
@@ -173,6 +199,17 @@ export function useTodoApp() {
   const [memberPins, setMemberPins] = useState<Record<string, string>>({});
   // 전역 역할별 권한 — 모든 팀에 일괄 적용 (미설정 시 TEAM_ROLE_PERMISSIONS 기본값)
   const [globalPermissions, setGlobalPermissions] = useState<Record<TeamRole, string[]> | null>(null);
+  // ── 업무 템플릿 — 반복 업무 묶음을 저장해두고 재사용 ──
+  const [templates, setTemplates] = useState<TodoTemplate[]>([]);
+  const [tplNId, setTplNId] = useState(1); // 템플릿 ID 자동 증가용
+  // 템플릿 즐겨찾기 — 사용자별 개인 설정 (localStorage 저장)
+  const [tplFavs, setTplFavs] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem(`tpl-favs-${currentUser}`) || "[]"); } catch { return []; }
+  });
+  // 즐겨찾기 변경 시 localStorage에 저장
+  useEffect(() => {
+    if (currentUser) localStorage.setItem(`tpl-favs-${currentUser}`, JSON.stringify(tplFavs));
+  }, [tplFavs, currentUser]);
 
   // 6자리 PIN 생성 함수
   const generatePin = () => String(Math.floor(100000 + Math.random() * 900000));
@@ -313,6 +350,9 @@ export function useTodoApp() {
       if (Object.keys(roles).length > 0) setMemberRoles(roles);
     }
     if (d.teamNId) setTeamNId(d.teamNId);
+    // 업무 템플릿 복원
+    if (d.templates) setTemplates(d.templates);
+    if (d.tplNId) setTplNId(d.tplNId);
     if (d.userSettings) setUserSettings(d.userSettings);
   };
 
@@ -381,14 +421,14 @@ export function useTodoApp() {
       const ver = ++writeVersion.current;
       const now = Date.now();
       lastKnownUpdatedAt.current = now;
-      const data = { todos, projects, nId, pNId, pris, stats, priC, priBg, stC, stBg, members, memberColors, memberRoles, memberPins, globalPermissions, teams, teamNId, sharedApiKey: sharedApiKeyRef.current, userSettings, _clientId: clientId.current, _updatedAt: now };
+      const data = { todos, projects, nId, pNId, pris, stats, priC, priBg, stC, stBg, members, memberColors, memberRoles, memberPins, globalPermissions, teams, teamNId, templates, tplNId, sharedApiKey: sharedApiKeyRef.current, userSettings, _clientId: clientId.current, _updatedAt: now };
       try { localStorage.setItem("todo-v5", JSON.stringify(data)); } catch (e) { }
       setDoc(FS_DOC, data)
         .catch(() => flash("저장 실패 — 네트워크를 확인하세요", "err"))
         .finally(() => { if (writeVersion.current === ver) pendingWrite.current = false; });
     }, 400);
     return () => clearTimeout(t);
-  }, [todos, projects, nId, pNId, members, pris, stats, priC, priBg, stC, stBg, memberColors, memberRoles, memberPins, globalPermissions, teams, teamNId, userSettings, loaded]);
+  }, [todos, projects, nId, pNId, members, pris, stats, priC, priBg, stC, stBg, memberColors, memberRoles, memberPins, globalPermissions, teams, teamNId, templates, tplNId, userSettings, loaded]);
 
   // action을 전달하면 토스트에 버튼이 표시됨 (예: AI 등록 후 "실행 취소")
   const flash = (m: string, t = "ok", action?: { label: string; fn: () => void }) => {
@@ -420,6 +460,10 @@ export function useTodoApp() {
     aProj,
     members,
     onAddTodos: (checked: AiParsed[]) => {
+      // 프로젝트 → 팀 매핑 — AI 생성 업무에도 팀 자동 배정
+      const projTeamMap: Record<number, string> = {};
+      teams.forEach(tm => tm.projectIds.forEach(pid => { projTeamMap[pid] = tm.id; }));
+
       const startId = nIdRef.current;
       nIdRef.current += checked.length;
       setNId(nIdRef.current);
@@ -427,8 +471,17 @@ export function useTodoApp() {
         ...prev,
         ...checked.map((t, i) => {
           const mp = aProj.find(p => t.project && p.name.includes(t.project));
+          const pid = mp ? mp.id : 0;
+          // 팀 배정 우선순위: 프로젝트 기반 매핑 → 현재 선택된 팀 → 미배정
+          const resolvedTeamId = projTeamMap[pid] || selectedTeamId || undefined;
+          const createLog: ActivityLog = {
+            id: `${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
+            at: new Date().toISOString(),
+            who: currentUser || "시스템",
+            action: "create" as const,
+          };
           return {
-            pid: mp ? mp.id : 0,
+            pid,
             task: t.task || "",
             who: t.assignee || "미배정",
             due: t.due || "",
@@ -439,6 +492,8 @@ export function useTodoApp() {
             id: startId + i,
             cre: td(),
             done: null,
+            teamId: resolvedTeamId,
+            logs: [createLog],
           };
         }),
       ]);
@@ -779,6 +834,122 @@ export function useTodoApp() {
     flash(`${count}건의 업무가 프로젝트 기준으로 팀에 배정되었습니다`);
   };
 
+  // ── 업무 템플릿 CRUD ──────────────────────────────────────────────────
+  const addTemplate = (tpl: Omit<TodoTemplate, "id" | "createdAt" | "useCount" | "lastUsedAt">) => {
+    const id = `tpl_${tplNId}`;
+    setTplNId(n => n + 1);
+    const newTpl: TodoTemplate = {
+      ...tpl,
+      id,
+      createdAt: td(),
+      useCount: 0,
+      lastUsedAt: undefined,
+    };
+    setTemplates(p => [...p, newTpl]);
+    flash(`템플릿 "${tpl.name}"이(가) 저장되었습니다`);
+    return id;
+  };
+
+  const updTemplate = (id: string, patch: Partial<TodoTemplate>) => {
+    setTemplates(p => p.map(t => t.id === id ? { ...t, ...patch } : t));
+  };
+
+  const delTemplate = (id: string) => {
+    const tpl = templates.find(t => t.id === id);
+    setTemplates(p => p.filter(t => t.id !== id));
+    if (tpl) flash(`템플릿 "${tpl.name}"이(가) 삭제되었습니다`, "err");
+  };
+
+  // 템플릿 적용 — 업무 생성 + 사용 통계 업데이트
+  const applyTemplate = (id: string, baseDate: string, defaultWho: string) => {
+    const tpl = templates.find(t => t.id === id);
+    if (!tpl || !tpl.items.length) return;
+
+    // 프로젝트 → 팀 매핑
+    const projTeamMap: Record<number, string> = {};
+    teams.forEach(tm => tm.projectIds.forEach(pid => { projTeamMap[pid] = tm.id; }));
+
+    const startId = nIdRef.current;
+    nIdRef.current += tpl.items.length;
+    setNId(nIdRef.current);
+
+    const baseDt = baseDate ? new Date(baseDate) : new Date();
+    const mkLogId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+
+    setTodosWithHistory((prev: Todo[]) => [
+      ...prev,
+      ...tpl.items.map((item, i) => {
+        // 상대 날짜 계산
+        let due = "";
+        if (item.offsetDays !== undefined && item.offsetDays >= 0) {
+          const d = new Date(baseDt);
+          d.setDate(d.getDate() + item.offsetDays);
+          due = d.toISOString().slice(0, 10);
+        }
+        const pid = item.pid || 0;
+        const resolvedTeamId = projTeamMap[pid] || selectedTeamId || undefined;
+        const createLog: ActivityLog = {
+          id: mkLogId(),
+          at: new Date().toISOString(),
+          who: currentUser || "시스템",
+          action: "create" as const,
+        };
+        return {
+          id: startId + i,
+          pid,
+          task: item.task,
+          who: defaultWho || currentUser || "미배정",
+          due,
+          pri: item.pri || "보통",
+          st: "대기",
+          det: item.det || "",
+          repeat: item.repeat || "없음",
+          cre: td(),
+          done: null,
+          teamId: resolvedTeamId,
+          logs: [createLog],
+        };
+      }),
+    ]);
+
+    // 사용 통계 업데이트
+    updTemplate(id, { useCount: (tpl.useCount || 0) + 1, lastUsedAt: new Date().toISOString() });
+    flash(`${tpl.items.length}건의 업무가 템플릿에서 등록되었습니다`);
+  };
+
+  // 템플릿 편집 항목 일괄 등록 — 히스토리 1회만 push (Undo 1번으로 전체 되돌리기)
+  const confirmTplItems = (items: Record<string, unknown>[]) => {
+    if (!items.length) return;
+    const projTeamMap: Record<number, string> = {};
+    teams.forEach(tm => tm.projectIds.forEach(pid => { projTeamMap[pid] = tm.id; }));
+    const startId = nIdRef.current;
+    nIdRef.current += items.length;
+    setNId(nIdRef.current);
+    const mkLogId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    setTodosWithHistory((prev: Todo[]) => [
+      ...prev,
+      ...items.map((t, i) => {
+        const pid = (t.pid as number) || 0;
+        const resolvedTeamId = projTeamMap[pid] || selectedTeamId || undefined;
+        return {
+          id: startId + i,
+          pid,
+          task: (t.task as string) || "",
+          who: (t.who as string) || currentUser || "미배정",
+          due: (t.due as string) || "",
+          pri: (t.pri as string) || "보통",
+          st: (t.st as string) || "대기",
+          det: (t.det as string) || "",
+          repeat: (t.repeat as string) || "없음",
+          cre: td(),
+          done: null,
+          teamId: resolvedTeamId,
+          logs: [{ id: mkLogId(), at: new Date().toISOString(), who: currentUser || "시스템", action: "create" as const }],
+        };
+      }),
+    ]);
+  };
+
   // PIN 마이그레이션 — 멤버 중 PIN 미발급자에게 자동 생성 (로드 완료 후 1회)
   const pinMigDone = useRef(false);
   useEffect(() => {
@@ -874,6 +1045,10 @@ export function useTodoApp() {
     addTeam, updTeam, delTeam,
     addTeamMember, removeTeamMember, setTeamMemberRole,
     addTeamProject, removeTeamProject, assignTodosToTeams,
+    // 업무 템플릿
+    templates, setTemplates, addTemplate, updTemplate, delTemplate, applyTemplate, confirmTplItems,
+    // 템플릿 즐겨찾기 — 사용자별 localStorage 저장
+    tplFavs, setTplFavs,
     view, setView, toast,
     search, setSearch, editCell, setEditCell,
     newRows, setNewRows, kbF, setKbF, kbFWho, setKbFWho,

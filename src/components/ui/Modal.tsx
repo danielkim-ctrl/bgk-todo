@@ -33,8 +33,8 @@ export function Modal({open,onClose,title,children,footer,wide}: {
     return () => { document.removeEventListener("keydown", handleEsc); document.body.style.overflow = prev; };
   },[open, onClose]);
   if(!open)return null;
-  return <div style={{...S.modal,animation:"fadeIn .2s ease"}} onClick={e=>{if(e.target===e.currentTarget)onClose()}}><div style={{...S.mbox,...(wide?{maxWidth:840}:{}),animation:"slideIn .25s ease"}}>
-    <div style={{padding:"16px 18px 0",display:"flex",justifyContent:"space-between",alignItems:"center"}}><div style={{fontSize:15,fontWeight:800}}>{title}</div><button onClick={onClose} style={{width:28,height:28,borderRadius:"50%",border:"none",background:"#f1f5f9",cursor:"pointer",fontSize:14,color:"#64748b",display:"flex",alignItems:"center",justifyContent:"center"}}><XMarkIcon style={{width:14,height:14}}/></button></div>
+  return <div style={{...S.modal,animation:"fadeIn .2s ease"}} onClick={e=>{if(e.target===e.currentTarget)onClose()}}><div style={{...S.mbox,...(wide?{maxWidth:960}:{}),animation:"slideIn .25s ease"}}>
+    <div style={{padding:"18px 20px 0",display:"flex",justifyContent:"space-between",alignItems:"center"}}><div style={{fontSize:16,fontWeight:800}}>{title}</div><button onClick={onClose} style={{width:28,height:28,borderRadius:"50%",border:"none",background:"#f1f5f9",cursor:"pointer",fontSize:14,color:"#64748b",display:"flex",alignItems:"center",justifyContent:"center"}}><XMarkIcon style={{width:14,height:14}}/></button></div>
     <div style={{padding:"16px 18px"}}>{children}</div>
     {footer&&<div style={{padding:"0 18px 16px",display:"flex",gap:6,justifyContent:"flex-end"}}>{footer}</div>}
   </div></div>;

@@ -27,6 +27,7 @@ interface MemoViewProps {
   toggleFav: (id: number) => void;
   flash: (msg: string, type?: string) => void;
   setDatePop: (v: DatePopState | null) => void;
+  memberColors?: Record<string, string>;
 }
 
 const NOTE_PALETTE = [
@@ -68,7 +69,7 @@ function MemoCard({
   t, gPr, aProj, members, pris, stats,
   priC, priBg, stC, stBg,
   updTodo, delTodo, isFav, toggleFav, flash,
-  setDatePop,
+  setDatePop, memberColors = {},
   openDrop, setOpenDrop,
   isDragging,
   onHeaderDragStart,
@@ -92,6 +93,7 @@ function MemoCard({
   toggleFav: (id: number) => void;
   flash: (msg: string, type?: string) => void;
   setDatePop: (v: DatePopState | null) => void;
+  memberColors?: Record<string, string>;
   openDrop: DropType;
   setOpenDrop: (v: DropType) => void;
   isDragging: boolean;
@@ -100,6 +102,8 @@ function MemoCard({
   onCardDrop: (e: React.DragEvent) => void;
   onCardDragEnd: () => void;
 }) {
+  // 담당자 아바타 배경색 — 설정에서 커스텀 색상 우선, 없으면 자동 그라디언트
+  const mAvBg = (name: string) => memberColors[name] || `linear-gradient(135deg,${avColor(name)},${avColor2(name)})`;
   const note = getNote(t);
   const p = gPr(t.pid);
   const od = isOD(t.due, t.st);
@@ -386,7 +390,7 @@ function MemoCard({
           {/* 담당자 — 리스트뷰와 동일하게 avColor/avColor2/avInitials 사용 */}
           <div style={{ position: "relative", marginLeft: "auto" }}>
             <div onClick={e => toggle("who", e)} style={{ display: "flex", alignItems: "center", gap: 3, cursor: "pointer" }}>
-              <span style={{ width: 16, height: 16, borderRadius: "50%", background: `linear-gradient(135deg,${avColor(t.who||"")},${avColor2(t.who||"")})`, color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 7, fontWeight: 700, flexShrink: 0, letterSpacing: "-0.5px" }}>
+              <span style={{ width: 16, height: 16, borderRadius: "50%", background: mAvBg(t.who||""), color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 7, fontWeight: 700, flexShrink: 0, letterSpacing: "-0.5px" }}>
                 {avInitials(t.who || "?")}
               </span>
               <span style={{ fontSize: 10, color: "#475569" }}>{t.who || "미배정"} ▾</span>
@@ -395,7 +399,7 @@ function MemoCard({
               <div style={{ ...dropStyle, bottom: "calc(100% + 4px)", top: "auto", left: "auto", right: 0 }} onClick={e => e.stopPropagation()}>
                 {members.map(m => (
                   <div key={m} style={dropItem(t.who === m)} onClick={() => { updTodo(t.id, { who: m }); setOpenDrop(null); }}>
-                    <span style={{ width: 14, height: 14, borderRadius: "50%", background: `linear-gradient(135deg,${avColor(m)},${avColor2(m)})`, color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 7, fontWeight: 700, flexShrink: 0, letterSpacing: "-0.5px" }}>{avInitials(m)}</span>
+                    <span style={{ width: 14, height: 14, borderRadius: "50%", background: mAvBg(m), color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 7, fontWeight: 700, flexShrink: 0, letterSpacing: "-0.5px" }}>{avInitials(m)}</span>
                     {m}
                   </div>
                 ))}
@@ -419,7 +423,7 @@ function MemoCard({
       {/* 완료 시 하단 바 */}
       {isDone && (
         <div style={{ padding: "4px 8px 6px", display: "flex", alignItems: "center", gap: 4, borderTop: "1px solid #e2e8f0", background: "#f1f5f9" }}>
-          <span style={{ width: 14, height: 14, borderRadius: "50%", background: `linear-gradient(135deg,${avColor(t.who||"")},${avColor2(t.who||"")})`, color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 6, fontWeight: 700, letterSpacing: "-0.5px" }}>{avInitials(t.who || "?")}</span>
+          <span style={{ width: 14, height: 14, borderRadius: "50%", background: mAvBg(t.who||""), color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 6, fontWeight: 700, letterSpacing: "-0.5px" }}>{avInitials(t.who || "?")}</span>
           <span style={{ fontSize: 10, color: "#94a3b8" }}>{t.who}</span>
           <button onClick={() => toggleFav(t.id)} title={isFav(t.id) ? "즐겨찾기 해제" : "즐겨찾기"}
             style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, padding: "2px 4px", color: isFav(t.id) ? "#f59e0b" : "#94a3b8", lineHeight: 1, marginLeft: "auto" }}>
@@ -433,7 +437,7 @@ function MemoCard({
   );
 }
 
-function AddCard({ addTodo, currentUser, flash, onDragOver, onDrop, aProj, members, pris, stats, priC, priBg, stC, stBg }: {
+function AddCard({ addTodo, currentUser, flash, onDragOver, onDrop, aProj, members, pris, stats, priC, priBg, stC, stBg, memberColors = {} }: {
   addTodo: (t: any) => void;
   currentUser: string;
   flash: (m: string, t?: string) => void;
@@ -447,7 +451,10 @@ function AddCard({ addTodo, currentUser, flash, onDragOver, onDrop, aProj, membe
   priBg: Record<string, string>;
   stC: Record<string, string>;
   stBg: Record<string, string>;
+  memberColors?: Record<string, string>;
 }) {
+  // 담당자 아바타 배경색 — 설정에서 커스텀 색상 우선
+  const mAvBg = (name: string) => memberColors[name] || `linear-gradient(135deg,${avColor(name)},${avColor2(name)})`;
   const [active, setActive] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   // 상세내용 입력 ref — contentEditable 사용 (MemoCard 상세내용과 동일한 방식)
@@ -672,7 +679,7 @@ function AddCard({ addTodo, currentUser, flash, onDragOver, onDrop, aProj, membe
             onClick={() => setOpenField(openField === "who" ? null : "who")}
             style={{ display: "inline-flex", alignItems: "center", gap: 4, cursor: "pointer" }}
           >
-            <span style={{ width: 18, height: 18, borderRadius: "50%", background: `linear-gradient(135deg,${avColor(who)},${avColor2(who)})`, color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 700, flexShrink: 0, letterSpacing: "-0.5px" }}>
+            <span style={{ width: 18, height: 18, borderRadius: "50%", background: mAvBg(who), color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 700, flexShrink: 0, letterSpacing: "-0.5px" }}>
               {avInitials(who || "?")}
             </span>
             <span style={{ fontSize: 10, color: "#475569" }}>{who || "미배정"} ▾</span>
@@ -681,7 +688,7 @@ function AddCard({ addTodo, currentUser, flash, onDragOver, onDrop, aProj, membe
             <div style={{ ...dropStyle, bottom: "calc(100% + 4px)", top: "auto", left: 0 }} onClick={e => e.stopPropagation()}>
               {members.map(m => (
                 <div key={m} style={dropItem(who === m)} onClick={() => { setWho(m); setOpenField(null); }}>
-                  <span style={{ width: 16, height: 16, borderRadius: "50%", background: `linear-gradient(135deg,${avColor(m)},${avColor2(m)})`, color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 7, fontWeight: 700, flexShrink: 0, letterSpacing: "-0.5px" }}>{avInitials(m)}</span>
+                  <span style={{ width: 16, height: 16, borderRadius: "50%", background: mAvBg(m), color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 7, fontWeight: 700, flexShrink: 0, letterSpacing: "-0.5px" }}>{avInitials(m)}</span>
                   {m}
                 </div>
               ))}
@@ -700,7 +707,7 @@ export function MemoView({
   sorted, showDone, setShowDone,
   gPr, aProj, members, pris, stats,
   priC, priBg, stC, stBg,
-  updTodo, addTodo, currentUser, cols = 3, delTodo, isFav, toggleFav, flash, setDatePop,
+  updTodo, addTodo, currentUser, cols = 3, delTodo, isFav, toggleFav, flash, setDatePop, memberColors = {},
 }: MemoViewProps) {
   const [openDrop, setOpenDrop] = useState<DropType>(null);
   const active = sorted.filter(t => t.st !== "완료");
@@ -793,7 +800,7 @@ export function MemoView({
     document.body.style.cursor = "";
   };
 
-  const cardProps = { gPr, aProj, members, pris, stats, priC, priBg, stC, stBg, updTodo, delTodo, isFav, toggleFav, flash, setDatePop, openDrop, setOpenDrop };
+  const cardProps = { gPr, aProj, members, pris, stats, priC, priBg, stC, stBg, updTodo, delTodo, isFav, toggleFav, flash, setDatePop, openDrop, setOpenDrop, memberColors };
 
   return (
     <div onClick={() => setOpenDrop(null)}>
@@ -847,6 +854,7 @@ export function MemoView({
           priBg={priBg}
           stC={stC}
           stBg={stBg}
+          memberColors={memberColors}
         />
       </div>
 
