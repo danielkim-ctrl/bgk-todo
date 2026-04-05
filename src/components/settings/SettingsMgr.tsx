@@ -3,6 +3,7 @@ import { S } from "../../styles";
 import { avColor, avColor2, avInitials } from "../../utils/avatarUtils";
 import { PROJ_PALETTE } from "../../constants";
 import { Project, Team, TeamRole, TEAM_ROLE_LABELS, ALL_PERMISSIONS, TEAM_ROLE_PERMISSIONS } from "../../types";
+import { topProjects, childProjects } from "../../utils";
 import { UserIcon, UserGroupIcon, BoltIcon, CheckCircleIcon, Cog6ToothIcon, FolderIcon, CheckIcon, PencilSquareIcon, TrashIcon, PlusIcon, XMarkIcon, ChevronRightIcon, Bars3Icon, ICON_SM } from "../ui/Icons";
 
 export function SettingsMgr({
@@ -306,43 +307,76 @@ export function SettingsMgr({
       {apiKey&&<div style={{fontSize:13,color:"#16a34a",fontWeight:600,display:"flex",alignItems:"center",gap:4}}><CheckIcon style={ICON_SM}/> API 키 설정됨</div>}
     </div>}
 
-    {/* ── 프로젝트 탭 ── */}
+    {/* ── 프로젝트 탭 — 상위/세부 트리 구조 ── */}
     {tab==="proj"&&<div style={{display:"flex",flexDirection:"column",flex:1,minHeight:0}}>
       <div style={{display:"flex",flexDirection:"column",flex:1,overflowY:"auto",marginBottom:14}}>
-        {projects.map((p,i)=>{
-          const c=todos.filter((t:any)=>t.pid===p.id).length;
-          const reorderProj=(from:number,to:number)=>{setProjects(()=>{const a=[...projects];const[m]=a.splice(from,1);a.splice(to,0,m);return a;});};
-          return <div key={p.id} style={{...ROW,...dragStyle(i),cursor:"grab"}}
-            {...mkDrag(i,reorderProj)}
-            onMouseEnter={e=>{(e.currentTarget as HTMLElement).style.background="#f8fafc";}}
-            onMouseLeave={e=>{(e.currentTarget as HTMLElement).style.background="#fff";}}>
-            <Bars3Icon style={{width:12,height:12,color:"#cbd5e1",flexShrink:0}}/>
-            <ColorDot color={p.color} onChange={c=>onEditProj(p.id,{color:c})}/>
-            <div style={{flex:1,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>{p.name}</div>
-            {/* 프로젝트 소속 팀 (복수 가능) */}
-            {teams.length>0&&(()=>{
-              const projTeams=teams.filter(t=>t.projectIds.includes(p.id));
-              const availTeams=teams.filter(t=>!t.projectIds.includes(p.id));
-              return <div style={{display:"flex",gap:3,alignItems:"center",flexWrap:"wrap" as const}}>
-                {projTeams.map(t=>(
-                  <span key={t.id} style={{display:"inline-flex",alignItems:"center",gap:3,padding:"3px 10px",background:"#eff6ff",borderRadius:99,fontSize:12,color:"#2563eb",fontWeight:500,border:"1px solid #bfdbfe",whiteSpace:"nowrap" as const}}>
-                    <span style={{width:7,height:7,borderRadius:"50%",background:t.color,flexShrink:0}}/>
-                    {t.name}
-                    <span onClick={()=>removeTeamProject(t.id,p.id)} style={{cursor:"pointer",color:"#93c5fd",marginLeft:2,fontSize:13,lineHeight:1}}>×</span>
-                  </span>
-                ))}
-                {availTeams.length>0&&(
-                  <select value="" onChange={e=>{if(e.target.value)addTeamProject(e.target.value,p.id);}}
-                    style={{padding:"2px 6px",border:"1px dashed #93c5fd",borderRadius:6,fontSize:12,fontFamily:"inherit",color:"#93c5fd",maxWidth:44,background:"#f8fbff"}}>
-                    <option value="">+</option>
-                    {availTeams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
-                  </select>
-                )}
+        {topProjects(projects).map(p=>{
+          const children = childProjects(projects, p.id);
+          // 상위 + 하위 전체 업무 수
+          const allIds = [p.id, ...children.map(ch=>ch.id)];
+          const totalC = todos.filter((t:any)=>allIds.includes(t.pid)).length;
+          return <div key={p.id}>
+            {/* 상위 프로젝트 행 */}
+            <div style={{...ROW,cursor:"default"}}
+              onMouseEnter={e=>{(e.currentTarget as HTMLElement).style.background="#f8fafc";}}
+              onMouseLeave={e=>{(e.currentTarget as HTMLElement).style.background="#fff";}}>
+              <ColorDot color={p.color} onChange={c=>onEditProj(p.id,{color:c})}/>
+              <div style={{flex:1,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>{p.name}</div>
+              {/* 프로젝트 소속 팀 */}
+              {teams.length>0&&(()=>{
+                const projTeams=teams.filter(t=>t.projectIds.includes(p.id));
+                const availTeams=teams.filter(t=>!t.projectIds.includes(p.id));
+                return <div style={{display:"flex",gap:3,alignItems:"center",flexWrap:"wrap" as const}}>
+                  {projTeams.map(t=>(
+                    <span key={t.id} style={{display:"inline-flex",alignItems:"center",gap:3,padding:"3px 10px",background:"#eff6ff",borderRadius:99,fontSize:12,color:"#2563eb",fontWeight:500,border:"1px solid #bfdbfe",whiteSpace:"nowrap" as const}}>
+                      <span style={{width:7,height:7,borderRadius:"50%",background:t.color,flexShrink:0}}/>
+                      {t.name}
+                      <span onClick={()=>removeTeamProject(t.id,p.id)} style={{cursor:"pointer",color:"#93c5fd",marginLeft:2,fontSize:13,lineHeight:1}}>×</span>
+                    </span>
+                  ))}
+                  {availTeams.length>0&&(
+                    <select value="" onChange={e=>{if(e.target.value)addTeamProject(e.target.value,p.id);}}
+                      style={{padding:"2px 6px",border:"1px dashed #93c5fd",borderRadius:6,fontSize:12,fontFamily:"inherit",color:"#93c5fd",maxWidth:44,background:"#f8fbff"}}>
+                      <option value="">+</option>
+                      {availTeams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
+                    </select>
+                  )}
+                </div>;
+              })()}
+              <span style={{fontSize:12,color:"#94a3b8",flexShrink:0}}>{totalC}건</span>
+              <button onClick={()=>{const n=prompt("이름:",p.name);if(n)onEditProj(p.id,{name:n.trim()})}} style={ICON_BTN} onMouseEnter={e=>iconHover(e,true)} onMouseLeave={e=>iconHover(e,false)}><PencilSquareIcon style={ICON_SM}/></button>
+              <button onClick={()=>{if(window.confirm("해당 프로젝트를 삭제하시겠습니까? (세부 프로젝트도 함께 삭제됩니다)")){children.forEach(ch=>onDelProj(ch.id));onDelProj(p.id);}}} style={ICON_BTN} onMouseEnter={e=>iconHover(e,true)} onMouseLeave={e=>iconHover(e,false)}><TrashIcon style={ICON_SM}/></button>
+            </div>
+            {/* 세부 프로젝트 목록 */}
+            {children.map(ch=>{
+              const chC=todos.filter((t:any)=>t.pid===ch.id).length;
+              return <div key={ch.id} style={{...ROW,paddingLeft:32,cursor:"default"}}
+                onMouseEnter={e=>{(e.currentTarget as HTMLElement).style.background="#f8fafc";}}
+                onMouseLeave={e=>{(e.currentTarget as HTMLElement).style.background="#fff";}}>
+                <span style={{color:"#cbd5e1",fontSize:11,marginRight:2}}>└─</span>
+                <ColorDot color={ch.color} onChange={c=>onEditProj(ch.id,{color:c})}/>
+                <div style={{flex:1,fontWeight:500,fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>{ch.name}</div>
+                <span style={{fontSize:11,color:"#94a3b8",flexShrink:0}}>{chC}건</span>
+                <button onClick={()=>{const n=prompt("이름:",ch.name);if(n)onEditProj(ch.id,{name:n.trim()})}} style={ICON_BTN} onMouseEnter={e=>iconHover(e,true)} onMouseLeave={e=>iconHover(e,false)}><PencilSquareIcon style={ICON_SM}/></button>
+                <button onClick={()=>{if(window.confirm("세부 프로젝트를 삭제하시겠습니까?"))onDelProj(ch.id)}} style={ICON_BTN} onMouseEnter={e=>iconHover(e,true)} onMouseLeave={e=>iconHover(e,false)}><TrashIcon style={ICON_SM}/></button>
               </div>;
-            })()}
-            <span style={{fontSize:12,color:"#94a3b8",flexShrink:0}}>{c}건</span>
-            <button onClick={()=>{const n=prompt("이름:",p.name);if(n)onEditProj(p.id,{name:n.trim()})}} style={ICON_BTN} onMouseEnter={e=>iconHover(e,true)} onMouseLeave={e=>iconHover(e,false)}><PencilSquareIcon style={ICON_SM}/></button>
-            <button onClick={()=>{if(window.confirm("해당 프로젝트를 삭제하시겠습니까?"))onDelProj(p.id)}} style={ICON_BTN} onMouseEnter={e=>iconHover(e,true)} onMouseLeave={e=>iconHover(e,false)}><TrashIcon style={ICON_SM}/></button>
+            })}
+            {/* 세부 프로젝트 추가 버튼 */}
+            <div style={{paddingLeft:32,padding:"4px 14px 4px 42px"}}>
+              <button
+                onClick={()=>{
+                  const n=prompt("세부 프로젝트 이름:");
+                  if(!n?.trim())return;
+                  // 세부 프로젝트: 상위 색상 상속, parentId 설정
+                  onAddProj({name:n.trim(),color:p.color,status:"활성",parentId:p.id});
+                }}
+                style={{fontSize:11,color:"#94a3b8",background:"none",border:"none",padding:"2px 0",cursor:"pointer",fontFamily:"inherit",transition:"color .15s"}}
+                onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.color="#2563eb";}}
+                onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.color="#94a3b8";}}
+              >+ 세부 프로젝트 추가</button>
+            </div>
+            {/* 상위 프로젝트 구분선 */}
+            <div style={{height:1,background:"#f1f5f9",margin:"2px 0"}}/>
           </div>;
         })}
       </div>

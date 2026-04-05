@@ -3,6 +3,7 @@ export interface Project {
   name: string;
   color: string;
   status: string;
+  parentId?: number;  // 상위 프로젝트 ID — 없으면 최상위
 }
 
 // 활동 로그 엔트리 — todo의 생성/수정/완료/메모 이력을 기록

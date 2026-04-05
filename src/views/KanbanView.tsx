@@ -70,7 +70,42 @@ export function KanbanView({
     <div style={{display:"flex",justifyContent:"space-between",marginBottom:8,flexWrap:"wrap",gap:6,alignItems:"flex-start"}}>
       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
         <Chip active={kbF.length===0} onClick={()=>setKbF([])}>전체</Chip>
-        {visibleProj.map(p=><Chip key={p.id} active={kbF.includes(String(p.id))} color={p.color} onClick={()=>setKbF(kbF.includes(String(p.id))?kbF.filter(x=>x!==String(p.id)):[...kbF,String(p.id)])}>{p.name}</Chip>)}
+        {/* 상위 프로젝트 칩 — hover 시 세부 드롭다운 */}
+        {visibleProj.filter(p=>!p.parentId).map(p=>{
+          const children=visibleProj.filter(ch=>ch.parentId===p.id);
+          const allIds=[String(p.id),...children.map(ch=>String(ch.id))];
+          const active=allIds.some(id=>kbF.includes(id));
+          if(children.length===0) return <Chip key={p.id} active={active} color={p.color} onClick={()=>{
+            if(active) setKbF(kbF.filter(x=>x!==String(p.id)));
+            else setKbF([...kbF,String(p.id)]);
+          }}>{p.name}</Chip>;
+          return <div key={p.id} style={{position:"relative",display:"inline-flex"}}
+            onMouseEnter={e=>{const dd=e.currentTarget.querySelector("[data-sub-dd]") as HTMLElement;if(dd)dd.style.display="flex";}}
+            onMouseLeave={e=>{const dd=e.currentTarget.querySelector("[data-sub-dd]") as HTMLElement;if(dd)dd.style.display="none";}}>
+            <Chip active={active} color={p.color} onClick={()=>{
+              if(active) setKbF(kbF.filter(x=>!allIds.includes(x)));
+              else setKbF([...kbF.filter(x=>!allIds.includes(x)),...allIds]);
+            }}>{p.name} <span style={{fontSize:8,opacity:.6}}>▾</span></Chip>
+            <div data-sub-dd style={{display:"none",position:"absolute",top:"100%",left:0,marginTop:4,background:"#fff",border:"1px solid #e2e8f0",borderRadius:8,boxShadow:"0 4px 16px rgba(0,0,0,.12)",zIndex:50,flexDirection:"column",minWidth:140,padding:"4px 0",whiteSpace:"nowrap"}}>
+              <div onClick={()=>{if(active)setKbF(kbF.filter(x=>!allIds.includes(x)));else setKbF([...kbF.filter(x=>!allIds.includes(x)),...allIds]);}}
+                style={{padding:"5px 12px",fontSize:11,fontWeight:600,color:active?"#2563eb":"#475569",cursor:"pointer",display:"flex",alignItems:"center",gap:5,borderBottom:"1px solid #f1f5f9"}}
+                onMouseEnter={e=>{(e.currentTarget as HTMLElement).style.background="#f8f9fa";}}
+                onMouseLeave={e=>{(e.currentTarget as HTMLElement).style.background="transparent";}}>
+                <span style={{width:8,height:8,borderRadius:"50%",background:p.color,flexShrink:0}}/>전체 {active?"해제":"선택"}
+              </div>
+              {children.map(ch=>{
+                const chA=kbF.includes(String(ch.id));
+                return <div key={ch.id} onClick={e=>{e.stopPropagation();if(chA)setKbF(kbF.filter(x=>x!==String(ch.id)));else setKbF([...kbF,String(ch.id)]);}}
+                  style={{padding:"5px 12px",fontSize:11,color:chA?"#2563eb":"#475569",fontWeight:chA?600:400,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}
+                  onMouseEnter={e=>{(e.currentTarget as HTMLElement).style.background="#f8f9fa";}}
+                  onMouseLeave={e=>{(e.currentTarget as HTMLElement).style.background="transparent";}}>
+                  <span style={{width:6,height:6,borderRadius:"50%",background:ch.color,flexShrink:0}}/>{ch.name}
+                  {chA&&<span style={{marginLeft:"auto",color:"#2563eb",fontSize:10}}>✓</span>}
+                </div>;
+              })}
+            </div>
+          </div>;
+        })}
       </div>
       <button style={S.bp} onClick={()=>setEditMod({pid:"",task:"",who:"",due:"",pri:"보통",st:"대기",det:"",repeat:"없음"})}>+ 새 업무</button>
     </div>

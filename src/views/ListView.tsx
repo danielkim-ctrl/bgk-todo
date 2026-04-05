@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useCallback, useMemo } from "react";
 import { S } from "../styles";
-import { isOD, dDay, fDow, fmt2, stripHtml, sanitize } from "../utils";
+import { isOD, dDay, fDow, fmt2, stripHtml, sanitize, getParentProj } from "../utils";
 import { usePermission } from "../auth/PermissionContext";
 import { REPEAT_OPTS } from "../constants";
 import { avColor, avColor2, avInitials } from "../utils/avatarUtils";
@@ -463,7 +463,17 @@ export function ListView(props: ListViewProps) {
     if (field === "task") return <td style={{...S.tdc, overflow:"visible"}}><input autoFocus defaultValue={todo.task} style={S.iinp} onKeyDown={e => { if ((e as any).key === "Enter") save((e.target as HTMLInputElement).value); if ((e as any).key === "Escape") stop(); }} onBlur={e => save(e.target.value)}/></td>;
     if (field === "due") return <td style={{...S.tdc, background:"#eff6ff"}}>{children}</td>;
     const ar = clickRectRef.current || undefined;
-    if (field === "pid") return <td style={S.tdc}>{children}<DropPanel anchorRect={ar} items={visibleProj.map(p => ({value: String(p.id), label: p.name, color: p.color}))} current={String(todo.pid)} onSelect={v => save(v)} onClose={stop} renderItem={it => <><span style={S.dot(it.color!)}/>{it.label}</>}/></td>;
+    if (field === "pid") {
+      // 트리형 프로젝트 목록 — 상위 아래에 세부 들여쓰기
+      const projItems: {value:string,label:string,color?:string,indent?:boolean}[] = [];
+      visibleProj.filter(p=>!p.parentId).forEach(p=>{
+        projItems.push({value:String(p.id),label:p.name,color:p.color});
+        visibleProj.filter(ch=>ch.parentId===p.id).forEach(ch=>{
+          projItems.push({value:String(ch.id),label:ch.name,color:ch.color,indent:true});
+        });
+      });
+      return <td style={S.tdc}>{children}<DropPanel anchorRect={ar} items={projItems} current={String(todo.pid)} onSelect={v => save(v)} onClose={stop} renderItem={it => <div style={{display:"flex",alignItems:"center",gap:5,...(it.indent?{paddingLeft:14,fontSize:11}:{})}}>{it.indent&&<span style={{color:"#cbd5e1",fontSize:9}}>└</span>}<span style={S.dot(it.color!)}/>{it.label}</div>}/></td>;
+    }
     if (field === "who") return <td style={S.tdc}>{children}<DropPanel anchorRect={ar} items={visibleMembers.map(m => ({value: m, label: m}))} current={todo.who} onSelect={v => save(v)} onClose={stop} renderItem={it => <><span style={{width:20,height:20,borderRadius:"50%",background:memberColors[it.label]||`linear-gradient(135deg,${avColor(it.label)},${avColor2(it.label)})`,color:"#fff",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:8,fontWeight:700,flexShrink:0}}>{avInitials(it.label)}</span>{it.label}</>}/></td>;
     if (field === "pri") return <td style={S.tdc}>{children}<DropPanel anchorRect={ar} items={pris.map(p => ({value: p, label: p, color: priC[p]}))} current={todo.pri} onSelect={v => save(v)} onClose={stop} renderItem={it => <><span style={{...S.dot(it.color!), width:8, height:8}}/>{it.label}</>}/></td>;
     if (field === "st") return <td style={S.tdc}>{children}<DropPanel anchorRect={ar} items={stats.map(s => ({value: s, label: s, color: stC[s]}))} current={todo.st} onSelect={v => save(v)} onClose={stop} renderItem={it => <><span style={{...S.dot(it.color!), width:8, height:8}}/>{it.label}</>}/></td>;
@@ -868,8 +878,14 @@ export function ListView(props: ListViewProps) {
                   // 프로젝트순 정렬 시 프로젝트 경계에 구분선 표시
                   ...(sortCol==="pid"&&idx>0&&gPr(arr[idx-1].pid).name!==gPr(t.pid).name?{borderTop:"2px solid #e2e8f0"}:{})}}>
                 {/* 프로젝트 컬럼 — hover 시 전체 행과 동일한 배경색 적용 */}
-                <CellEdit todo={t} field="pid" tdStyle={priCellStyle}>{(()=>{const p=gPr(t.pid);return <div style={{display:"flex",alignItems:"center",gap:5,fontSize:12,fontWeight:isHover?700:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,transition:"font-weight .12s"}}><span style={{...S.dot(p.color||"#94a3b8")}}/>
-                  <span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{p.name||"미배정"}</span></div>;})()}</CellEdit>
+                <CellEdit todo={t} field="pid" tdStyle={priCellStyle}>{(()=>{const p=gPr(t.pid);const parent=getParentProj(projects,p);return <div style={{display:"flex",alignItems:"flex-start",gap:5,overflow:"hidden",transition:"font-weight .12s"}}><span style={{...S.dot(p.color||"#94a3b8"),marginTop:4,flexShrink:0}}/>
+                  {parent
+                    ? <div style={{overflow:"hidden",minWidth:0}}>
+                        <div style={{fontSize:12,fontWeight:isHover?700:600,color:"#334155",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>{parent.name}</div>
+                        <div style={{fontSize:10,color:"#2563eb",fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>› {p.name}</div>
+                      </div>
+                    : <span style={{fontSize:12,fontWeight:isHover?700:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>{p.name||"미배정"}</span>
+                  }</div>;})()}</CellEdit>
                 {/* 업무내용 — 좌측 2px 띠 + 배경색 */}
                 <td style={{...S.tdc,...priCellStyle,boxShadow:taskBar,overflow:"visible",...(expandMode?{whiteSpace:"normal" as const}:{})}}>
                   <div style={{display:"flex",alignItems:"center",gap:12}}>
@@ -969,7 +985,15 @@ export function ListView(props: ListViewProps) {
                 onMouseEnter={e=>{if(editCell||datePop)return;setHoverRow(t.id);const r=(e.currentTarget as HTMLTableRowElement).getBoundingClientRect();setHoverRowRect({top:r.top,height:r.height});}}>
 
                 {/* 완료 행 — 프로젝트 컬럼 */}
-                <td style={S.tdc}>{(()=>{const p=gPr(t.pid);return <div style={{display:"flex",alignItems:"center",gap:5,fontSize:12,fontWeight:500,color:"#94a3b8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}><span style={{...S.dot(p.color||"#94a3b8"),opacity:.5}}/><span>{p.name||"미배정"}</span></div>;})()}</td>
+                <td style={S.tdc}>{(()=>{const p=gPr(t.pid);const parent=getParentProj(projects,p);return <div style={{display:"flex",alignItems:"flex-start",gap:5,color:"#94a3b8",overflow:"hidden"}}><span style={{...S.dot(p.color||"#94a3b8"),opacity:.5,marginTop:4,flexShrink:0}}/>
+                  {parent
+                    ? <div style={{overflow:"hidden",minWidth:0}}>
+                        <div style={{fontSize:12,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>{parent.name}</div>
+                        <div style={{fontSize:10,color:"#94a3b8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>› {p.name}</div>
+                      </div>
+                    : <span style={{fontSize:12,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>{p.name||"미배정"}</span>
+                  }
+                </div>;})()}</td>
                 <td style={S.tdc}>
                   <div style={{display:"flex",alignItems:"center",gap:12}}>
                     <button onClick={e=>{e.stopPropagation();updTodo(t.id,{st:"대기"});flash("완료가 취소되었습니다");}}

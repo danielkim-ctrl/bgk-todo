@@ -19,6 +19,20 @@ export const dDay = (d: string, s: string) => {
   return{label:`D-${diff}`,color:"#64748b",bg:"#f8fafc",border:"#e2e8f0"};
 };
 export const gP = (ps: Project[], id: number): Project => ps.find(p=>p.id===id)||{id:0,name:"미배정",color:"#94a3b8",status:""};
+// 세부 프로젝트의 상위 프로젝트를 반환
+export const getParentProj = (ps: Project[], p: Project): Project | null => p.parentId ? ps.find(x => x.id === p.parentId) || null : null;
+// 상위 프로젝트의 모든 하위 ID 목록 (자신 포함)
+export const getChildIds = (ps: Project[], parentId: number): number[] => [parentId, ...ps.filter(p => p.parentId === parentId).map(p => p.id)];
+// 프로젝트 표시명: 세부면 "상위 › 세부", 아니면 그냥 이름
+export const projLabel = (ps: Project[], p: Project, short = false): string => {
+  const parent = getParentProj(ps, p);
+  if (!parent) return p.name;
+  return short ? p.name : `${parent.name} › ${p.name}`;
+};
+// 최상위 프로젝트만 필터 (parentId 없는 것)
+export const topProjects = (ps: Project[]): Project[] => ps.filter(p => !p.parentId);
+// 특정 상위의 하위 프로젝트들
+export const childProjects = (ps: Project[], parentId: number): Project[] => ps.filter(p => p.parentId === parentId);
 export const fD = (d: string) => d?d.slice(5).replace("-","/"):"—";
 export const DOW = ["일","월","화","수","목","금","토"];
 export const fDow = (d: string) => { if(!d) return ""; const dt=new Date(d.split(" ")[0]); return isNaN(dt.getTime())?"":DOW[dt.getDay()]; };

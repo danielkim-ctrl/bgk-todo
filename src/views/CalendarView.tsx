@@ -11,6 +11,9 @@ import { DateTimePicker } from "../components/editor/DateTimePicker";
 import { Bars3Icon, ArrowPathIcon, UserIcon, ExclamationTriangleIcon, CalendarIcon, FolderIcon, CheckCircleIcon, CheckIcon, XMarkIcon, PencilSquareIcon, TrashIcon, BoltIcon, StarIcon, StarOutlineIcon, ICON_SM } from "../components/ui/Icons";
 import { RepeatPicker } from "../components/ui/RepeatPicker";
 
+// 사이드바 드래그 ID — 모듈 스코프 변수로 관리 (리렌더 시에도 값 유지)
+let _sidebarDragRefId: number | null = null;
+
 interface CalendarViewProps {
   // calendar state
   calView: string;
@@ -42,6 +45,7 @@ interface CalendarViewProps {
   priBg: Record<string,string>;
   stC: Record<string,string>;
   stBg: Record<string,string>;
+  memberColors: Record<string,string>;
   todos: any[];
   updTodo: (id: number, updates: any) => void;
   addTodo: (todo: any) => void;
@@ -115,6 +119,8 @@ interface CalendarViewProps {
   setSecNodateOpen: (fn: (v: boolean) => boolean) => void;
   secTodayOpen: boolean;
   setSecTodayOpen: (fn: (v: boolean) => boolean) => void;
+  secTmrOpen: boolean;
+  setSecTmrOpen: (fn: (v: boolean) => boolean) => void;
   secWeekOpen: boolean;
   setSecWeekOpen: (fn: (v: boolean) => boolean) => void;
   secLaterOpen: boolean;
@@ -401,9 +407,9 @@ function SidebarEditExpanded({ t, visibleProj, visibleMembers, pris, priC, priBg
     <div ref={panelRef}
       onClick={ev => ev.stopPropagation()}
       onMouseDown={ev => ev.stopPropagation()}
-      style={{ marginTop: 6 }}>
+      style={{ marginTop: 2 }}>
 
-      {/* 업무내용(제목) — contentEditable, 상세내용과 동일한 방식으로 동작 */}
+      {/* 업무내용(제목) — Google Tasks 스타일: 밑줄 + 포커스 시 파란 밑줄 */}
       <div
         contentEditable
         suppressContentEditableWarning
@@ -411,7 +417,6 @@ function SidebarEditExpanded({ t, visibleProj, visibleMembers, pris, priC, priBg
         ref={el => {
           if (el) {
             taskDivRefs.current.set(t.id, el);
-            // 마운트 시 1회만 초기화 — 리렌더링마다 덮어쓰면 편집 중 내용이 리셋됨
             if (!taskInitialized.current) {
               el.innerHTML = t.task || "";
               taskInitialized.current = true;
@@ -422,26 +427,26 @@ function SidebarEditExpanded({ t, visibleProj, visibleMembers, pris, priC, priBg
           }
         }}
         onBlur={e => {
-          // 빈 값이면 저장하지 않음 (제목은 필수)
           const text = e.currentTarget.textContent?.trim() || "";
           if (text && text !== t.task) updTodo(t.id, { task: text });
-          // 빈 값이면 원래 제목으로 복원
           if (!text) e.currentTarget.innerHTML = t.task || "";
+          e.currentTarget.style.borderBottomColor = "#dadce0";
         }}
+        onFocus={e => { e.currentTarget.style.borderBottomColor = "#1a73e8"; }}
         onKeyDown={ev => {
-          // Enter는 줄바꿈 없이 포커스 이동
           if (ev.key === "Enter") { ev.preventDefault(); ev.currentTarget.blur(); }
           if (ev.key === "Escape") { ev.currentTarget.innerHTML = t.task || ""; ev.currentTarget.blur(); }
         }}
         style={{
-          fontSize: 13, fontWeight: 500, color: "#0f172a", outline: "none",
-          borderBottom: "1.5px solid #1a73e8", padding: "0 0 4px", marginBottom: 6,
-          fontFamily: "inherit", lineHeight: "1.4", minHeight: 20,
-          whiteSpace: "nowrap" as const, overflow: "hidden",
+          fontSize: 14, fontWeight: 400, color: "#202124", outline: "none",
+          borderBottom: "2px solid #dadce0", padding: "0 0 6px", marginBottom: 8,
+          fontFamily: "inherit", lineHeight: "1.5", minHeight: 20,
+          whiteSpace: "pre-wrap" as const, wordBreak: "break-word" as const,
+          cursor: "text", transition: "border-color .2s",
         }}
       />
 
-      {/* 상세내용 — contentEditable */}
+      {/* 상세내용 — Google Tasks 스타일: 밑줄 + 포커스 시 파란 밑줄 */}
       <div
         contentEditable
         suppressContentEditableWarning
@@ -449,8 +454,6 @@ function SidebarEditExpanded({ t, visibleProj, visibleMembers, pris, priC, priBg
         ref={el => {
           if (el) {
             detDivRefs.current.set(t.id, el);
-            // 마운트 시 1회만 초기화 — 리렌더링마다 innerHTML을 덮어쓰면
-            // 클릭 직후(아직 포커스 이동 전) 커서·입력 내용이 초기화되어 편집 불가 현상 발생
             if (!detInitialized.current) {
               el.innerHTML = t.det || "";
               detInitialized.current = true;
@@ -460,11 +463,15 @@ function SidebarEditExpanded({ t, visibleProj, visibleMembers, pris, priC, priBg
             detInitialized.current = false;
           }
         }}
-        onFocus={() => setSidebarDetId(t.id)}
+        onFocus={e => {
+          setSidebarDetId(t.id);
+          e.currentTarget.style.borderBottomColor = "#1a73e8";
+        }}
         onBlur={e => {
           const html = e.currentTarget.innerHTML === "<br>" ? "" : e.currentTarget.innerHTML;
           if (html !== (t.det || "")) updTodo(t.id, { det: html });
           setSidebarDetId(null);
+          e.currentTarget.style.borderBottomColor = "#dadce0";
         }}
         onKeyDown={ev => {
           if (!(ev.ctrlKey || ev.metaKey)) return;
@@ -472,7 +479,7 @@ function SidebarEditExpanded({ t, visibleProj, visibleMembers, pris, priC, priBg
           const cmd = cmds[ev.key.toLowerCase()];
           if (cmd) { ev.preventDefault(); (document as any).execCommand(cmd, false); }
         }}
-        style={{ minHeight: 28, maxHeight: 80, overflowY: "auto" as const, padding: "4px 0 6px", fontSize: 12, outline: "none", color: "#5f6368", fontFamily: "inherit", lineHeight: 1.6, whiteSpace: "pre-wrap" as const, wordBreak: "break-word" as const, borderBottom: "1px solid #e2e8f0" }}
+        style={{ minHeight: 28, maxHeight: 80, overflowY: "auto" as const, padding: "0 0 6px", fontSize: 12, outline: "none", color: "#5f6368", fontFamily: "inherit", lineHeight: 1.6, whiteSpace: "pre-wrap" as const, wordBreak: "break-word" as const, borderBottom: "2px solid #dadce0", cursor: "text", transition: "border-color .2s" }}
       />
 
       {/* 옵션 아이콘 버튼 행 — 등록 UI와 동일, hover 효과 포함 */}
@@ -602,20 +609,21 @@ function SidebarEditExpanded({ t, visibleProj, visibleMembers, pris, priC, priBg
         </div>
       )}
 
-      {/* 접기 + 삭제 */}
+      {/* 접기 + 삭제 — hover 효과로 클릭 가능 영역 명확히 구분 */}
       <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <button onClick={ev => { ev.stopPropagation(); sidebarExpand(null); }}
-          style={{ fontSize: 11, padding: "3px 8px", borderRadius: 8, border: "1px solid #e2e8f0", background: "#f8fafc", color: "#94a3b8", cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 3, transition: "background .12s, color .12s" }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#e2e8f0"; (e.currentTarget as HTMLElement).style.color = "#475569"; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#f8fafc"; (e.currentTarget as HTMLElement).style.color = "#94a3b8"; }}>
+          style={{ fontSize: 11, padding: "4px 10px", borderRadius: 8, border: "1px solid #e2e8f0", background: "#f8fafc", color: "#94a3b8", cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 3, transition: "all .15s" }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#e2e8f0"; (e.currentTarget as HTMLElement).style.color = "#475569"; (e.currentTarget as HTMLElement).style.borderColor = "#cbd5e1"; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#f8fafc"; (e.currentTarget as HTMLElement).style.color = "#94a3b8"; (e.currentTarget as HTMLElement).style.borderColor = "#e2e8f0"; }}>
           <span style={{ fontSize: 10 }}>▲</span> 접기
         </button>
         <button onClick={ev => { ev.stopPropagation(); if (confirm(`"${t.task}" 업무를 삭제하시겠습니까?`)) {
-          // 삭제된 항목의 ref를 Map에서 제거해 메모리 누수 방지
           detDivRefs.current.delete(t.id);
           delTodo(t.id); sidebarExpand(null);
         } }}
-          style={{ fontSize: 11, padding: "3px 10px", borderRadius: 8, border: "1px solid #fecaca", background: "#fef2f2", color: "#ef4444", cursor: "pointer", fontFamily: "inherit" }}>
+          style={{ fontSize: 11, padding: "4px 10px", borderRadius: 8, border: "1px solid #fecaca", background: "#fef2f2", color: "#ef4444", cursor: "pointer", fontFamily: "inherit", transition: "all .15s" }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#fee2e2"; (e.currentTarget as HTMLElement).style.borderColor = "#f87171"; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#fef2f2"; (e.currentTarget as HTMLElement).style.borderColor = "#fecaca"; }}>
           삭제
         </button>
       </div>
@@ -628,7 +636,7 @@ export function CalendarView(props: CalendarViewProps) {
     calView, setCalView, calY, calM, calD, calNav, calTitle, calDays,
     todayStr, customDays, setCustomDays, weekDates, customDates, agendaItems,
     ftodosExpanded, evStyle, calF, setCalF, calFWho, setCalFWho,
-    visibleProj, members, visibleMembers, gPr, pris, priC, priBg, stC, stBg,
+    visibleProj, members, visibleMembers, gPr, pris, priC, priBg, stC, stBg, memberColors,
     todos, updTodo, addTodo, delTodo, flash, setEditMod, currentUser,
     calEvPop, setCalEvPop, calQA, setCalQA, calQATitle, setCalQATitle,
     calQADue, setCalQADue, calQAPid, setCalQAPid, calQAWho, setCalQAWho,
@@ -644,8 +652,8 @@ export function CalendarView(props: CalendarViewProps) {
     sidebarExpandId, sidebarDetId, setSidebarDetId,
     sidebarExpand,
     sidebarDoneOpen, setSidebarDoneOpen, secNodateOpen, setSecNodateOpen,
-    secTodayOpen, setSecTodayOpen, secWeekOpen, setSecWeekOpen,
-    secLaterOpen, setSecLaterOpen, starredIds, toggleStar,
+    secTodayOpen, setSecTodayOpen, secTmrOpen, setSecTmrOpen,
+    secWeekOpen, setSecWeekOpen, secLaterOpen, setSecLaterOpen, starredIds, toggleStar,
     pendingComplete, handleSideComplete, detDivRefs, taskDivRefs,
     isMobile,
   } = props;
@@ -675,7 +683,55 @@ export function CalendarView(props: CalendarViewProps) {
     </div>
     <div style={{display:"flex",gap:3,flexWrap:"wrap",marginBottom:4}}>
       <Chip active={calF.length===0} onClick={()=>setCalF([])}>전체</Chip>
-      {visibleProj.map(p=><Chip key={p.id} active={calF.includes(String(p.id))} color={p.color} onClick={()=>setCalF(calF.includes(String(p.id))?calF.filter(x=>x!==String(p.id)):[...calF,String(p.id)])}>{p.name}</Chip>)}
+      {/* 상위 프로젝트 칩 — hover 시 세부 프로젝트 드롭다운 표시 */}
+      {visibleProj.filter(p=>!p.parentId).map(p=>{
+        const children = visibleProj.filter(ch=>ch.parentId===p.id);
+        const allIds = [String(p.id), ...children.map(ch=>String(ch.id))];
+        const active = allIds.some(id=>calF.includes(id));
+        // 세부가 없으면 기존과 동일
+        if(children.length===0) return <Chip key={p.id} active={active} color={p.color} onClick={()=>{
+          if(active) setCalF(calF.filter(x=>x!==String(p.id)));
+          else setCalF([...calF,String(p.id)]);
+        }}>{p.name}</Chip>;
+        // 세부가 있으면 hover 드롭다운
+        return <div key={p.id} style={{position:"relative",display:"inline-flex"}}
+          onMouseEnter={e=>{const dd=e.currentTarget.querySelector("[data-sub-dd]") as HTMLElement;if(dd)dd.style.display="flex";}}
+          onMouseLeave={e=>{const dd=e.currentTarget.querySelector("[data-sub-dd]") as HTMLElement;if(dd)dd.style.display="none";}}>
+          {/* 상위 칩 — 클릭 시 전체 선택/해제 */}
+          <Chip active={active} color={p.color} onClick={()=>{
+            if(active) setCalF(calF.filter(x=>!allIds.includes(x)));
+            else setCalF([...calF.filter(x=>!allIds.includes(x)),...allIds]);
+          }}>{p.name} <span style={{fontSize:8,opacity:.6}}>▾</span></Chip>
+          {/* 세부 프로젝트 드롭다운 — hover 시 표시 */}
+          <div data-sub-dd style={{display:"none",position:"absolute",top:"100%",left:0,marginTop:4,background:"#fff",border:"1px solid #e2e8f0",borderRadius:8,boxShadow:"0 4px 16px rgba(0,0,0,.12)",zIndex:50,flexDirection:"column",minWidth:140,padding:"4px 0",whiteSpace:"nowrap"}}>
+            {/* 전체 선택/해제 */}
+            <div onClick={()=>{
+              if(active) setCalF(calF.filter(x=>!allIds.includes(x)));
+              else setCalF([...calF.filter(x=>!allIds.includes(x)),...allIds]);
+            }} style={{padding:"5px 12px",fontSize:11,fontWeight:600,color:active?"#2563eb":"#475569",cursor:"pointer",display:"flex",alignItems:"center",gap:5,borderBottom:"1px solid #f1f5f9"}}
+              onMouseEnter={e=>{(e.currentTarget as HTMLElement).style.background="#f8f9fa";}}
+              onMouseLeave={e=>{(e.currentTarget as HTMLElement).style.background="transparent";}}>
+              <span style={{width:8,height:8,borderRadius:"50%",background:p.color,flexShrink:0}}/>
+              전체 {active?"해제":"선택"}
+            </div>
+            {/* 세부 프로젝트 개별 항목 */}
+            {children.map(ch=>{
+              const chActive=calF.includes(String(ch.id));
+              return <div key={ch.id} onClick={e=>{
+                e.stopPropagation();
+                if(chActive) setCalF(calF.filter(x=>x!==String(ch.id)));
+                else setCalF([...calF,String(ch.id)]);
+              }} style={{padding:"5px 12px",fontSize:11,color:chActive?"#2563eb":"#475569",fontWeight:chActive?600:400,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}
+                onMouseEnter={e=>{(e.currentTarget as HTMLElement).style.background="#f8f9fa";}}
+                onMouseLeave={e=>{(e.currentTarget as HTMLElement).style.background="transparent";}}>
+                <span style={{width:6,height:6,borderRadius:"50%",background:ch.color,flexShrink:0}}/>
+                {ch.name}
+                {chActive&&<span style={{marginLeft:"auto",color:"#2563eb",fontSize:10}}>✓</span>}
+              </div>;
+            })}
+          </div>
+        </div>;
+      })}
     </div>
     <div style={{display:"flex",gap:3,flexWrap:"wrap",marginBottom:4}}>
       <Chip active={calFWho.length===0} onClick={()=>setCalFWho([])}>전체</Chip>
@@ -1033,32 +1089,72 @@ export function CalendarView(props: CalendarViewProps) {
         return dateStr(cur.getFullYear(),cur.getMonth(),cur.getDate());
       };
 
-      // 날짜 없음 섹션 분리
+      // 내일 날짜 문자열
+      const tmrD=new Date(todayStr);tmrD.setDate(tmrD.getDate()+1);
+      const tmrStr=dateStr(tmrD.getFullYear(),tmrD.getMonth(),tmrD.getDate());
+
+      // 시간순 섹션 분리: 오늘 → 내일 → 이번 주 → 나중에 → 날짜 없음
       const secNoDate=applyOrder(active.filter(t=>!t.due?.split(" ")[0]));
       const secToday=applyOrder(active.filter(t=>{const d=getEffectiveDue(t);return !!d&&d<=todayStr;}));
-      const secWeek=applyOrder(active.filter(t=>{const d=getEffectiveDue(t);return !!d&&d>todayStr&&d<=weekEndD;}));
+      const secTmr=applyOrder(active.filter(t=>{const d=getEffectiveDue(t);return !!d&&d>todayStr&&d<=tmrStr;}));
+      const secWeek=applyOrder(active.filter(t=>{const d=getEffectiveDue(t);return !!d&&d>tmrStr&&d<=weekEndD;}));
       const secLater=applyOrder(active.filter(t=>{const d=getEffectiveDue(t);return !!d&&d>weekEndD;}));
 
-      // 섹션 헤더 컴포넌트 (sticky + 접기/펼치기)
-      const SecHdr=({label,count,open,onToggle}:{label:string,count:number,open:boolean,onToggle:()=>void})=>
-        <button onClick={onToggle} style={{width:"100%",padding:"7px 12px 5px",border:"none",borderBottom:"1px solid #f1f5f9",background:"#fafafa",cursor:"pointer",display:"flex",alignItems:"center",gap:5,fontSize:10,fontWeight:700,color:"#94a3b8",letterSpacing:".5px",textAlign:"left" as const,fontFamily:"inherit",position:"sticky" as const,top:0,zIndex:1}}>
+      // 섹션 헤더 컴포넌트 (sticky + 접기/펼치기 + 드롭 대상)
+      // dropDate: 해당 섹션에 드롭 시 설정할 마감일 (빈 문자열이면 날짜 제거)
+      const SecHdr=({label,count,open,onToggle,dropDate}:{label:string,count:number,open:boolean,onToggle:()=>void,dropDate:string})=>(
+        <button
+          onClick={onToggle}
+          // 드래그 중인 항목을 섹션 헤더에 드롭하면 해당 날짜로 변경
+          onDragOver={e => {
+            if (_sidebarDragRefId !== null) {
+              e.preventDefault();
+              // DOM 직접 조작으로 드롭 힌트 — state 변경 없음
+              (e.currentTarget as HTMLElement).style.background = "#e8f0fe";
+              (e.currentTarget as HTMLElement).style.color = "#1a73e8";
+            }
+          }}
+          onDragLeave={e => {
+            (e.currentTarget as HTMLElement).style.background = "#fafafa";
+            (e.currentTarget as HTMLElement).style.color = "#94a3b8";
+          }}
+          onDrop={e => {
+            e.preventDefault();
+            (e.currentTarget as HTMLElement).style.background = "#fafafa";
+            (e.currentTarget as HTMLElement).style.color = "#94a3b8";
+            const fromId = _sidebarDragRefId;
+            if (fromId === null) return;
+            const todo = todos.find(x => x.id === fromId);
+            if (todo) {
+              updTodo(fromId, { due: dropDate });
+              flash(dropDate ? `'${todo.task}' → ${label}로 이동` : `'${todo.task}' 날짜 제거됨`);
+            }
+            _sidebarDragRefId = null;
+            document.body.style.cursor = "";
+          }}
+          style={{width:"100%",padding:"7px 12px 5px",border:"none",borderBottom:"1px solid #f1f5f9",
+            background:"#fafafa",
+            cursor:"pointer",display:"flex",alignItems:"center",gap:5,fontSize:10,fontWeight:700,
+            color:"#94a3b8",
+            letterSpacing:".5px",textAlign:"left" as const,fontFamily:"inherit",position:"sticky" as const,top:0,zIndex:1,
+            transition:"background .12s,color .12s"}}>
           <span style={{fontSize:7,display:"inline-block",transform:open?"rotate(90deg)":"none",transition:"transform .2s"}}>▶</span>
           {label}<span style={{fontWeight:400,marginLeft:2}}>{count}</span>
-        </button>;
+        </button>);
 
       // ── 할일 항목 컴포넌트 — 독립 컴포넌트로 분리해 hook을 안정적으로 사용
+
       const SidebarTodoItem = ({ t, isDoneSec = false }: { t: any; isDoneSec?: boolean }) => {
         const p = gPr(t.pid);
         const isAnim = pendingComplete.has(t.id);
         const isDone = t.st === "완료" || isAnim;
         const od = isOD(t.due, t.st);
-        const isHov = sidebarHoverId === t.id;
         const isEd = sidebarEditId === t.id;
-        const isDragOv = sidebarDragOver === t.id;
-        const isDragging = sidebarDragId === t.id;
         const isExp = sidebarExpandId === t.id && !isDoneSec;
         const isStarred = starredIds.has(t.id);
         const dueDateStr = t.due?.split(" ")[0] || "";
+        // hover는 CSS :hover로 처리 — state 변경 없음 (리렌더 방지)
+        const itemRef = useRef<HTMLDivElement>(null);
 
         // 날짜 라벨 — Google Tasks 스타일
         const today = new Date();
@@ -1069,45 +1165,68 @@ export function CalendarView(props: CalendarViewProps) {
           : dueDateStr === tmrS ? "내일"
           : dueDateStr ? `${parseInt(dueDateStr.slice(5,7))}월 ${parseInt(dueDateStr.slice(8,10))}일(${fDow(dueDateStr)})` : "";
 
-        // 드래그 ghost 이미지 생성
-        const handleDragStart = (e: React.DragEvent) => {
-          const ghost = document.createElement("div");
-          ghost.style.cssText = `position:absolute;top:${window.scrollY}px;left:-9999px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:9px 14px 9px 12px;font-size:13px;font-weight:500;color:#1e293b;box-shadow:0 8px 24px rgba(0,0,0,.18);width:220px;white-space:nowrap;overflow:hidden;font-family:Pretendard,system-ui,sans-serif;display:flex;align-items:center;gap:9px;box-sizing:border-box;pointer-events:none;`;
-          const circle = document.createElement("span");
-          circle.style.cssText = "width:14px;height:14px;border-radius:50%;border:1.5px solid #d1d5db;flex-shrink:0;display:block;";
-          const lbl = document.createElement("span");
-          lbl.style.cssText = "overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;";
-          lbl.textContent = t.task;
-          ghost.appendChild(circle); ghost.appendChild(lbl);
-          document.body.appendChild(ghost);
-          ghost.getBoundingClientRect();
-          e.dataTransfer.setDragImage(ghost, 16, 22);
-          requestAnimationFrame(() => { if (ghost.parentNode) ghost.parentNode.removeChild(ghost); });
-          setSidebarDragId(t.id); document.body.style.cursor = "grabbing";
-        };
-
+        // 순서 변경 드롭 처리 — _sidebarDragRefId를 유지하여 wrapper onDrop으로 날짜 변경 버블링
         const handleDrop = (e: React.DragEvent) => {
           e.preventDefault();
-          if (sidebarDragId === null || sidebarDragId === t.id) { setSidebarDragOver(null); return; }
+          const fromId = _sidebarDragRefId;
+          if (fromId === null || fromId === t.id) return;
           const allIds = myAll.map((x: any) => x.id);
           const base = [...new Set([...sidebarOrder.filter((id: number) => allIds.includes(id)), ...allIds])];
-          const from = base.indexOf(sidebarDragId); const to = base.indexOf(t.id);
-          if (from < 0 || to < 0) { setSidebarDragOver(null); return; }
-          const neo = [...base]; neo.splice(from, 1); neo.splice(to, 0, sidebarDragId);
-          setSidebarOrder(neo);
-          setSidebarDragId(null); setSidebarDragOver(null); document.body.style.cursor = "";
+          const from = base.indexOf(fromId); const to = base.indexOf(t.id);
+          if (from >= 0 && to >= 0) {
+            const neo = [...base]; neo.splice(from, 1); neo.splice(to, 0, fromId);
+            setSidebarOrder(neo);
+          }
+          // _sidebarDragRefId는 null로 안 함 — wrapper onDrop에서 날짜 변경 + 정리
         };
 
         return (
           <div
+            ref={itemRef}
+            // 항상 draggable — 누르고 이동하면 바로 드래그 시작
             draggable={!isDoneSec && !isEd && !isExp}
-            onDragStart={handleDragStart}
-            onDragEnd={() => { setSidebarDragId(null); setSidebarDragOver(null); setCalDragOverDs(null); setCalDragOverH(null); document.body.style.cursor = ""; }}
-            onDragOver={e => { e.preventDefault(); if (sidebarDragId !== t.id) setSidebarDragOver(t.id); }}
-            onDrop={handleDrop}
-            onMouseEnter={() => setSidebarHoverId(t.id)}
-            onMouseLeave={() => setSidebarHoverId(null)}
-            // 항목 전체 클릭: 접힌 상태면 펼치기, 펼쳐진 상태면 아무것도 안 함
+            onDragStart={e => {
+              _sidebarDragRefId = t.id;
+              document.body.style.cursor = "grabbing";
+              // 캘린더 셀 드롭용 state — 지연 설정으로 드래그 시작 즉시성 확보
+              setTimeout(() => setSidebarDragId(t.id), 0);
+              // 원본 항목 시각 피드백 (DOM 직접 조작)
+              if (itemRef.current) { itemRef.current.style.opacity = "0.4"; }
+              // 드래그 ghost 이미지
+              const ghost = document.createElement("div");
+              ghost.style.cssText = `position:absolute;top:${window.scrollY}px;left:-9999px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:9px 14px 9px 12px;font-size:13px;font-weight:500;color:#1e293b;box-shadow:0 8px 24px rgba(0,0,0,.18);width:220px;white-space:nowrap;overflow:hidden;font-family:Pretendard,system-ui,sans-serif;box-sizing:border-box;pointer-events:none;`;
+              const lbl = document.createElement("span");
+              lbl.style.cssText = "overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
+              lbl.textContent = t.task;
+              ghost.appendChild(lbl);
+              document.body.appendChild(ghost);
+              ghost.getBoundingClientRect();
+              e.dataTransfer.setDragImage(ghost, 16, 22);
+              requestAnimationFrame(() => { if (ghost.parentNode) ghost.parentNode.removeChild(ghost); });
+            }}
+            onDragEnd={() => {
+              _sidebarDragRefId = null;
+              document.body.style.cursor = "";
+              if (itemRef.current) { itemRef.current.style.opacity = ""; }
+              setSidebarDragId(null); setSidebarDragOver(null); setCalDragOverDs(null); setCalDragOverH(null);
+            }}
+            // 드롭 대상 — 다른 항목이 이 위로 드래그 중일 때 파란 선 표시
+            onDragOver={e => {
+              e.preventDefault();
+              if (_sidebarDragRefId !== null && _sidebarDragRefId !== t.id) {
+                // DOM 직접 조작으로 드롭 힌트 표시 — state 변경 없음
+                if (itemRef.current) itemRef.current.style.borderTopColor = "#2563eb";
+              }
+            }}
+            onDragLeave={() => {
+              if (itemRef.current) itemRef.current.style.borderTopColor = "transparent";
+            }}
+            onDrop={e => {
+              if (itemRef.current) itemRef.current.style.borderTopColor = "transparent";
+              handleDrop(e);
+            }}
+            onMouseDown={e => e.stopPropagation()}
+            // 클릭 → 확장 패널 (dragstart가 발생하면 click은 브라우저가 자동으로 발생시키지 않음)
             onClick={e => {
               e.stopPropagation();
               if (isDoneSec || isEd || isExp) return;
@@ -1116,21 +1235,27 @@ export function CalendarView(props: CalendarViewProps) {
             style={{
               position: "relative" as const,
               padding: isDoneSec ? "8px 12px 8px 10px" : `${isExp ? "10px" : "8px"} 30px ${isExp ? "12px" : "8px"} 12px`,
-              borderTop: isDragOv && !isDragging ? "2px solid #2563eb" : "2px solid transparent",
-              borderBottom: `1px solid ${isExp ? "#e8f0fe" : "#f1f5f9"}`,
+              borderTop: "2px solid transparent",
+              borderBottom: `1px solid ${isExp ? "#dadce0" : "#f1f5f9"}`,
+              borderLeft: isExp ? "3px solid #1a73e8" : "3px solid transparent",
               display: "flex", alignItems: "flex-start", gap: 9,
-              cursor: isDoneSec ? "default" : isExp ? "default" : isHov ? "pointer" : "default",
-              background: isExp ? "#f8fbff" : isHov && !isDoneSec && !isDragging ? "#f1f3f4" : "#fff",
-              opacity: isDragging ? 0.25 : isAnim ? 0.35 : 1,
-              transition: "background .12s,opacity .2s,border-top-color .1s",
+              cursor: isDoneSec ? "default" : isExp ? "default" : "pointer",
+              background: isExp ? "#fff" : "#fff",
+              opacity: isAnim ? 0.35 : 1,
+              transition: "opacity .2s,border-left-color .15s",
+              userSelect: isExp ? "auto" as const : "none" as const,
+              WebkitUserSelect: isExp ? "auto" as const : "none" as const,
             }}
+            // hover는 onMouseEnter/Leave + DOM 직접 조작 — state 변경 없음
+            onMouseEnter={e => { if (!isDoneSec && !isExp) (e.currentTarget as HTMLElement).style.background = "#f8f9fa"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = isExp ? "#fff" : "#fff"; }}
           >
             {/* 완료 토글 버튼 */}
             <button
               onClick={e => { e.stopPropagation(); handleSideComplete(t.id, isDone); }}
               style={{
                 width: 18, height: 18, borderRadius: "50%", flexShrink: 0, marginTop: 2,
-                border: `1.5px solid ${isDone ? "#22c55e" : isHov && !isDoneSec ? "#4ade80" : "#d1d5db"}`,
+                border: `1.5px solid ${isDone ? "#22c55e" : "#d1d5db"}`,
                 background: isDone ? "#22c55e" : "transparent",
                 cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
                 fontSize: 10, color: "#fff", padding: 0,
@@ -1146,9 +1271,8 @@ export function CalendarView(props: CalendarViewProps) {
               {/* 접힌 상태: 제목 텍스트 + 메타 */}
               {!isExp && (
                 <>
-                  {/* 제목 — 클릭하면 펼치기 */}
+                  {/* 제목 — 부모 div의 onMouseUp에서 클릭 처리 */}
                   <div
-                    onClick={e => { e.stopPropagation(); if (!isDoneSec) sidebarExpand(t.id); }}
                     style={{
                       fontSize: 13, fontWeight: isDone ? 400 : 500,
                       color: isDone ? "#b0bec5" : od && !isDone ? "#c0392b" : "#1e293b",
@@ -1234,7 +1358,7 @@ export function CalendarView(props: CalendarViewProps) {
                 <div style={{ fontSize: 12, fontWeight: 700, color: "#1e293b" }}>나의 할 일</div>
                 <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 1 }}>{currentUser} · {active.length}건 진행 · {done.length}건 완료</div>
               </div>
-              <div style={{ width: 32, height: 32, borderRadius: "50%", background: `linear-gradient(135deg,${avColor(currentUser || "")},${avColor2(currentUser || "")})`, fontSize: 14, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, flexShrink: 0 }}>
+              <div style={{ width: 32, height: 32, borderRadius: "50%", background: memberColors[currentUser || ""] || `linear-gradient(135deg,${avColor(currentUser || "")},${avColor2(currentUser || "")})`, fontSize: 14, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, flexShrink: 0 }}>
                 {(currentUser || "?").slice(-1)}
               </div>
             </div>
@@ -1260,21 +1384,38 @@ export function CalendarView(props: CalendarViewProps) {
             {/* 완료 애니메이션 중인 항목 */}
             {animating.map((t: any) => <SidebarTodoItem key={t.id + "_sb"} t={t} />)}
 
-            {/* 날짜 없음 섹션 */}
-            {secNoDate.length > 0 && <SecHdr label="날짜 없음" count={secNoDate.length} open={secNodateOpen} onToggle={() => setSecNodateOpen(v => !v)} />}
-            {secNodateOpen && secNoDate.map((t: any) => <SidebarTodoItem key={t.id + "_sb"} t={t} />)}
-
-            {/* 오늘 섹션 */}
-            {secToday.length > 0 && <SecHdr label="오늘" count={secToday.length} open={secTodayOpen} onToggle={() => setSecTodayOpen(v => !v)} />}
-            {secTodayOpen && secToday.map((t: any) => <SidebarTodoItem key={t.id + "_sb"} t={t} />)}
-
-            {/* 이번 주 섹션 */}
-            {secWeek.length > 0 && <SecHdr label="이번 주" count={secWeek.length} open={secWeekOpen} onToggle={() => setSecWeekOpen(v => !v)} />}
-            {secWeekOpen && secWeek.map((t: any) => <SidebarTodoItem key={t.id + "_sb"} t={t} />)}
-
-            {/* 나중에 섹션 */}
-            {secLater.length > 0 && <SecHdr label="나중에" count={secLater.length} open={secLaterOpen} onToggle={() => setSecLaterOpen(v => !v)} />}
-            {secLaterOpen && secLater.map((t: any) => <SidebarTodoItem key={t.id + "_sb"} t={t} />)}
+            {/* 섹션별 드롭 영역 — 헤더뿐 아니라 영역 전체에 드롭 가능 */}
+            {([
+              { label: "오늘", items: secToday, open: secTodayOpen, toggle: () => setSecTodayOpen(v => !v), dropDate: todayStr },
+              { label: "내일", items: secTmr, open: secTmrOpen, toggle: () => setSecTmrOpen(v => !v), dropDate: tmrStr },
+              { label: "이번 주", items: secWeek, open: secWeekOpen, toggle: () => setSecWeekOpen(v => !v), dropDate: weekEndD },
+              { label: "나중에", items: secLater, open: secLaterOpen, toggle: () => setSecLaterOpen(v => !v), dropDate: qDays(14) },
+              { label: "날짜 없음", items: secNoDate, open: secNodateOpen, toggle: () => setSecNodateOpen(v => !v), dropDate: "" },
+            ] as const).map(sec => (
+              <div key={sec.label}
+                onDragOver={e => {
+                  if (_sidebarDragRefId !== null) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }
+                }}
+                onDrop={e => {
+                  e.preventDefault();
+                  const fromId = _sidebarDragRefId;
+                  if (fromId === null) return;
+                  const todo = todos.find(x => x.id === fromId);
+                  if (todo) {
+                    updTodo(fromId, { due: sec.dropDate });
+                    flash(sec.dropDate ? `'${todo.task}' → ${sec.label}로 이동` : `'${todo.task}' 날짜 제거됨`);
+                  }
+                  _sidebarDragRefId = null;
+                  document.body.style.cursor = "";
+                }}
+              >
+                <SecHdr label={sec.label} count={sec.items.length} open={sec.open} onToggle={sec.toggle} dropDate={sec.dropDate} />
+                {sec.open && sec.items.map((t: any) => <SidebarTodoItem key={t.id + "_sb"} t={t} />)}
+              </div>
+            ))}
 
             {/* 빈 상태 */}
             {active.length === 0 && animating.length === 0 && (

@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { PROJ_PALETTE } from "../../constants";
 import { Filters } from "../../types";
 import { Project } from "../../types";
+import { topProjects, childProjects, getChildIds } from "../../utils";
 import { FolderIcon, UserIcon, BoltIcon, CheckCircleIcon, MagnifyingGlassIcon, EyeIcon, EyeSlashIcon, StarIcon, StarOutlineIcon, XMarkIcon, ChevronDownIcon, ChevronUpIcon, ChevronRightIcon, ChevronLeftIcon, ChevronDoubleLeftIcon, ChevronDoubleRightIcon, AdjustmentsHorizontalIcon, ICON_SM } from "../ui/Icons";
 
 interface SidebarProps {
@@ -85,11 +86,11 @@ export function Sidebar({
     filters.proj.length + filters.who.length + filters.pri.length +
     filters.st.length + filters.repeat.length + (filters.fav ? 1 : 0) + (search ? 1 : 0);
 
-  const W_BASE = 196;
-  // sidebarMin 시 32px 띠로 축소, 아닐 때 expanded 여부로 196/300px 결정
-  const W = sidebarMin ? 32 : (expanded ? 300 : W_BASE);
+  const W_BASE = 300;
+  // sidebarMin 시 32px 띠로 축소, 아닐 때 expanded 여부로 300/400px 결정
+  const W = sidebarMin ? 32 : (expanded ? 400 : W_BASE);
   // 확장 시 왼쪽으로 커지도록 음수 마진 적용 — 최소화 시에는 마진 0
-  const mLeft = sidebarMin ? 0 : (expanded ? -(300 - W_BASE) : 0);
+  const mLeft = sidebarMin ? 0 : (expanded ? -(400 - W_BASE) : 0);
 
   const gridStyle = {} as const;
 
@@ -126,10 +127,22 @@ export function Sidebar({
   const visibleMembers = allMembers.filter(m => !hiddenMembers.includes(m));
   const hiddenMemberList = allMembers.filter(m => hiddenMembers.includes(m));
 
-  const sections: [React.ReactNode, string, string, { v: string; l: string; c?: string; n: number }[], boolean][] = [
-    [<FolderIcon style={ICON_SM} />, "프로젝트", "proj",
-      visibleAProj.map(p => ({ v: String(p.id), l: p.name, c: p.color, n: todos.filter(t => t.pid === p.id && t.st !== "완료").length })),
-      true],
+  // 프로젝트를 트리형으로 구성 — 상위 프로젝트 아래에 세부 프로젝트 표시
+  const projItems: { v: string; l: string; c?: string; n: number; indent?: boolean; childIds?: number[] }[] = [];
+  topProjects(visibleAProj).forEach(p => {
+    const children = childProjects(visibleAProj, p.id);
+    // 상위 프로젝트: 자신 + 하위 업무 수 합산
+    const allIds = getChildIds(visibleAProj, p.id);
+    const totalN = todos.filter(t => allIds.includes(t.pid) && t.st !== "완료").length;
+    projItems.push({ v: String(p.id), l: p.name, c: p.color, n: totalN, childIds: allIds });
+    // 하위 프로젝트: 들여쓰기 표시
+    children.forEach(ch => {
+      projItems.push({ v: String(ch.id), l: ch.name, c: ch.color, n: todos.filter(t => t.pid === ch.id && t.st !== "완료").length, indent: true });
+    });
+  });
+
+  const sections: [React.ReactNode, string, string, { v: string; l: string; c?: string; n: number; indent?: boolean; childIds?: number[] }[], boolean][] = [
+    [<FolderIcon style={ICON_SM} />, "프로젝트", "proj", projItems, true],
     [<UserIcon style={ICON_SM} />, "담당자", "who",
       visibleMembers.map(n => ({ v: n, l: n, n: todos.filter((t: any) => t.who === n && t.st !== "완료").length })),
       true],
@@ -424,17 +437,41 @@ export function Sidebar({
                   {/* 개별 항목 */}
                   {sortedItems.map(it => {
                     const isItemFav = (favSidebar[key] || []).includes(it.v);
-                    const sel = selVals.includes(it.v);
+                    // 상위 프로젝트: 자신 또는 하위 중 하나라도 선택되어 있으면 활성 표시
+                    const sel = (it as any).childIds
+                      ? (it as any).childIds.some((cid: number) => selVals.includes(String(cid)))
+                      : selVals.includes(it.v);
                     const hk = `${key}_${it.v}`;
                     const isHovered = hoverKey === hk;
+                    // 상위 클릭 시 하위 전체 토글
+                    const handleClick = () => {
+                      if ((it as any).childIds && key === "proj") {
+                        // 상위 프로젝트 클릭: 하위 전체 ID를 필터에 토글
+                        const ids = (it as any).childIds as number[];
+                        ids.forEach(cid => {
+                          const sv = String(cid);
+                          // 현재 상태가 전부 선택이면 전부 해제, 아니면 전부 선택
+                          if (sel) togF(key, sv); // 해제
+                          else if (!selVals.includes(sv)) togF(key, sv); // 선택
+                        });
+                      } else {
+                        togF(key, it.v);
+                      }
+                    };
                     return (
                       <div
                         key={it.v}
-                        onClick={() => togF(key, it.v)}
+                        onClick={handleClick}
                         onMouseEnter={() => setHoverKey(hk)}
                         onMouseLeave={() => setHoverKey(null)}
                         title={it.l}
-                        style={itemStyle(sel, hk)}
+                        style={{
+                          ...itemStyle(sel, hk),
+                          // 세부 프로젝트 들여쓰기
+                          ...((it as any).indent ? { paddingLeft: 32, fontSize: 11 } : {}),
+                          // 상위 프로젝트 볼드
+                          ...((it as any).childIds && key === "proj" ? { fontWeight: 600 } : {}),
+                        }}
                       >
                         <button
                           onClick={e => { e.stopPropagation(); togFavSidebar(key, it.v); }}

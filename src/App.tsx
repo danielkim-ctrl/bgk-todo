@@ -195,6 +195,7 @@ export default function App() {
   const [sidebarDoneOpen, setSidebarDoneOpen] = useState(false); // 완료됨 섹션 열림
   const [secNodateOpen, setSecNodateOpen] = useState(true); // 날짜 없음 섹션
   const [secTodayOpen, setSecTodayOpen] = useState(true);   // 오늘 섹션
+  const [secTmrOpen, setSecTmrOpen] = useState(true);       // 내일 섹션
   const [secWeekOpen, setSecWeekOpen] = useState(true);     // 이번 주 섹션
   const [secLaterOpen, setSecLaterOpen] = useState(true);   // 나중에 섹션
   // 사이드바 순서 — userSettings 기반 (Firestore 동기화)
@@ -238,10 +239,13 @@ export default function App() {
     });
   };
   // 팀 필터 적용: 선택된 팀 프로젝트 / 전체 보기 시 소속 팀 전체 프로젝트
+  // 세부 프로젝트는 상위가 팀에 연결되어 있으면 같은 팀 소속으로 간주
+  const isInTeamProjects = (p: any, teamProjIds: number[]) =>
+    teamProjIds.includes(p.id) || (p.parentId && teamProjIds.includes(p.parentId));
   const teamProj = selectedTeamId
-    ? aProj.filter(p => teams.some(t => t.id === selectedTeamId && t.projectIds.includes(p.id)))
+    ? aProj.filter(p => teams.some(t => t.id === selectedTeamId && isInTeamProjects(p, t.projectIds)))
     : canViewOtherTeams ? aProj
-    : aProj.filter(p => teams.some(t => myTeamIds.includes(t.id) && t.projectIds.includes(p.id)));
+    : aProj.filter(p => teams.some(t => myTeamIds.includes(t.id) && isInTeamProjects(p, t.projectIds)));
   const visibleProj = teamProj.filter(p => !hiddenProjects.includes(p.id));
   // 숨겨진 담당자 — userSettings 기반 (Firestore 동기화)
   const hiddenMembers: string[] = currentUser ? (userSettings[currentUser]?.hiddenMembers ?? []) : [];
@@ -309,6 +313,8 @@ export default function App() {
   const openEvPop = (e: React.MouseEvent, t: any) => {
     e.stopPropagation();
     justOpenedPopup.current = true;
+    // stopPropagation으로 window click이 발동하지 않아 리셋되지 않는 문제 방지
+    setTimeout(() => { justOpenedPopup.current = false; }, 0);
     const zoom = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     // 팝업이 화면 밖으로 넘어가지 않도록 좌표를 뷰포트 범위 내로 보정 (zoom 반영)
@@ -323,7 +329,8 @@ export default function App() {
   // 클릭한 날짜 셀 위에 팝업 배치 (zoom 보정 포함)
   const openQA = (e: React.MouseEvent, ds: string, h: number) => {
     e.stopPropagation();
-    justOpenedPopup.current = true; // window click 핸들러가 즉시 닫지 못하게 차단
+    justOpenedPopup.current = true;
+    setTimeout(() => { justOpenedPopup.current = false; }, 0);
     const zoom = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
     // e.currentTarget보다 안정적인 e.target에서 셀 영역을 찾음
     const target = e.target as HTMLElement;
@@ -572,10 +579,10 @@ export default function App() {
         calNav={calNav} calTitle={calTitle} calDays={calDays}
         todayStr={todayStr} customDays={customDays} setCustomDays={setCustomDays}
         weekDates={weekDates} customDates={customDates} agendaItems={agendaItems}
-        ftodosExpanded={ftodosExpanded} evStyle={evStyle}
+        ftodosExpanded={ftodosExpanded.filter((t: any) => t.st !== "완료")} evStyle={evStyle}
         calF={calF} setCalF={setCalF} calFWho={calFWho} setCalFWho={setCalFWho}
         visibleProj={visibleProj} members={teamMembers} visibleMembers={visibleMembers}
-        gPr={gPr} pris={pris} priC={priC} priBg={priBg} stC={stC} stBg={stBg}
+        gPr={gPr} pris={pris} priC={priC} priBg={priBg} stC={stC} stBg={stBg} memberColors={memberColors}
         todos={todos} updTodo={updTodo} addTodo={addTodo} delTodo={delTodo}
         flash={flash} setEditMod={setEditMod} currentUser={currentUser}
         calEvPop={calEvPop} setCalEvPop={setCalEvPop}
@@ -609,6 +616,7 @@ export default function App() {
         sidebarDoneOpen={sidebarDoneOpen} setSidebarDoneOpen={setSidebarDoneOpen}
         secNodateOpen={secNodateOpen} setSecNodateOpen={setSecNodateOpen}
         secTodayOpen={secTodayOpen} setSecTodayOpen={setSecTodayOpen}
+        secTmrOpen={secTmrOpen} setSecTmrOpen={setSecTmrOpen}
         secWeekOpen={secWeekOpen} setSecWeekOpen={setSecWeekOpen}
         secLaterOpen={secLaterOpen} setSecLaterOpen={setSecLaterOpen}
         starredIds={starredIds} toggleStar={toggleStar}
@@ -662,7 +670,25 @@ export default function App() {
           </button>
         )}
         <div style={{width:1,height:18,background:"#334155",margin:"0 4px",flexShrink:0}}/>
-        {pb("proj",<FolderIcon style={ICON_SM}/>,"프로젝트",<div style={ps}>{ph("이동할 프로젝트 선택")}{visibleProj.map(p=>pi(p.name,()=>{setTodos((prev:any)=>prev.map((t:any)=>selectedIds.has(t.id)?{...t,pid:p.id}:t));flash(`${selectedIds.size}건이 "${p.name}"으로 이동`);closeAll();clrSel();},<span style={{width:10,height:10,borderRadius:"50%",background:p.color,flexShrink:0,display:"inline-block"}}/>))}</div>)}
+        {pb("proj",<FolderIcon style={ICON_SM}/>,"프로젝트",<div style={ps}>{ph("이동할 프로젝트 선택")}{
+          /* 트리형 프로젝트 목록 — 상위 아래에 세부 들여쓰기 */
+          visibleProj.filter(p=>!p.parentId).flatMap(p=>{
+            const moveTo=(pid:number,name:string)=>{setTodos((prev:any)=>prev.map((t:any)=>selectedIds.has(t.id)?{...t,pid}:t));flash(`${selectedIds.size}건이 "${name}"으로 이동`);closeAll();clrSel();};
+            const children=visibleProj.filter(ch=>ch.parentId===p.id);
+            return [
+              pi(p.name,()=>moveTo(p.id,p.name),<span style={{width:10,height:10,borderRadius:"50%",background:p.color,flexShrink:0,display:"inline-block"}}/>),
+              ...children.map(ch=>
+                <button key={`sub_${ch.id}`} onClick={()=>moveTo(ch.id,`${p.name} › ${ch.name}`)} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"7px 12px 7px 32px",background:"none",border:"none",cursor:"pointer",fontSize:11,color:"#475569",textAlign:"left" as const}}
+                  onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.background="#f8fafc";}}
+                  onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.background="none";}}>
+                  <span style={{color:"#cbd5e1",fontSize:10,marginRight:-2}}>└</span>
+                  <span style={{width:8,height:8,borderRadius:"50%",background:ch.color,flexShrink:0,display:"inline-block"}}/>
+                  {ch.name}
+                </button>
+              )
+            ];
+          })
+        }</div>)}
         {pb("who",<UserIcon style={ICON_SM}/>,"담당자",<div style={ps}>{ph("담당자 선택")}{visibleMembers.map(m=>pi(m,()=>{setTodos((prev:any)=>prev.map((t:any)=>selectedIds.has(t.id)?{...t,who:m}:t));flash(`${selectedIds.size}건 담당자 → "${m}"`);closeAll();clrSel();}))}</div>)}
         {pb("pri",<BoltIcon style={ICON_SM}/>,"우선순위",<div style={ps}>{ph("우선순위 선택")}{pris.map(v=>pi(v,()=>{setTodos((prev:any)=>prev.map((t:any)=>selectedIds.has(t.id)?{...t,pri:v}:t));flash(`${selectedIds.size}건 우선순위 → "${v}"`);closeAll();clrSel();}))}</div>)}
         {pb("st",<CheckCircleIcon style={ICON_SM}/>,"상태",<div style={ps}>{ph("상태 선택")}{stats.map(v=>pi(v,()=>{setTodos((prev:any)=>prev.map((t:any)=>selectedIds.has(t.id)?{...t,st:v,done:v==="완료"?todayStr:null}:t));flash(`${selectedIds.size}건 상태 → "${v}"`);closeAll();clrSel();}))}</div>)}
