@@ -509,6 +509,7 @@ export default function App() {
         projects={projects}
         hiddenProjects={hiddenProjects} toggleHideProject={toggleHideProject}
         hiddenMembers={hiddenMembers} toggleHideMember={toggleHideMember}
+        teams={teams} selectedTeamId={selectedTeamId}
       />
     )}
 
@@ -570,7 +571,7 @@ export default function App() {
         isMobile={isMobile}
         onFilterOpen={() => setFilterBSOpen(true)}
         templates={templates} addTemplate={addTemplate} updTemplate={updTemplate} delTemplate={delTemplate} applyTemplate={applyTemplate} confirmTplItems={confirmTplItems}
-        selectedTeamId={selectedTeamId} tplFavs={tplFavs} setTplFavs={setTplFavs}
+        selectedTeamId={selectedTeamId} teams={teams} tplFavs={tplFavs} setTplFavs={setTplFavs}
       />}
 
       {view==="calendar"&&<CalendarView

@@ -5,7 +5,7 @@ import { fD, stripHtml } from "../../utils";
 import { NewRow, DatePopState, TodoTemplate, TemplateItem } from "../../types";
 import { Project } from "../../types";
 import { SectionLabel } from "../ui/SectionLabel";
-import { FolderIcon, UserIcon, BoltIcon, ArrowPathIcon, CalendarIcon, PaperClipIcon, DocumentIcon, DocumentTextIcon, SparklesIcon, CheckIcon, XMarkIcon, ChevronUpIcon, ChevronDownIcon, PlusIcon, RectangleStackIcon, TrashIcon, StarIcon, StarOutlineIcon, ICON_SM } from "../ui/Icons";
+import { FolderIcon, UserIcon, BoltIcon, ArrowPathIcon, CalendarIcon, PaperClipIcon, DocumentIcon, DocumentTextIcon, SparklesIcon, CheckIcon, XMarkIcon, ChevronUpIcon, ChevronDownIcon, PlusIcon, RectangleStackIcon, TrashIcon, PencilSquareIcon, StarIcon, StarOutlineIcon, ICON_SM } from "../ui/Icons";
 import { RepeatPicker } from "../ui/RepeatPicker";
 
 type AiFile = { name: string; type: string; data: string; textContent?: string };
@@ -115,6 +115,7 @@ export function AddTodoSection({
   const [tplCategory, setTplCategory] = useState<string>(""); // 카테고리 필터
   const [tplPreview, setTplPreview] = useState<string|null>(null); // 미리보기 중인 템플릿 ID
   const [tplCreating, setTplCreating] = useState(false); // 새 템플릿 생성 폼 열림
+  const [tplEditId, setTplEditId] = useState<string|null>(null); // 수정 중인 템플릿 ID
   const [tplNewName, setTplNewName] = useState("");
   const [tplNewCategory, setTplNewCategory] = useState(""); // 새 템플릿 카테고리
   const [tplBulkOpen, setTplBulkOpen] = useState<string|null>(null); // 템플릿 일괄배정 드롭다운
@@ -268,6 +269,31 @@ export function AddTodoSection({
       category:tplNewCategory||undefined,
     });
     setTplCreating(false);setTplNewName("");setTplNewCategory("");setTplNewItems([{task:"",pri:"보통",offsetDays:0}]);
+  };
+
+  // 템플릿 수정 시작 — 기존 데이터를 폼에 로드
+  const handleEditTpl = (id: string) => {
+    const tpl = templates.find(t => t.id === id);
+    if (!tpl) return;
+    setTplEditId(id);
+    setTplNewName(tpl.name);
+    setTplNewCategory(tpl.category || "");
+    setTplNewItems(tpl.items.map(it => ({ task: it.task, pri: it.pri || "보통", offsetDays: it.offsetDays ?? 0, det: it.det || "", repeat: it.repeat })));
+    setTplCreating(true);
+  };
+
+  // 템플릿 수정 저장
+  const handleUpdateTpl = () => {
+    if (!tplEditId) return;
+    if (!tplNewName.trim()) { alert("템플릿 이름을 입력해주세요."); return; }
+    const validItems = tplNewItems.filter(it => it.task.trim());
+    if (!validItems.length) { alert("업무 항목을 1개 이상 입력해주세요."); return; }
+    updTemplate?.(tplEditId, {
+      name: tplNewName.trim(),
+      items: validItems.map(it => ({ task: it.task.trim(), pri: it.pri || "보통", offsetDays: it.offsetDays ?? 0, det: it.det || "", repeat: it.repeat && it.repeat !== "없음" ? it.repeat : undefined })),
+      category: tplNewCategory || undefined,
+    });
+    setTplCreating(false); setTplEditId(null); setTplNewName(""); setTplNewCategory(""); setTplNewItems([{ task: "", pri: "보통", offsetDays: 0 }]);
   };
 
   // 템플릿 적용 — items를 편집 가능한 상태로 로드 (AI 결과 미리보기와 동일 패턴)
@@ -884,6 +910,12 @@ export function AddTodoSection({
               <button onClick={e=>{e.stopPropagation();handleApplyTpl(tpl.id);}} style={{background:"#ecfeff",border:"1px solid #a5f3fc",borderRadius:6,padding:"4px 10px",fontSize:11,fontWeight:600,color:"#0891b2",cursor:"pointer",fontFamily:"inherit",flexShrink:0,display:"inline-flex",alignItems:"center",gap:3}}>
                 적용
               </button>
+              {/* 수정 */}
+              <button onClick={e=>{e.stopPropagation();handleEditTpl(tpl.id);}} style={{background:"none",border:"none",color:"#cbd5e1",cursor:"pointer",padding:4,flexShrink:0,transition:"color .12s",display:"inline-flex"}}
+                onMouseEnter={e=>(e.currentTarget as HTMLElement).style.color="#0891b2"}
+                onMouseLeave={e=>(e.currentTarget as HTMLElement).style.color="#cbd5e1"}>
+                <PencilSquareIcon style={{width:14,height:14}}/>
+              </button>
               {/* 삭제 */}
               <button onClick={e=>{e.stopPropagation();if(confirm(`"${tpl.name}" 템플릿을 삭제하시겠습니까?`))delTemplate?.(tpl.id);}} style={{background:"none",border:"none",color:"#cbd5e1",cursor:"pointer",padding:4,flexShrink:0,transition:"color .12s",display:"inline-flex"}}
                 onMouseEnter={e=>(e.currentTarget as HTMLElement).style.color="#dc2626"}
@@ -979,9 +1011,9 @@ export function AddTodoSection({
             </button>
           </div>
           <div style={{padding:"8px 14px",borderTop:"1px solid #e2e8f0",display:"flex",gap:6,justifyContent:"flex-end"}}>
-            <button onClick={()=>{setTplCreating(false);setTplNewName("");setTplNewItems([{task:"",pri:"보통",offsetDays:0}]);}} style={{...S.bs,fontSize:11}}>취소</button>
-            <button onClick={handleSaveTpl} style={{background:"linear-gradient(135deg,#0891b2,#0e7490)",color:"#fff",border:"none",padding:"6px 16px",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
-              <CheckIcon style={{width:12,height:12,display:"inline",verticalAlign:"middle",marginRight:3}}/> 저장
+            <button onClick={()=>{setTplCreating(false);setTplEditId(null);setTplNewName("");setTplNewCategory("");setTplNewItems([{task:"",pri:"보통",offsetDays:0}]);}} style={{...S.bs,fontSize:11}}>취소</button>
+            <button onClick={tplEditId ? handleUpdateTpl : handleSaveTpl} style={{background:"linear-gradient(135deg,#0891b2,#0e7490)",color:"#fff",border:"none",padding:"6px 16px",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+              <CheckIcon style={{width:12,height:12,display:"inline",verticalAlign:"middle",marginRight:3}}/> {tplEditId ? "수정 저장" : "저장"}
             </button>
           </div>
         </div>}

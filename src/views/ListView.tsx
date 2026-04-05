@@ -217,6 +217,7 @@ interface ListViewProps {
   applyTemplate?: (id: string, baseDate: string, defaultWho: string) => void;
   confirmTplItems?: (items: Record<string, unknown>[]) => void;
   selectedTeamId?: string | null;
+  teams?: any[];
   tplFavs?: string[];
   setTplFavs?: (fn: (prev: string[]) => string[]) => void;
 }
@@ -244,7 +245,7 @@ export function ListView(props: ListViewProps) {
     savedFilters, saveCurrentFilter, deleteSavedFilter,
     isMobile, onFilterOpen,
     templates, addTemplate, updTemplate, delTemplate, applyTemplate, confirmTplItems,
-    selectedTeamId, tplFavs, setTplFavs,
+    selectedTeamId, teams, tplFavs, setTplFavs,
   } = props;
 
   const { can, canEdit: permCanEdit, canDelete } = usePermission();
@@ -472,7 +473,7 @@ export function ListView(props: ListViewProps) {
           projItems.push({value:String(ch.id),label:ch.name,color:ch.color,indent:true});
         });
       });
-      return <td style={S.tdc}>{children}<DropPanel anchorRect={ar} items={projItems} current={String(todo.pid)} onSelect={v => save(v)} onClose={stop} renderItem={it => <div style={{display:"flex",alignItems:"center",gap:5,...(it.indent?{paddingLeft:14,fontSize:11}:{})}}>{it.indent&&<span style={{color:"#cbd5e1",fontSize:9}}>└</span>}<span style={S.dot(it.color!)}/>{it.label}</div>}/></td>;
+      return <td style={S.tdc}>{children}<DropPanel anchorRect={ar} items={projItems} current={String(todo.pid)} onSelect={v => save(v)} onClose={stop} renderItem={it => <div style={{display:"flex",alignItems:"center",gap:5,...(it.indent?{paddingLeft:20,fontSize:11}:{})}}>{it.indent&&<span style={{color:"#cbd5e1",fontSize:10,marginRight:-2}}>└</span>}<span style={S.dot(it.color!)}/>{it.label}</div>}/></td>;
     }
     if (field === "who") return <td style={S.tdc}>{children}<DropPanel anchorRect={ar} items={visibleMembers.map(m => ({value: m, label: m}))} current={todo.who} onSelect={v => save(v)} onClose={stop} renderItem={it => <><span style={{width:20,height:20,borderRadius:"50%",background:memberColors[it.label]||`linear-gradient(135deg,${avColor(it.label)},${avColor2(it.label)})`,color:"#fff",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:8,fontWeight:700,flexShrink:0}}>{avInitials(it.label)}</span>{it.label}</>}/></td>;
     if (field === "pri") return <td style={S.tdc}>{children}<DropPanel anchorRect={ar} items={pris.map(p => ({value: p, label: p, color: priC[p]}))} current={todo.pri} onSelect={v => save(v)} onClose={stop} renderItem={it => <><span style={{...S.dot(it.color!), width:8, height:8}}/>{it.label}</>}/></td>;
@@ -533,6 +534,7 @@ export function ListView(props: ListViewProps) {
       setChipColor={setChipColor} projects={projects}
       hiddenProjects={hiddenProjects} toggleHideProject={toggleHideProject}
       hiddenMembers={hiddenMembers} toggleHideMember={toggleHideMember}
+      teams={teams || []} selectedTeamId={selectedTeamId || null}
     />
 
     <div style={{flex:1,minWidth:0}}>

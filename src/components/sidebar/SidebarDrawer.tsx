@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Sidebar } from "./Sidebar";
-import { Filters, Project } from "../../types";
+import { Filters, Project, Team } from "../../types";
 import { XMarkIcon, ICON_SM } from "../ui/Icons";
 
 // ── SidebarDrawer ─────────────────────────────────────────────────────────────
@@ -36,6 +36,8 @@ interface SidebarDrawerProps {
   toggleHideProject: (id: number) => void;
   hiddenMembers: string[];
   toggleHideMember: (name: string) => void;
+  teams: Team[];
+  selectedTeamId: string | null;
 }
 
 export function SidebarDrawer({ open, onClose, ...sidebarProps }: SidebarDrawerProps) {

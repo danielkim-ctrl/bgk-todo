@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { createPortal } from "react-dom";
 import { PROJ_PALETTE } from "../../constants";
-import { Filters } from "../../types";
+import { Filters, Team } from "../../types";
 import { Project } from "../../types";
 import { topProjects, childProjects, getChildIds } from "../../utils";
 import { FolderIcon, UserIcon, BoltIcon, CheckCircleIcon, MagnifyingGlassIcon, EyeIcon, EyeSlashIcon, StarIcon, StarOutlineIcon, XMarkIcon, ChevronDownIcon, ChevronUpIcon, ChevronRightIcon, ChevronLeftIcon, ChevronDoubleLeftIcon, ChevronDoubleRightIcon, AdjustmentsHorizontalIcon, ICON_SM } from "../ui/Icons";
@@ -30,6 +30,8 @@ interface SidebarProps {
   toggleHideProject: (id: number) => void;
   hiddenMembers: string[];
   toggleHideMember: (name: string) => void;
+  teams: Team[];
+  selectedTeamId: string | null;
 }
 
 export function Sidebar({
@@ -39,6 +41,7 @@ export function Sidebar({
   setChipAdd, setChipVal, setChipColor, projects,
   hiddenProjects, toggleHideProject,
   hiddenMembers, toggleHideMember,
+  teams, selectedTeamId,
 }: SidebarProps) {
   const [expanded, setExpanded] = useState(false);
   // 사이드바 완전 접기 — true 시 32px 띠로 축소, 펼치기 버튼만 표시
@@ -127,25 +130,100 @@ export function Sidebar({
   const visibleMembers = allMembers.filter(m => !hiddenMembers.includes(m));
   const hiddenMemberList = allMembers.filter(m => hiddenMembers.includes(m));
 
-  // 프로젝트를 트리형으로 구성 — 상위 프로젝트 아래에 세부 프로젝트 표시
-  const projItems: { v: string; l: string; c?: string; n: number; indent?: boolean; childIds?: number[] }[] = [];
-  topProjects(visibleAProj).forEach(p => {
+  // 팀별 그룹 인덱스 사용 여부 — 전체보기(selectedTeamId=null) + 팀 2개 이상일 때만
+  const useTeamGroup = !selectedTeamId && teams.length >= 2;
+  // 팀별 접기/펼치기 상태
+  const [teamCollapsed, setTeamCollapsed] = useState<Record<string, boolean>>({});
+  const toggleTeamCollapse = (teamId: string) => setTeamCollapsed(prev => ({ ...prev, [teamId]: !prev[teamId] }));
+
+  // 프로젝트를 트리형으로 구성 — 팀별 그룹 인덱스 포함
+  type ProjItem = { v: string; l: string; c?: string; n: number; indent?: boolean; childIds?: number[]; teamHeader?: { id: string; name: string; color: string; total: number; collapsed: boolean } };
+  const projItems: ProjItem[] = [];
+
+  // 프로젝트를 팀별로 그룹핑하는 헬퍼
+  const addProjTree = (p: any) => {
     const children = childProjects(visibleAProj, p.id);
-    // 상위 프로젝트: 자신 + 하위 업무 수 합산
     const allIds = getChildIds(visibleAProj, p.id);
     const totalN = todos.filter(t => allIds.includes(t.pid) && t.st !== "완료").length;
     projItems.push({ v: String(p.id), l: p.name, c: p.color, n: totalN, childIds: allIds });
-    // 하위 프로젝트: 들여쓰기 표시
     children.forEach(ch => {
       projItems.push({ v: String(ch.id), l: ch.name, c: ch.color, n: todos.filter(t => t.pid === ch.id && t.st !== "완료").length, indent: true });
     });
-  });
+  };
 
-  const sections: [React.ReactNode, string, string, { v: string; l: string; c?: string; n: number; indent?: boolean; childIds?: number[] }[], boolean][] = [
+  if (useTeamGroup) {
+    // 각 팀별로 소속 프로젝트 그룹핑
+    const assignedProjIds = new Set<number>();
+    teams.forEach(team => {
+      // 이 팀 소속 프로젝트 (상위만, 세부는 상위에 따라감)
+      const teamTopProjs = topProjects(visibleAProj).filter(p => team.projectIds.includes(p.id));
+      if (teamTopProjs.length === 0) return;
+      // 팀 소속 전체 업무 수
+      const teamProjIds = teamTopProjs.flatMap(p => getChildIds(visibleAProj, p.id));
+      const teamTotal = todos.filter(t => teamProjIds.includes(t.pid) && t.st !== "완료").length;
+      const collapsed = !!teamCollapsed[team.id];
+      // 팀 그룹 헤더
+      projItems.push({ v: `__team_${team.id}`, l: team.name, c: team.color, n: teamTotal, teamHeader: { id: team.id, name: team.name, color: team.color, total: teamTotal, collapsed } });
+      // 접혀있지 않으면 프로젝트 표시
+      if (!collapsed) {
+        teamTopProjs.forEach(p => { addProjTree(p); assignedProjIds.add(p.id); });
+      } else {
+        teamTopProjs.forEach(p => assignedProjIds.add(p.id));
+      }
+    });
+    // 팀에 미배정된 프로젝트
+    const unassigned = topProjects(visibleAProj).filter(p => !assignedProjIds.has(p.id));
+    if (unassigned.length > 0) {
+      const uIds = unassigned.flatMap(p => getChildIds(visibleAProj, p.id));
+      const uTotal = todos.filter(t => uIds.includes(t.pid) && t.st !== "완료").length;
+      projItems.push({ v: "__team_unassigned", l: "미배정", c: "#94a3b8", n: uTotal, teamHeader: { id: "__unassigned", name: "미배정", color: "#94a3b8", total: uTotal, collapsed: !!teamCollapsed["__unassigned"] } });
+      if (!teamCollapsed["__unassigned"]) {
+        unassigned.forEach(p => addProjTree(p));
+      }
+    }
+  } else {
+    // 팀 그룹 없이 flat 트리
+    topProjects(visibleAProj).forEach(p => addProjTree(p));
+  }
+
+  // 담당자도 팀별 그룹핑
+  type WhoItem = { v: string; l: string; n: number; c?: string; teamHeader?: { id: string; name: string; color: string; total: number; collapsed: boolean } };
+  const whoItems: WhoItem[] = [];
+  if (useTeamGroup) {
+    const assignedMembers = new Set<string>();
+    teams.forEach(team => {
+      const teamMembers = visibleMembers.filter(m => team.members.some(tm => tm.name === m));
+      if (teamMembers.length === 0) return;
+      const collapsed = !!teamCollapsed[`who_${team.id}`];
+      whoItems.push({ v: `__team_who_${team.id}`, l: team.name, n: teamMembers.length, c: team.color, teamHeader: { id: `who_${team.id}`, name: team.name, color: team.color, total: teamMembers.length, collapsed } });
+      if (!collapsed) {
+        teamMembers.forEach(m => {
+          whoItems.push({ v: m, l: m, n: todos.filter((t: any) => t.who === m && t.st !== "완료").length });
+          assignedMembers.add(m);
+        });
+      } else {
+        teamMembers.forEach(m => assignedMembers.add(m));
+      }
+    });
+    const unassignedMembers = visibleMembers.filter(m => !assignedMembers.has(m));
+    if (unassignedMembers.length > 0) {
+      const collapsed = !!teamCollapsed["who___unassigned"];
+      whoItems.push({ v: "__team_who_unassigned", l: "미배정", n: unassignedMembers.length, c: "#94a3b8", teamHeader: { id: "who___unassigned", name: "미배정", color: "#94a3b8", total: unassignedMembers.length, collapsed } });
+      if (!collapsed) {
+        unassignedMembers.forEach(m => {
+          whoItems.push({ v: m, l: m, n: todos.filter((t: any) => t.who === m && t.st !== "완료").length });
+        });
+      }
+    }
+  } else {
+    visibleMembers.forEach(m => {
+      whoItems.push({ v: m, l: m, n: todos.filter((t: any) => t.who === m && t.st !== "완료").length });
+    });
+  }
+
+  const sections: [React.ReactNode, string, string, ProjItem[], boolean][] = [
     [<FolderIcon style={ICON_SM} />, "프로젝트", "proj", projItems, true],
-    [<UserIcon style={ICON_SM} />, "담당자", "who",
-      visibleMembers.map(n => ({ v: n, l: n, n: todos.filter((t: any) => t.who === n && t.st !== "완료").length })),
-      true],
+    [<UserIcon style={ICON_SM} />, "담당자", "who", whoItems as any, true],
     [<BoltIcon style={ICON_SM} />, "우선순위", "pri",
       pris.map(p => ({ v: p, l: p, c: priC[p], n: todos.filter((t: any) => t.pri === p && t.st !== "완료").length })),
       false],
@@ -436,6 +514,27 @@ export function Sidebar({
 
                   {/* 개별 항목 */}
                   {sortedItems.map(it => {
+                    // 팀 그룹 헤더 렌더링
+                    const th = (it as any).teamHeader;
+                    if (th) {
+                      // 접힌 그룹 안에 활성 필터가 있는지 확인
+                      const hasActiveInGroup = th.collapsed && sortedItems.some((si: any) => !si.teamHeader && selVals.includes(si.v));
+                      return (
+                        <div key={it.v}
+                          onClick={() => toggleTeamCollapse(th.id)}
+                          style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px 3px", fontSize: 10, fontWeight: 700, color: "#94a3b8", cursor: "pointer", userSelect: "none", marginTop: 4 }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#64748b"; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#94a3b8"; }}
+                        >
+                          <span style={{ width: 6, height: 6, borderRadius: "50%", background: th.color, flexShrink: 0 }} />
+                          <span>{th.name}</span>
+                          {hasActiveInGroup && <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#2563eb", flexShrink: 0 }} />}
+                          <span style={{ flex: 1, height: 1, background: "#e2e8f0" }} />
+                          <span style={{ fontSize: 9, color: "#cbd5e1", fontWeight: 400 }}>{th.total}건</span>
+                          <span style={{ fontSize: 7, color: "#cbd5e1", transition: "transform .2s", display: "inline-block", transform: th.collapsed ? "none" : "rotate(90deg)" }}>&#9654;</span>
+                        </div>
+                      );
+                    }
                     const isItemFav = (favSidebar[key] || []).includes(it.v);
                     // 상위 프로젝트: 자신 또는 하위 중 하나라도 선택되어 있으면 활성 표시
                     const sel = (it as any).childIds
