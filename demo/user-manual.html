@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>BGK Todo 사용자 매뉴얼</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.min.css"/>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Pretendard',system-ui,sans-serif;background:#f8fafc;color:#1a2332;font-size:14px;line-height:1.7;}
+.wrap{max-width:900px;margin:0 auto;padding:40px 24px 80px;}
+
+/* 표지 */
+.cover{text-align:center;padding:60px 20px 40px;margin-bottom:40px;background:linear-gradient(135deg,#172f5a,#1e3a6e);border-radius:16px;color:#fff;}
+.cover h1{font-size:28px;font-weight:800;margin-bottom:8px;}
+.cover .sub{font-size:14px;opacity:.7;margin-bottom:24px;}
+.cover .ver{font-size:11px;background:rgba(255,255,255,.15);display:inline-block;padding:4px 14px;border-radius:99px;border:1px solid rgba(255,255,255,.2);}
+
+/* 목차 */
+.toc{background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:24px 28px;margin-bottom:32px;box-shadow:0 1px 4px rgba(0,0,0,.06);}
+.toc h2{font-size:16px;font-weight:700;color:#0f172a;margin-bottom:14px;}
+.toc ol{padding-left:20px;}
+.toc li{padding:4px 0;font-size:13px;}
+.toc a{color:#2563eb;text-decoration:none;font-weight:500;}
+.toc a:hover{text-decoration:underline;}
+
+/* 섹션 */
+.section{background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:28px;margin-bottom:24px;box-shadow:0 1px 4px rgba(0,0,0,.06);}
+.section h2{font-size:18px;font-weight:700;color:#0f172a;margin-bottom:6px;display:flex;align-items:center;gap:10px;}
+.section h2 .num{width:28px;height:28px;border-radius:50%;background:#2563eb;color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.section .desc{font-size:13px;color:#64748b;margin-bottom:18px;}
+h3{font-size:15px;font-weight:700;color:#334155;margin:20px 0 10px;}
+h4{font-size:13px;font-weight:700;color:#475569;margin:14px 0 6px;}
+
+/* 스크린샷 */
+.screenshot{border-radius:10px;border:1px solid #e2e8f0;box-shadow:0 2px 12px rgba(0,0,0,.08);max-width:100%;margin:14px 0 18px;display:block;}
+
+/* 팁 박스 */
+.tip{background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 16px;margin:12px 0;font-size:12px;color:#1e40af;line-height:1.6;}
+.tip b{color:#1e3a5f;}
+.warn{background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 16px;margin:12px 0;font-size:12px;color:#92400e;line-height:1.6;}
+
+/* 테이블 */
+.tbl{width:100%;border-collapse:collapse;margin:12px 0;font-size:12px;}
+.tbl th{padding:8px 12px;text-align:left;font-size:11px;font-weight:700;color:#64748b;background:#f8fafc;border:1px solid #e2e8f0;}
+.tbl td{padding:8px 12px;border:1px solid #e2e8f0;color:#334155;}
+
+/* 단축키 표 */
+.kbd{display:inline-block;padding:2px 7px;background:#f1f5f9;border:1px solid #d1d5db;border-radius:4px;font-size:11px;font-weight:600;font-family:'Pretendard',monospace;color:#334155;box-shadow:0 1px 0 #d1d5db;}
+
+/* 스텝 */
+.steps{counter-reset:step;padding-left:0;list-style:none;margin:12px 0;}
+.steps li{counter-increment:step;padding:8px 0 8px 36px;position:relative;font-size:13px;border-bottom:1px solid #f1f5f9;}
+.steps li:last-child{border-bottom:none;}
+.steps li::before{content:counter(step);position:absolute;left:0;top:8px;width:24px;height:24px;border-radius:50%;background:#eff6ff;color:#2563eb;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;border:1px solid #bfdbfe;}
+
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+@media(max-width:768px){.grid-2{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- ══ 표지 ══ -->
+<div class="cover">
+  <h1>BGK Todo 사용자 매뉴얼</h1>
+  <div class="sub">팀 업무 통합관리 시스템 — 처음 사용하는 분을 위한 가이드</div>
+  <div class="ver">v2.0 · 2026년 4월</div>
+</div>
+
+<!-- ══ 목차 ══ -->
+<div class="toc">
+  <h2>목차</h2>
+  <ol>
+    <li><a href="#s1">로그인하기</a></li>
+    <li><a href="#s2">화면 구성 이해하기</a></li>
+    <li><a href="#s3">업무 추가하기</a></li>
+    <li><a href="#s4">업무 관리하기 (수정/완료/삭제)</a></li>
+    <li><a href="#s5">뷰 전환 (리스트 / 캘린더 / 칸반 / 대시보드)</a></li>
+    <li><a href="#s6">필터와 검색</a></li>
+    <li><a href="#s7">프로젝트와 세부 프로젝트</a></li>
+    <li><a href="#s8">팀 관리</a></li>
+    <li><a href="#s9">AI 자동 입력</a></li>
+    <li><a href="#s10">업무 템플릿</a></li>
+    <li><a href="#s11">단축키 모음</a></li>
+    <li><a href="#s12">자주 묻는 질문 (FAQ)</a></li>
+  </ol>
+</div>
+
+<!-- ══════════════════════════════════════════ -->
+<div class="section" id="s1">
+  <h2><span class="num">1</span> 로그인하기</h2>
+  <p class="desc">앱에 접속하면 팀별로 구분된 사용자 목록이 표시됩니다.</p>
+  <img src="manual-screenshots/01-login.png" class="screenshot" alt="로그인 화면"/>
+  <ol class="steps">
+    <li>팀별로 구분된 사용자 목록에서 <b>내 이름</b>을 클릭합니다.</li>
+    <li><b>6자리 PIN 번호</b>를 입력합니다. (PIN을 모르면 팀 관리자에게 문의)</li>
+    <li><b>로그인</b> 버튼을 누르면 완료.</li>
+  </ol>
+  <img src="manual-screenshots/02-pin.png" class="screenshot" alt="PIN 입력 화면" style="max-height:400px;object-fit:contain;"/>
+  <div class="tip"><b>팁:</b> PIN 번호는 설정 > 담당자 탭에서 관리자가 설정합니다. 최초 PIN은 관리자가 알려드립니다.</div>
+</div>
+
+<!-- ══════════════════════════════════════════ -->
+<div class="section" id="s2">
+  <h2><span class="num">2</span> 화면 구성 이해하기</h2>
+  <p class="desc">로그인 후 기본 화면은 <b>리스트 뷰</b>입니다.</p>
+  <img src="manual-screenshots/03-listview.png" class="screenshot" alt="리스트 뷰"/>
+
+  <h3>화면 영역 설명</h3>
+  <table class="tbl">
+    <tr><th style="width:20%">영역</th><th>설명</th></tr>
+    <tr><td><b>상단 헤더</b> (남색)</td><td>로고, 팀 전환, 설정, 단축키, 사용자 정보</td></tr>
+    <tr><td><b>탭 바</b></td><td>대시보드 / 리스트 / 캘린더 / 칸반 — 뷰 전환</td></tr>
+    <tr><td><b>왼쪽 사이드바</b></td><td>검색, 프로젝트·담당자·우선순위·상태 필터</td></tr>
+    <tr><td><b>업무 추가 섹션</b></td><td>직접 입력, AI 자동 입력, 템플릿 탭</td></tr>
+    <tr><td><b>업무 테이블</b></td><td>프로젝트, 업무명, 상세, 담당자, 마감기한, 우선순위, 상태</td></tr>
+  </table>
+
+  <div class="tip"><b>팁:</b> 사이드바 좌측 하단의 화살표를 클릭하면 사이드바를 접거나 펼 수 있습니다.</div>
+</div>
+
+<!-- ══════════════════════════════════════════ -->
+<div class="section" id="s3">
+  <h2><span class="num">3</span> 업무 추가하기</h2>
+  <p class="desc">업무를 추가하는 3가지 방법이 있습니다.</p>
+
+  <h3>방법 1: 직접 입력</h3>
+  <img src="manual-screenshots/04-add-manual.png" class="screenshot" alt="직접 입력"/>
+  <ol class="steps">
+    <li><b>"+ 직접 입력"</b> 탭을 클릭합니다.</li>
+    <li>테이블 형태의 입력 행이 나타납니다.</li>
+    <li><b>프로젝트</b>를 선택합니다. (상위 프로젝트 › 세부 프로젝트 구조)</li>
+    <li><b>업무내용</b>을 입력합니다. (필수)</li>
+    <li><b>담당자, 마감기한, 우선순위</b>를 설정합니다.</li>
+    <li><b>Enter</b>키 또는 <b>"저장"</b> 버튼을 클릭합니다.</li>
+  </ol>
+
+  <h3>방법 2: AI 자동 입력</h3>
+  <img src="manual-screenshots/05-add-ai.png" class="screenshot" alt="AI 자동 입력"/>
+  <ol class="steps">
+    <li><b>"AI 자동 입력"</b> 탭을 클릭합니다.</li>
+    <li>텍스트를 입력하거나, <b>이미지/PDF 파일</b>을 첨부합니다.</li>
+    <li><b>"TODO 자동 생성"</b> 버튼을 클릭합니다.</li>
+    <li>AI가 업무를 파싱하여 미리보기를 표시합니다.</li>
+    <li>각 항목을 확인/수정 후 <b>"등록"</b> 버튼을 클릭합니다.</li>
+  </ol>
+
+  <h3>방법 3: 템플릿 사용</h3>
+  <img src="manual-screenshots/06-add-template.png" class="screenshot" alt="템플릿"/>
+  <ol class="steps">
+    <li><b>"템플릿"</b> 탭을 클릭합니다.</li>
+    <li>저장된 템플릿 목록에서 원하는 템플릿의 <b>"적용"</b> 버튼을 클릭합니다.</li>
+    <li>기준일을 설정하면 D+N 날짜가 자동 계산됩니다.</li>
+    <li>담당자/프로젝트를 일괄 배정할 수 있습니다.</li>
+    <li><b>"등록"</b> 버튼을 클릭합니다.</li>
+  </ol>
+
+  <div class="tip"><b>팁:</b> 검색창에 텍스트를 입력했는데 결과가 없으면, <b>"업무로 추가"</b> 버튼이 나타나서 바로 업무를 생성할 수 있습니다.</div>
+</div>
+
+<!-- ══════════════════════════════════════════ -->
+<div class="section" id="s4">
+  <h2><span class="num">4</span> 업무 관리하기</h2>
+  <p class="desc">업무를 수정, 완료, 삭제하는 방법입니다.</p>
+
+  <h3>인라인 편집 (리스트 뷰)</h3>
+  <ol class="steps">
+    <li>테이블에서 수정할 <b>셀을 클릭</b>합니다.</li>
+    <li>프로젝트, 담당자, 우선순위, 상태는 <b>드롭다운</b>으로 변경합니다.</li>
+    <li>마감기한은 <b>날짜 선택기</b>가 열립니다.</li>
+    <li>변경 사항은 <b>자동 저장</b>됩니다.</li>
+  </ol>
+
+  <h3>수정 모달</h3>
+  <ol class="steps">
+    <li>업무 행을 <b>더블클릭</b>하거나, 우클릭 메뉴에서 <b>"편집"</b>을 선택합니다.</li>
+    <li>수정 모달에서 모든 필드를 변경할 수 있습니다.</li>
+    <li><b>상세내용</b>에서 리치 텍스트 편집(굵게, 기울임, 목록)이 가능합니다.</li>
+    <li><b>첨부</b> 영역에서 파일/링크를 추가할 수 있습니다.</li>
+    <li><b>"저장"</b> 버튼을 클릭합니다.</li>
+  </ol>
+
+  <h3>우클릭 메뉴</h3>
+  <img src="manual-screenshots/08-kanban.png" class="screenshot" alt="우클릭 메뉴" style="max-height:350px;object-fit:cover;object-position:top;"/>
+  <p>업무 행을 <b>마우스 우클릭</b>하면 빠른 액션 메뉴가 나타납니다:</p>
+  <table class="tbl">
+    <tr><th>메뉴</th><th>설명</th></tr>
+    <tr><td>편집</td><td>수정 모달 열기</td></tr>
+    <tr><td>복제</td><td>동일한 업무를 [복사]로 새로 생성</td></tr>
+    <tr><td>즐겨찾기</td><td>즐겨찾기 토글</td></tr>
+    <tr><td>프로젝트 이동</td><td>다른 프로젝트로 이동</td></tr>
+    <tr><td>삭제</td><td>업무 삭제 (확인 후)</td></tr>
+  </table>
+
+  <h3>완료 처리</h3>
+  <ol class="steps">
+    <li>업무의 <b>상태 열</b>을 클릭하여 "완료"로 변경합니다.</li>
+    <li>또는 <b>체크박스</b>를 클릭합니다.</li>
+    <li>완료된 업무는 목록 하단 <b>"완료됨"</b> 섹션에 접혀서 표시됩니다.</li>
+  </ol>
+
+  <div class="tip"><b>팁:</b> 실수로 삭제했다면 <b>Ctrl+Z</b>로 되돌릴 수 있습니다. 또는 헤더의 <b>휴지통</b> 버튼에서 복원할 수 있습니다.</div>
+</div>
+
+<!-- ══════════════════════════════════════════ -->
+<div class="section" id="s5">
+  <h2><span class="num">5</span> 뷰 전환</h2>
+  <p class="desc">상단 탭 바에서 4가지 뷰를 전환할 수 있습니다.</p>
+
+  <h3>리스트 뷰</h3>
+  <img src="manual-screenshots/03-listview.png" class="screenshot" alt="리스트 뷰" style="max-height:300px;object-fit:cover;object-position:top;"/>
+  <p>테이블 형태로 모든 업무를 한눈에 봅니다. 열 정렬, 인라인 편집, 다중 선택이 가능합니다.</p>
+
+  <h3>캘린더 뷰</h3>
+  <img src="manual-screenshots/07-calendar.png" class="screenshot" alt="캘린더 뷰" style="max-height:300px;object-fit:cover;object-position:top;"/>
+  <p>월간 캘린더에 마감기한 기준으로 업무가 표시됩니다. 우측에 <b>"나의 할 일"</b> 사이드바가 있습니다.</p>
+  <table class="tbl">
+    <tr><th>기능</th><th>방법</th></tr>
+    <tr><td>날짜 클릭</td><td>해당 날짜에 빠른 업무 추가</td></tr>
+    <tr><td>이벤트 클릭</td><td>업무 상세 팝오버</td></tr>
+    <tr><td>드래그</td><td>나의 할 일에서 섹션(오늘/내일/이번주) 간 이동 → 날짜 자동 변경</td></tr>
+    <tr><td>뷰 전환</td><td>일/주/월/N일/일정 5가지 서브 뷰</td></tr>
+  </table>
+
+  <h3>칸반 뷰</h3>
+  <img src="manual-screenshots/08-kanban.png" class="screenshot" alt="칸반 뷰" style="max-height:300px;object-fit:cover;object-position:top;"/>
+  <p>대기/진행중/검토/완료 4개 컬럼으로 업무 상태를 시각화합니다. 카드를 <b>드래그앤드롭</b>으로 다른 컬럼에 놓으면 상태가 자동 변경됩니다.</p>
+
+  <h3>대시보드</h3>
+  <img src="manual-screenshots/09-dashboard.png" class="screenshot" alt="대시보드" style="max-height:300px;object-fit:cover;object-position:top;"/>
+  <p>팀 전체 업무 현황을 한눈에 봅니다. 상단에 <b>내 업무 현황</b> 카드, 오늘의 브리핑, KPI 카드, 멤버별/프로젝트별 통계가 표시됩니다.</p>
+</div>
+
+<!-- ══════════════════════════════════════════ -->
+<div class="section" id="s6">
+  <h2><span class="num">6</span> 필터와 검색</h2>
+  <p class="desc">사이드바에서 원하는 업무만 골라볼 수 있습니다.</p>
+
+  <h3>검색</h3>
+  <p>사이드바 상단 또는 리스트 뷰 검색창에 키워드를 입력하면 <b>업무명 + 상세내용</b>에서 실시간 검색됩니다.</p>
+
+  <h3>필터 사용</h3>
+  <ol class="steps">
+    <li>사이드바에서 <b>프로젝트, 담당자, 우선순위, 상태</b> 섹션을 확인합니다.</li>
+    <li>원하는 항목을 <b>클릭</b>하면 필터가 적용됩니다. (여러 개 동시 선택 가능)</li>
+    <li>다시 클릭하면 해제됩니다.</li>
+    <li><b>"전체"</b>를 클릭하면 해당 섹션 필터가 초기화됩니다.</li>
+  </ol>
+
+  <h3>프로젝트 트리 필터</h3>
+  <p>세부 프로젝트가 있는 상위 프로젝트를 클릭하면 <b>하위 전체가 함께 선택</b>됩니다. 세부 프로젝트를 개별 클릭하면 해당 세부만 필터링됩니다.</p>
+
+  <h3>팀별 그룹</h3>
+  <p>전체보기 모드에서 팀이 2개 이상이면, 프로젝트와 담당자가 <b>팀별 그룹 헤더</b>로 구분되어 표시됩니다. 그룹 헤더를 클릭하면 접기/펼치기가 가능합니다.</p>
+
+  <div class="tip"><b>팁:</b> 필터를 저장해두면 나중에 한 클릭으로 불러올 수 있습니다. 리스트 뷰 상단의 <b>"저장"</b> 버튼을 활용하세요.</div>
+</div>
+
+<!-- ══════════════════════════════════════════ -->
+<div class="section" id="s7">
+  <h2><span class="num">7</span> 프로젝트와 세부 프로젝트</h2>
+  <p class="desc">프로젝트는 2단계 계층 구조를 지원합니다.</p>
+  <img src="manual-screenshots/10-settings.png" class="screenshot" alt="설정" style="max-height:300px;object-fit:cover;object-position:top;"/>
+
+  <h3>프로젝트 구조</h3>
+  <table class="tbl">
+    <tr><th>레벨</th><th>예시</th><th>설명</th></tr>
+    <tr><td>상위 프로젝트</td><td>만화웹툰2026아시아</td><td>큰 프로젝트 단위</td></tr>
+    <tr><td>세부 프로젝트</td><td>└ 중국, └ 일본, └ 태국</td><td>국가별/단계별 하위 분류</td></tr>
+  </table>
+
+  <h3>프로젝트 관리 (설정)</h3>
+  <ol class="steps">
+    <li>헤더의 <b>설정(톱니바퀴)</b> 버튼을 클릭합니다.</li>
+    <li><b>프로젝트</b> 탭을 선택합니다.</li>
+    <li>상위 프로젝트 아래 <b>"+ 세부 프로젝트 추가"</b>를 클릭합니다.</li>
+    <li>색상 도트를 클릭하면 프로젝트 색상을 변경할 수 있습니다.</li>
+    <li>눈 아이콘(👁)을 클릭하면 프로젝트를 <b>숨깁니다</b>. (모든 뷰에서 사라짐)</li>
+  </ol>
+
+  <h3>새 프로젝트 추가</h3>
+  <p>설정 하단의 <b>"새 프로젝트"</b> 영역에서 이름, 색상, 소속 팀을 선택하고 <b>"추가"</b> 버튼을 클릭합니다.</p>
+</div>
+
+<!-- ══════════════════════════════════════════ -->
+<div class="section" id="s8">
+  <h2><span class="num">8</span> 팀 관리</h2>
+  <p class="desc">설정 > 팀 탭에서 팀을 생성하고 멤버를 배정합니다.</p>
+
+  <h3>팀 전환</h3>
+  <p>헤더의 <b>팀 드롭다운</b>에서 보고 싶은 팀을 선택하면, 해당 팀의 프로젝트와 멤버만 표시됩니다. <b>"전체보기"</b>를 선택하면 모든 팀을 볼 수 있습니다.</p>
+
+  <h3>권한 체계</h3>
+  <table class="tbl">
+    <tr><th>역할</th><th>할 수 있는 것</th></tr>
+    <tr><td><b>관리자</b></td><td>모든 업무 생성/수정/삭제, 설정 변경, 팀 관리</td></tr>
+    <tr><td><b>편집자</b></td><td>본인 업무 + 팀 업무 생성/수정</td></tr>
+    <tr><td><b>뷰어</b></td><td>업무 조회만 가능</td></tr>
+  </table>
+</div>
+
+<!-- ══════════════════════════════════════════ -->
+<div class="section" id="s9">
+  <h2><span class="num">9</span> AI 자동 입력</h2>
+  <p class="desc">텍스트나 이미지를 AI가 분석하여 업무를 자동 생성합니다.</p>
+
+  <ol class="steps">
+    <li>업무 추가 섹션에서 <b>"AI 자동 입력"</b> 탭을 선택합니다.</li>
+    <li>업무 지시 텍스트를 입력하거나, <b>이미지/PDF 파일</b>을 첨부합니다.</li>
+    <li>스크린샷을 <b>Ctrl+V</b>로 붙여넣기할 수도 있습니다.</li>
+    <li><b>"TODO 자동 생성"</b> 버튼을 클릭합니다.</li>
+    <li>AI가 업무명, 담당자, 마감일, 우선순위를 자동으로 추출합니다.</li>
+    <li>결과를 확인하고 필요시 수정합니다.</li>
+    <li>체크박스로 등록할 항목을 선택한 후 <b>"등록"</b>을 클릭합니다.</li>
+  </ol>
+
+  <div class="warn"><b>주의:</b> AI 기능을 사용하려면 설정 > API 키 탭에서 Anthropic API 키를 입력해야 합니다. 키는 팀 전체가 공유합니다.</div>
+</div>
+
+<!-- ══════════════════════════════════════════ -->
+<div class="section" id="s10">
+  <h2><span class="num">10</span> 업무 템플릿</h2>
+  <p class="desc">반복적인 업무 세트를 템플릿으로 저장하고 재사용합니다.</p>
+
+  <h3>템플릿 만들기</h3>
+  <ol class="steps">
+    <li><b>"템플릿"</b> 탭에서 <b>"+ 새 템플릿 만들기"</b>를 클릭합니다.</li>
+    <li>템플릿 이름과 카테고리를 입력합니다.</li>
+    <li>업무 항목을 추가합니다 (업무명, 우선순위, 반복, D+일수).</li>
+    <li><b>"저장"</b> 버튼을 클릭합니다.</li>
+  </ol>
+
+  <h3>템플릿 적용</h3>
+  <ol class="steps">
+    <li>템플릿 목록에서 <b>"적용"</b> 버튼을 클릭합니다.</li>
+    <li><b>기준일</b>을 설정하면 D+N 마감일이 자동 계산됩니다.</li>
+    <li>담당자/프로젝트를 <b>일괄 배정</b>할 수 있습니다.</li>
+    <li>개별 항목을 수정한 후 <b>"등록"</b>을 클릭합니다.</li>
+  </ol>
+
+  <h3>템플릿 수정</h3>
+  <p>템플릿 목록에서 <b>연필 아이콘</b>을 클릭하면 기존 템플릿을 편집할 수 있습니다.</p>
+</div>
+
+<!-- ══════════════════════════════════════════ -->
+<div class="section" id="s11">
+  <h2><span class="num">11</span> 단축키 모음</h2>
+  <p class="desc">키보드 단축키로 빠르게 작업할 수 있습니다. <span class="kbd">?</span> 키를 누르면 도움말이 열립니다.</p>
+
+  <h3>전역 단축키</h3>
+  <table class="tbl">
+    <tr><th>단축키</th><th>기능</th></tr>
+    <tr><td><span class="kbd">Ctrl</span>+<span class="kbd">Z</span></td><td>실행 취소 (Undo)</td></tr>
+    <tr><td><span class="kbd">Ctrl</span>+<span class="kbd">Y</span></td><td>다시 실행 (Redo)</td></tr>
+    <tr><td><span class="kbd">Delete</span></td><td>선택된 업무 삭제</td></tr>
+    <tr><td><span class="kbd">?</span></td><td>단축키 도움말 열기</td></tr>
+  </table>
+
+  <h3>캘린더 뷰 단축키</h3>
+  <table class="tbl">
+    <tr><th>단축키</th><th>기능</th></tr>
+    <tr><td><span class="kbd">T</span></td><td>오늘로 이동</td></tr>
+    <tr><td><span class="kbd">←</span> <span class="kbd">→</span></td><td>이전/다음 기간 이동</td></tr>
+    <tr><td><span class="kbd">D</span></td><td>일간 뷰</td></tr>
+    <tr><td><span class="kbd">W</span></td><td>주간 뷰</td></tr>
+    <tr><td><span class="kbd">M</span></td><td>월간 뷰</td></tr>
+    <tr><td><span class="kbd">A</span></td><td>일정 뷰</td></tr>
+  </table>
+
+  <h3>메모 뷰 단축키</h3>
+  <table class="tbl">
+    <tr><th>단축키</th><th>기능</th></tr>
+    <tr><td><span class="kbd">1</span>~<span class="kbd">5</span></td><td>열 수 변경 (1열~5열)</td></tr>
+  </table>
+</div>
+
+<!-- ══════════════════════════════════════════ -->
+<div class="section" id="s12">
+  <h2><span class="num">12</span> 자주 묻는 질문 (FAQ)</h2>
+
+  <h4>Q: 실수로 업무를 삭제했어요.</h4>
+  <p>A: <span class="kbd">Ctrl</span>+<span class="kbd">Z</span>로 되돌리거나, 헤더의 <b>휴지통 아이콘</b>에서 복원할 수 있습니다.</p>
+
+  <h4>Q: 다른 사람의 업무를 수정할 수 없어요.</h4>
+  <p>A: 권한에 따라 제한됩니다. 팀 관리자에게 역할(관리자/편집자)을 요청하세요.</p>
+
+  <h4>Q: 프로젝트가 너무 많아서 보기 불편해요.</h4>
+  <p>A: 설정 > 프로젝트에서 완료된 프로젝트의 <b>눈 아이콘</b>을 클릭하여 숨길 수 있습니다. 모든 뷰에서 사라집니다.</p>
+
+  <h4>Q: AI 자동 입력이 작동하지 않아요.</h4>
+  <p>A: 설정 > API 키 탭에서 Anthropic API 키가 올바르게 입력되었는지 확인하세요.</p>
+
+  <h4>Q: 모바일에서도 사용할 수 있나요?</h4>
+  <p>A: 네. 모바일 브라우저에서 접속하면 자동으로 모바일 레이아웃이 적용됩니다. 하단 탭 바와 카드형 리스트가 제공됩니다.</p>
+
+  <h4>Q: 데이터는 어디에 저장되나요?</h4>
+  <p>A: Google Firebase Firestore에 실시간으로 저장됩니다. 여러 기기에서 동시에 접속해도 데이터가 자동 동기화됩니다.</p>
+
+  <h4>Q: 반복 업무는 어떻게 설정하나요?</h4>
+  <p>A: 업무 수정 모달에서 <b>반복 설정</b> 영역을 사용합니다. 매일/매주/매월 등 간격과 종료 조건을 설정할 수 있습니다.</p>
+</div>
+
+<!-- 푸터 -->
+<div style="text-align:center;padding:40px 0 0;color:#94a3b8;font-size:11px;">
+  <div>BGK Todo 사용자 매뉴얼 v2.0</div>
+  <div style="margin-top:4px;">Bridging Group · 2026년 4월</div>
+</div>
+
+</div>
+</body>
+</html>
