@@ -86,7 +86,8 @@ export function KanbanView({
               if(active) setKbF(kbF.filter(x=>!allIds.includes(x)));
               else setKbF([...kbF.filter(x=>!allIds.includes(x)),...allIds]);
             }}>{p.name} <span style={{fontSize:8,opacity:.6}}>▾</span></Chip>
-            <div data-sub-dd style={{display:"none",position:"absolute",top:"100%",left:0,marginTop:4,background:"#fff",border:"1px solid #e2e8f0",borderRadius:8,boxShadow:"0 4px 16px rgba(0,0,0,.12)",zIndex:50,flexDirection:"column",minWidth:140,padding:"4px 0",whiteSpace:"nowrap"}}>
+            <div data-sub-dd style={{display:"none",position:"absolute",top:"100%",left:0,paddingTop:4,zIndex:50,flexDirection:"column"}}>
+            <div style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:8,boxShadow:"0 4px 16px rgba(0,0,0,.12)",minWidth:140,padding:"4px 0",whiteSpace:"nowrap"}}>
               <div onClick={()=>{if(active)setKbF(kbF.filter(x=>!allIds.includes(x)));else setKbF([...kbF.filter(x=>!allIds.includes(x)),...allIds]);}}
                 style={{padding:"5px 12px",fontSize:11,fontWeight:600,color:active?"#2563eb":"#475569",cursor:"pointer",display:"flex",alignItems:"center",gap:5,borderBottom:"1px solid #f1f5f9"}}
                 onMouseEnter={e=>{(e.currentTarget as HTMLElement).style.background="#f8f9fa";}}
@@ -103,7 +104,7 @@ export function KanbanView({
                   {chA&&<span style={{marginLeft:"auto",color:"#2563eb",fontSize:10}}>✓</span>}
                 </div>;
               })}
-            </div>
+            </div></div>
           </div>;
         })}
       </div>

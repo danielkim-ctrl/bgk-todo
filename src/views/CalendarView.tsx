@@ -305,17 +305,31 @@ function SidebarAddTask({ adding, setAdding, title, setTitle, visibleProj, visib
           </div>
         )}
         {picker === "proj" && (
-          <div style={{ borderTop: "1px solid #f1f3f4", background: "#fafbfc", maxHeight: 140, overflowY: "auto" as const }}>
-            {visibleProj.map((pr: any) => (
-              <div key={pr.id} onClick={() => { setAddPid(String(pr.id)); setPicker(null); }}
-                style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", cursor: "pointer", fontSize: 12, background: String(pr.id) === addPid ? "#e8f0fe" : "transparent", color: String(pr.id) === addPid ? "#1a73e8" : "#334155", fontWeight: String(pr.id) === addPid ? 600 : 400 }}
-                onMouseEnter={e => { if (String(pr.id) !== addPid) (e.currentTarget as HTMLElement).style.background = "#f1f3f4"; }}
-                onMouseLeave={e => { if (String(pr.id) !== addPid) (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
-                <span style={{ width: 8, height: 8, borderRadius: "50%", background: pr.color, flexShrink: 0 }} />
-                {pr.name}
-                {String(pr.id) === addPid && <CheckIcon style={{ width: 12, height: 12, marginLeft: "auto", color: "#1a73e8" }} />}
-              </div>
-            ))}
+          <div style={{ borderTop: "1px solid #f1f3f4", background: "#fafbfc", maxHeight: 160, overflowY: "auto" as const }}>
+            {/* 트리형 프로젝트 — 상위 + 세부 들여쓰기 */}
+            {visibleProj.filter((pr: any) => !pr.parentId).map((pr: any) => {
+              const children = visibleProj.filter((ch: any) => ch.parentId === pr.id);
+              const rs = (id: number) => ({ display: "flex" as const, alignItems: "center" as const, gap: 6, padding: "6px 12px", cursor: "pointer", fontSize: 12, background: String(id) === addPid ? "#e8f0fe" : "transparent", color: String(id) === addPid ? "#1a73e8" : "#334155", fontWeight: String(id) === addPid ? 600 : 400 });
+              return <div key={pr.id}>
+                <div onClick={() => { setAddPid(String(pr.id)); setPicker(null); }} style={rs(pr.id)}
+                  onMouseEnter={e => { if (String(pr.id) !== addPid) (e.currentTarget as HTMLElement).style.background = "#f1f3f4"; }}
+                  onMouseLeave={e => { if (String(pr.id) !== addPid) (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: pr.color, flexShrink: 0 }} />
+                  <span style={{ fontWeight: 600 }}>{pr.name}</span>
+                  {String(pr.id) === addPid && <CheckIcon style={{ width: 12, height: 12, marginLeft: "auto", color: "#1a73e8" }} />}
+                </div>
+                {children.map((ch: any) => (
+                  <div key={ch.id} onClick={() => { setAddPid(String(ch.id)); setPicker(null); }} style={{ ...rs(ch.id), paddingLeft: 24, fontSize: 11 }}
+                    onMouseEnter={e => { if (String(ch.id) !== addPid) (e.currentTarget as HTMLElement).style.background = "#f1f3f4"; }}
+                    onMouseLeave={e => { if (String(ch.id) !== addPid) (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
+                    <span style={{ color: "#cbd5e1", fontSize: 9 }}>└</span>
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: ch.color, flexShrink: 0 }} />
+                    {ch.name}
+                    {String(ch.id) === addPid && <CheckIcon style={{ width: 12, height: 12, marginLeft: "auto", color: "#1a73e8" }} />}
+                  </div>
+                ))}
+              </div>;
+            })}
           </div>
         )}
         {picker === "who" && (
@@ -566,19 +580,32 @@ function SidebarEditExpanded({ t, visibleProj, visibleMembers, pris, priC, priBg
         </div>
       )}
 
-      {/* 프로젝트 패널 */}
+      {/* 프로젝트 패널 — 트리형 (상위 + 세부 들여쓰기) */}
       {picker === "proj" && (
-        <div style={{ background: "#fafbfc", border: "1px solid #e2e8f0", borderRadius: 8, marginTop: 4, maxHeight: 140, overflowY: "auto" as const }}>
-          {visibleProj.map(pr => (
-            <div key={pr.id} onClick={() => { updTodo(t.id, { pid: pr.id }); setPicker(null); }}
-              style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", cursor: "pointer", fontSize: 12, background: pr.id === t.pid ? "#e8f0fe" : "transparent", color: pr.id === t.pid ? "#1a73e8" : "#334155", fontWeight: pr.id === t.pid ? 600 : 400 }}
-              onMouseEnter={e => { if (pr.id !== t.pid) (e.currentTarget as HTMLElement).style.background = "#f1f3f4"; }}
-              onMouseLeave={e => { if (pr.id !== t.pid) (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
-              <span style={{ width: 8, height: 8, borderRadius: "50%", background: pr.color, flexShrink: 0 }} />
-              {pr.name}
-              {pr.id === t.pid && <CheckIcon style={{ width: 12, height: 12, marginLeft: "auto", color: "#1a73e8" }} />}
-            </div>
-          ))}
+        <div style={{ background: "#fafbfc", border: "1px solid #e2e8f0", borderRadius: 8, marginTop: 4, maxHeight: 160, overflowY: "auto" as const }}>
+          {visibleProj.filter(pr => !pr.parentId).map(pr => {
+            const children = visibleProj.filter(ch => ch.parentId === pr.id);
+            const rowStyle = (id: number) => ({ display: "flex", alignItems: "center" as const, gap: 6, padding: "6px 12px", cursor: "pointer", fontSize: 12, background: id === t.pid ? "#e8f0fe" : "transparent", color: id === t.pid ? "#1a73e8" : "#334155", fontWeight: id === t.pid ? 600 : 400 });
+            const hover = (e: React.MouseEvent, id: number) => { if (id !== t.pid) (e.currentTarget as HTMLElement).style.background = "#f1f3f4"; };
+            const unhover = (e: React.MouseEvent, id: number) => { if (id !== t.pid) (e.currentTarget as HTMLElement).style.background = "transparent"; };
+            return <div key={pr.id}>
+              <div onClick={() => { updTodo(t.id, { pid: pr.id }); setPicker(null); }} style={rowStyle(pr.id)}
+                onMouseEnter={e => hover(e, pr.id)} onMouseLeave={e => unhover(e, pr.id)}>
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: pr.color, flexShrink: 0 }} />
+                <span style={{ fontWeight: 600 }}>{pr.name}</span>
+                {pr.id === t.pid && <CheckIcon style={{ width: 12, height: 12, marginLeft: "auto", color: "#1a73e8" }} />}
+              </div>
+              {children.map(ch => (
+                <div key={ch.id} onClick={() => { updTodo(t.id, { pid: ch.id }); setPicker(null); }} style={{ ...rowStyle(ch.id), paddingLeft: 24, fontSize: 11 }}
+                  onMouseEnter={e => hover(e, ch.id)} onMouseLeave={e => unhover(e, ch.id)}>
+                  <span style={{ color: "#cbd5e1", fontSize: 9 }}>└</span>
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: ch.color, flexShrink: 0 }} />
+                  {ch.name}
+                  {ch.id === t.pid && <CheckIcon style={{ width: 12, height: 12, marginLeft: "auto", color: "#1a73e8" }} />}
+                </div>
+              ))}
+            </div>;
+          })}
         </div>
       )}
 
@@ -702,8 +729,9 @@ export function CalendarView(props: CalendarViewProps) {
             if(active) setCalF(calF.filter(x=>!allIds.includes(x)));
             else setCalF([...calF.filter(x=>!allIds.includes(x)),...allIds]);
           }}>{p.name} <span style={{fontSize:8,opacity:.6}}>▾</span></Chip>
-          {/* 세부 프로젝트 드롭다운 — hover 시 표시 */}
-          <div data-sub-dd style={{display:"none",position:"absolute",top:"100%",left:0,marginTop:4,background:"#fff",border:"1px solid #e2e8f0",borderRadius:8,boxShadow:"0 4px 16px rgba(0,0,0,.12)",zIndex:50,flexDirection:"column",minWidth:140,padding:"4px 0",whiteSpace:"nowrap"}}>
+          {/* 세부 프로젝트 드롭다운 — hover 시 표시, 상단 투명 패딩으로 마우스 연결 유지 */}
+          <div data-sub-dd style={{display:"none",position:"absolute",top:"100%",left:0,paddingTop:4,zIndex:50,flexDirection:"column"}}>
+          <div style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:8,boxShadow:"0 4px 16px rgba(0,0,0,.12)",minWidth:140,padding:"4px 0",whiteSpace:"nowrap"}}>
             {/* 전체 선택/해제 */}
             <div onClick={()=>{
               if(active) setCalF(calF.filter(x=>!allIds.includes(x)));
@@ -729,7 +757,7 @@ export function CalendarView(props: CalendarViewProps) {
                 {chActive&&<span style={{marginLeft:"auto",color:"#2563eb",fontSize:10}}>✓</span>}
               </div>;
             })}
-          </div>
+          </div></div>
         </div>;
       })}
     </div>
@@ -1518,13 +1546,28 @@ export function CalendarView(props: CalendarViewProps) {
             <input type="date" defaultValue={calQADue} onChange={e=>{setCalQADue(e.target.value);setCalQAPicker(null);}} style={{width:"100%",fontSize:11,padding:"3px 6px",border:"1px solid #e2e8f0",borderRadius:7,outline:"none",fontFamily:"inherit",boxSizing:"border-box" as const}}/>
           </div>}
           {calQAPicker==="proj"&&<div style={{marginTop:8,background:"#f8fafc",borderRadius:8,border:"1px solid #e2e8f0",overflow:"hidden",maxHeight:160,overflowY:"auto" as const}}>
-            {visibleProj.map(pr=><div key={pr.id} onClick={()=>{setCalQAPid(String(pr.id));setCalQAPicker(null);}}
-              style={{display:"flex",alignItems:"center",gap:6,padding:"7px 10px",cursor:"pointer",fontSize:12,color:"#334155",background:String(pr.id)===calQAPid?"#eff6ff":"transparent"}}
-              onMouseEnter={e=>(e.currentTarget as HTMLElement).style.background=String(pr.id)===calQAPid?"#eff6ff":"#f1f5f9"}
-              onMouseLeave={e=>(e.currentTarget as HTMLElement).style.background=String(pr.id)===calQAPid?"#eff6ff":"transparent"}>
-              <span style={{width:8,height:8,borderRadius:"50%",background:pr.color,display:"inline-block",flexShrink:0}}/>
-              {pr.name}{String(pr.id)===calQAPid&&<span style={{marginLeft:"auto",display:"inline-flex"}}><CheckIcon style={{width:12,height:12,color:"#2563eb"}}/></span>}
-            </div>)}
+            {/* 트리형 프로젝트 — 상위 + 세부 들여쓰기 */}
+            {visibleProj.filter(pr=>!pr.parentId).map(pr=>{
+              const children=visibleProj.filter(ch=>ch.parentId===pr.id);
+              const rowS=(id:number)=>({display:"flex",alignItems:"center" as const,gap:6,padding:"7px 10px",cursor:"pointer",fontSize:12,color:"#334155",background:String(id)===calQAPid?"#eff6ff":"transparent"});
+              return <div key={pr.id}>
+                <div onClick={()=>{setCalQAPid(String(pr.id));setCalQAPicker(null);}} style={{...rowS(pr.id),fontWeight:600}}
+                  onMouseEnter={e=>(e.currentTarget as HTMLElement).style.background=String(pr.id)===calQAPid?"#eff6ff":"#f1f5f9"}
+                  onMouseLeave={e=>(e.currentTarget as HTMLElement).style.background=String(pr.id)===calQAPid?"#eff6ff":"transparent"}>
+                  <span style={{width:8,height:8,borderRadius:"50%",background:pr.color,display:"inline-block",flexShrink:0}}/>
+                  {pr.name}{String(pr.id)===calQAPid&&<span style={{marginLeft:"auto",display:"inline-flex"}}><CheckIcon style={{width:12,height:12,color:"#2563eb"}}/></span>}
+                </div>
+                {children.map(ch=>(
+                  <div key={ch.id} onClick={()=>{setCalQAPid(String(ch.id));setCalQAPicker(null);}} style={{...rowS(ch.id),paddingLeft:24,fontSize:11}}
+                    onMouseEnter={e=>(e.currentTarget as HTMLElement).style.background=String(ch.id)===calQAPid?"#eff6ff":"#f1f5f9"}
+                    onMouseLeave={e=>(e.currentTarget as HTMLElement).style.background=String(ch.id)===calQAPid?"#eff6ff":"transparent"}>
+                    <span style={{color:"#cbd5e1",fontSize:9}}>└</span>
+                    <span style={{width:6,height:6,borderRadius:"50%",background:ch.color,display:"inline-block",flexShrink:0}}/>
+                    {ch.name}{String(ch.id)===calQAPid&&<span style={{marginLeft:"auto",display:"inline-flex"}}><CheckIcon style={{width:12,height:12,color:"#2563eb"}}/></span>}
+                  </div>
+                ))}
+              </div>;
+            })}
           </div>}
           {calQAPicker==="who"&&<div style={{marginTop:8,background:"#f8fafc",borderRadius:8,border:"1px solid #e2e8f0",overflow:"hidden",maxHeight:160,overflowY:"auto" as const}}>
             {visibleMembers.map(m=><div key={m} onClick={()=>{setCalQAWho(m);setCalQAPicker(null);}}

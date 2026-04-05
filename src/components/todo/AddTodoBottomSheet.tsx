@@ -151,7 +151,14 @@ export function AddTodoBottomSheet({
               style={selectStyle}
             >
               <option value={0}>없음</option>
-              {visibleProj.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              {/* 트리형 프로젝트 — 상위 아래에 세부 들여쓰기 */}
+              {visibleProj.filter(p => !p.parentId).flatMap(p => {
+                const children = visibleProj.filter(ch => ch.parentId === p.id);
+                return [
+                  <option key={p.id} value={p.id}>{p.name}</option>,
+                  ...children.map(ch => <option key={ch.id} value={ch.id}>&nbsp;&nbsp;└ {ch.name}</option>)
+                ];
+              })}
             </select>
             <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", fontSize: 10, color: "#94a3b8" }}>▾</span>
           </div>

@@ -5,7 +5,8 @@ import { PermissionProvider } from "./auth/PermissionContext";
 import { S } from "./styles";
 import { REPEAT_OPTS, INIT_ST } from "./constants";
 import { ActivityLog, TEAM_ROLE_PERMISSIONS, TeamRole } from "./types";
-import { FolderIcon, Cog6ToothIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, TrashIcon, KeyboardIcon, ChartBarIcon, ListBulletIcon, CalendarIcon, ViewColumnsIcon, ArrowPathIcon, UserIcon, BoltIcon, CheckCircleIcon, DocumentTextIcon, StarIcon as StarSolidIcon, StarOutlineIcon, PlusIcon, ClipboardDocumentIcon, CheckIcon, PencilSquareIcon, XMarkIcon, Bars3Icon, ICON_SM } from "./components/ui/Icons";
+import { FolderIcon, Cog6ToothIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, TrashIcon, KeyboardIcon, ChartBarIcon, ListBulletIcon, CalendarIcon, ViewColumnsIcon, ArrowPathIcon, UserIcon, BoltIcon, CheckCircleIcon, DocumentTextIcon, StarIcon as StarSolidIcon, StarOutlineIcon, PlusIcon, ClipboardDocumentIcon, CheckIcon, PencilSquareIcon, XMarkIcon, Bars3Icon, ExclamationTriangleIcon, ICON_SM } from "./components/ui/Icons";
+import { getParentProj } from "./utils";
 import { BottomTabBar } from "./components/ui/BottomTabBar";
 import { SidebarDrawer } from "./components/sidebar/SidebarDrawer";
 import { FAB } from "./components/ui/FAB";
@@ -126,6 +127,9 @@ export default function App() {
   // ── 단축키 도움말 / 휴지통 모달 상태 ────────────────────────────
   const [showShortcuts, setShowShortcuts] = useState(false); // 단축키 도움말 팝업 열림 여부
   const [showTrash, setShowTrash] = useState(false);         // 휴지통 팝업 열림 여부
+  // 오늘의 할 일 팝업 — 로그인 직후 자동 표시, 헤더 지연 배지 클릭으로 수동 열기
+  const [todayPopup, setTodayPopup] = useState(false);
+  const todayPopupDismissed = useRef(false); // 세션 동안 "나중에 보기" 클릭 시 다시 안 뜸
 
   // ── 역할별 권한 헬퍼 ──────────────────────────────────────────────────
   // memberRoles에서 현재 사용자 역할 조회 → 미설정 시 admin (기존 동작 유지)
@@ -156,7 +160,16 @@ export default function App() {
   }, [teams, currentUser]);
 
   // 사용자 전환 시 초기 세팅 플래그 리셋
-  useEffect(() => { teamInitDone.current = false; }, [currentUser]);
+  useEffect(() => { teamInitDone.current = false; todayPopupDismissed.current = false; }, [currentUser]);
+
+  // 로그인 직후 지연/오늘 마감 업무가 있으면 오늘의 할 일 팝업 자동 표시
+  useEffect(() => {
+    if (!currentUser || todayPopupDismissed.current) return;
+    const my = todos.filter(t => t.who === currentUser);
+    const hasOverdue = my.some(t => t.due?.split(" ")[0] < todayStr && t.st !== "완료" && t.due);
+    const hasTodayDue = my.some(t => t.due?.split(" ")[0] === todayStr && t.st !== "완료");
+    if (hasOverdue || hasTodayDue) setTodayPopup(true);
+  }, [currentUser]);
 
   // 권한 없는 팀 선택 차단 — 드롭다운 onChange에서 직접 처리하지 않고 여기서 방어
   // 타 팀 조회 권한이 없는데 소속 외 팀이 선택된 경우만 리셋
@@ -468,6 +481,14 @@ export default function App() {
             </>}
           </div>
           <div style={{display:"flex",alignItems:"center",gap:6}}>
+            {/* 지연 업무 배지 — 마감 초과 + 미완료 건수 표시, 클릭 시 오늘의 할 일 팝업 */}
+            {(()=>{
+              const cnt = todos.filter(t => t.who === currentUser && t.due && t.due.split(" ")[0] < todayStr && t.st !== "완료").length;
+              return cnt > 0 ? <button style={{...S.hBtn, position:"relative" as const}} onClick={()=>setTodayPopup(true)} title="지연 업무">
+                <ExclamationTriangleIcon style={ICON_SM}/> 지연
+                <span style={{position:"absolute" as const,top:-4,right:-4,background:"#ef4444",color:"#fff",borderRadius:99,fontSize:10,fontWeight:800,padding:"1px 5px",lineHeight:1.4}}>{cnt}</span>
+              </button> : null;
+            })()}
             {can("settings.edit")&&<button style={S.hBtn} onClick={()=>setSettMod(true)}><Cog6ToothIcon style={ICON_SM}/> 설정</button>}
             {deletedLog.length>0&&<button style={{...S.hBtn,position:"relative" as const}} onClick={()=>setShowTrash(true)} title="삭제된 업무 복원">
               <TrashIcon style={ICON_SM}/> 휴지통
@@ -518,7 +539,7 @@ export default function App() {
       {view==="dashboard"&&<Dashboard todos={todos} projects={teamProj} members={teamMembers} priC={priC} priBg={priBg} stC={stC} stBg={stBg} gPr={gPr} deletedLog={deletedLog}
         // KPI 카드 클릭 시 리스트 뷰로 이동하고 해당 상태 필터를 자동 적용
         onNavigate={(stF)=>{setView("list");setFilters({proj:[],who:[],pri:[],st:stF,repeat:[],fav:""});window.scrollTo(0,0);}}
-        isMobile={isMobile}/>}
+        isMobile={isMobile} currentUser={currentUser}/>}
 
       {view==="kanban"&&<KanbanView
         todos={todos} stats={stats} pris={pris} priC={priC} priBg={priBg} stC={stC} stBg={stBg}
@@ -724,8 +745,12 @@ export default function App() {
           <div style={{display:"flex",gap:8,marginTop:16,paddingTop:12,borderTop:"1px solid #e2e8f0"}}>
             {/* 삭제: admin이거나 본인 업무+delete.own 권한 */}
             {editMod?.id&&(can("todo.delete.all")||(isOwner(editMod.who)&&can("todo.delete.own")))&&<button style={{...S.bd,marginRight:"auto"}} onClick={()=>{if(confirm(`"${editMod.task}" 업무를 삭제하시겠습니까?`)){const id=parseInt(editMod.id);setEditMod(null);delTodo(id)}}}><TrashIcon style={ICON_SM}/> 삭제</button>}
+            {/* 복제 — 모바일에서는 우클릭 불가하므로 수정 모달에 버튼 제공 */}
+            {editMod?.id&&<button style={S.bs} onClick={()=>{
+              addTodo({pid:editMod.pid||0,task:`[복사] ${editMod.task}`,who:editMod.who||"",due:"",pri:editMod.pri||"보통",st:"대기",det:editMod.det||"",repeat:editMod.repeat||"없음"});
+              setEditMod(null);flash("업무가 복제되었습니다");
+            }}>복제</button>}
             <button style={S.bs} onClick={()=>setEditMod(null)}>취소</button>
-            {/* 저장: 새 업무는 create 권한, 수정은 edit.all 또는 본인+edit.own */}
             {(editMod?.id?(can("todo.edit.all")||(isOwner(editMod.who)&&can("todo.edit.own"))):can("todo.create"))
               ?<button style={S.bp} onClick={()=>saveMod(editMod)}>저장</button>
               :<button style={{...S.bp,opacity:.4,cursor:"default"}} disabled title="수정 권한이 없습니다">저장</button>}
@@ -763,7 +788,7 @@ export default function App() {
         stC={stC} setStC={setStC} stBg={stBg} setStBg={setStBg}
         memberColors={memberColors} setMemberColor={(name,c)=>setMemberColors((p:any)=>({...p,[name]:c}))}
         projects={projects} setProjects={setProjects} pNId={pNId} setPNId={setPNId}
-        onAddProj={p=>{const np={...p,id:pNId};setProjects((prev:any)=>[...prev,np]);setPNId(pNId+1);flash(`"${p.name}" 프로젝트가 추가되었습니다`)}}
+        onAddProj={p=>{const np={...p,id:pNId};setProjects((prev:any)=>[...prev,np]);setPNId(pNId+1);flash(`"${p.name}" 프로젝트가 추가되었습니다`);return np.id;}}
         onDelProj={id=>{if(todos.some(t=>t.pid===id)){alert("해당 프로젝트에 업무가 존재하여 삭제할 수 없습니다.");return;}setProjects((p:any)=>p.filter((x:any)=>x.id!==id));flash("프로젝트가 삭제되었습니다","err")}}
         onEditProj={(id,u)=>{setProjects((p:any)=>p.map((x:any)=>{if(x.id!==id)return x;return{...x,...u};}));flash("프로젝트 정보가 수정되었습니다")}}
         todos={todos} flash={flash} apiKey={apiKey} setApiKey={setApiKey}
@@ -890,6 +915,86 @@ export default function App() {
         kanbanFilterCount={kbF.length + kbFWho.length}
       />
     )}
+
+    {/* ── 오늘의 할 일 팝업 ── 로그인 직후 자동 표시 / 헤더 지연 배지 클릭으로 수동 열기 */}
+    {todayPopup && (() => {
+      const my = todos.filter(t => t.who === currentUser && t.st !== "완료");
+      const overdue = my.filter(t => t.due && t.due.split(" ")[0] < todayStr);
+      const todayDue = my.filter(t => t.due?.split(" ")[0] === todayStr);
+      // 이번 주: 내일~7일 후
+      const now = new Date();
+      const tmrStr = (() => { const d = new Date(now); d.setDate(d.getDate() + 1); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; })();
+      const weekEndStr = (() => { const d = new Date(now); d.setDate(d.getDate() + 7); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; })();
+      const weekDue = my.filter(t => { const ds = t.due?.split(" ")[0]; return ds && ds >= tmrStr && ds <= weekEndStr; });
+      const inProgress = my.filter(t => t.st === "진행중").length;
+      // D-day 라벨 계산
+      const dLabel = (due: string) => {
+        const diff = Math.round((new Date(due.split(" ")[0]).getTime() - new Date(todayStr).getTime()) / 86400000);
+        if (diff === 0) return "D-day";
+        if (diff < 0) return `D+${Math.abs(diff)}`;
+        return `D-${diff}`;
+      };
+      // 업무 행 렌더
+      const row = (t: typeof todos[0], color: string) => {
+        const p = gPr(t.pid);
+        const parent = getParentProj(projects, p);
+        const pLabel = parent ? `${parent.name} › ${p.name}` : p.name;
+        return <div key={t.id} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 0"}}>
+          {/* 원형 체크 */}
+          <div style={{width:18,height:18,borderRadius:"50%",border:`2px solid ${color}`,flexShrink:0,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}
+            onClick={()=>{updTodo(t.id,{st:"완료"});flash("완료 처리되었습니다");}}
+          />
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:13,fontWeight:500,color:color==="#dc2626"?"#dc2626":"#1a2332",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.task}</div>
+            {p.id!==0&&<div style={{fontSize:11,color:"#64748b",display:"flex",alignItems:"center",gap:4,marginTop:1}}>
+              <span style={{width:6,height:6,borderRadius:"50%",background:p.color,display:"inline-block",flexShrink:0}}/>
+              {pLabel}
+            </div>}
+          </div>
+          {t.due && <span style={{fontSize:11,fontWeight:600,color,background:color==="#dc2626"?"#fef2f2":color==="#d97706"?"#fff7ed":"#eff6ff",border:`1px solid ${color==="#dc2626"?"#fca5a5":color==="#d97706"?"#fcd34d":"#93c5fd"}`,borderRadius:6,padding:"1px 6px",flexShrink:0}}>{dLabel(t.due)}</span>}
+        </div>;
+      };
+      const closePop = () => setTodayPopup(false);
+      return <div style={{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,.35)",backdropFilter:"blur(2px)"}}
+        onClick={e=>{if(e.target===e.currentTarget)closePop();}}
+        onKeyDown={e=>{if(e.key==="Escape")closePop();}}>
+        <div style={{width:isMobile?"calc(100vw - 32px)":"400px",maxWidth:400,maxHeight:"80vh",background:"#fff",borderRadius:14,boxShadow:"0 12px 40px rgba(0,0,0,.18)",overflow:"hidden",display:"flex",flexDirection:"column" as const}}>
+          {/* 헤더 */}
+          <div style={{background:"linear-gradient(135deg,#172f5a,#1e3a6e)",color:"#fff",padding:"20px 24px 16px"}}>
+            <div style={{fontSize:16,fontWeight:700}}>좋은 아침이에요, {currentUser}님</div>
+            <div style={{fontSize:12,opacity:.7,marginTop:4}}>{now.getFullYear()}년 {now.getMonth()+1}월 {now.getDate()}일 · 진행중 {inProgress}건</div>
+          </div>
+          {/* 본문 스크롤 영역 */}
+          <div style={{overflowY:"auto",flex:1,padding:"0 24px"}}>
+            {overdue.length>0&&<div style={{paddingTop:14,paddingBottom:8}}>
+              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
+                <span style={{fontSize:11,fontWeight:700,color:"#dc2626",background:"#fef2f2",borderRadius:6,padding:"2px 8px"}}>지연 {overdue.length}</span>
+              </div>
+              {overdue.map(t=>row(t,"#dc2626"))}
+            </div>}
+            {todayDue.length>0&&<div style={{paddingTop:10,paddingBottom:8,borderTop:overdue.length?"1px solid #f1f5f9":"none"}}>
+              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
+                <span style={{fontSize:11,fontWeight:700,color:"#d97706",background:"#fff7ed",borderRadius:6,padding:"2px 8px"}}>오늘 마감 {todayDue.length}</span>
+              </div>
+              {todayDue.map(t=>row(t,"#d97706"))}
+            </div>}
+            {weekDue.length>0&&<div style={{paddingTop:10,paddingBottom:8,borderTop:(overdue.length||todayDue.length)?"1px solid #f1f5f9":"none"}}>
+              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
+                <span style={{fontSize:11,fontWeight:700,color:"#2563eb",background:"#eff6ff",borderRadius:6,padding:"2px 8px"}}>이번 주 {weekDue.length}</span>
+              </div>
+              {weekDue.map(t=>row(t,"#2563eb"))}
+            </div>}
+            {overdue.length===0&&todayDue.length===0&&weekDue.length===0&&
+              <div style={{padding:"32px 0",textAlign:"center",color:"#64748b",fontSize:13}}>이번 주 예정된 업무가 없습니다</div>}
+          </div>
+          {/* 하단 버튼 */}
+          <div style={{display:"flex",justifyContent:"flex-end",gap:8,padding:"12px 24px",borderTop:"1px solid #f1f5f9"}}>
+            <button style={S.bs} onClick={()=>{todayPopupDismissed.current=true;closePop();}}>나중에 보기</button>
+            <button style={S.bp} onClick={()=>{closePop();setView("list");}}>리스트 보기</button>
+          </div>
+        </div>
+      </div>;
+    })()}
 
     <Toast msg={toast.m} type={toast.t} action={toast.action}/>
     {notePopup&&<NotePopup

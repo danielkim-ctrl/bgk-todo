@@ -103,6 +103,14 @@ export function AddTodoSection({
   templates = [], addTemplate, updTemplate, delTemplate, applyTemplate,
   addTodo, flash, confirmTplItems, selectedTeamId, tplFavs = [], setTplFavs,
 }: AddTodoSectionProps) {
+  // 트리형 프로젝트 option 목록 — 상위 아래에 세부 들여쓰기
+  const projOptions = aProj.filter(p => !p.parentId).flatMap(p => {
+    const children = aProj.filter(ch => ch.parentId === p.id);
+    return [
+      <option key={p.id} value={p.id}>{p.name}</option>,
+      ...children.map(ch => <option key={ch.id} value={ch.id}>&nbsp;&nbsp;└ {ch.name}</option>)
+    ];
+  });
   const addSecRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -553,7 +561,7 @@ export function AddTodoSection({
             </tr></thead>
             <tbody>
               {newRows.map((r,i)=>{const empty=isNREmpty(r);return <tr key={"nr"+i} style={{background:i%2===0?"#fafcff":"#f5f8ff",borderBottom:i===newRows.length-1?"none":"1px solid #e2e8f0"}}>
-                <td style={{padding:"4px 6px"}}><select value={r.pid} onChange={e=>{const n=[...newRows];n[i].pid=e.target.value;setNewRows(n)}} style={{...cellInput,fontSize:10}}><option value="">프로젝트</option>{aProj.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></td>
+                <td style={{padding:"4px 6px"}}><select value={r.pid} onChange={e=>{const n=[...newRows];n[i].pid=e.target.value;setNewRows(n)}} style={{...cellInput,fontSize:10}}><option value="">프로젝트</option>{projOptions}</select></td>
                 <td style={{padding:"4px 6px"}}><input value={r.task} onChange={e=>{const n=[...newRows];n[i].task=e.target.value;setNewRows(n)}} onKeyDown={e=>{if(e.key==="Enter"){if(!isNREmpty(newRows[i]))saveOneNR(i);else addNR()}}} placeholder="업무내용 (필수)" autoFocus={i===newRows.length-1} style={{...cellInput,fontWeight:600}}/></td>
                 <td style={{padding:"4px 6px"}}>
                   <div onClick={e=>{const rect=e.currentTarget.getBoundingClientRect();setNotePopup({todo:{id:`__nr_${i}`,task:r.task||"새 업무",det:r.det||""},x:rect.left,y:rect.bottom,_newRow:i});}}
@@ -701,7 +709,7 @@ export function AddTodoSection({
               <span style={{fontSize:12,fontWeight:700,color:"#7c3aed",display:"inline-flex",alignItems:"center",gap:3}}><SparklesIcon style={ICON_SM} /> {aiParsed.filter(t=>t._chk).length} / {aiParsed.length}건 선택됨</span>
               <div style={{display:"flex",gap:4}} onMouseDown={e=>e.stopPropagation()}>
                 {([
-                  {key:"project",icon:<FolderIcon style={ICON_SM} />,label:"프로젝트",opts:aProj.map(p=>({label:p.name,value:p.name}))},
+                  {key:"project",icon:<FolderIcon style={ICON_SM} />,label:"프로젝트",opts:aProj.filter(p=>!p.parentId).flatMap(p=>{const ch=aProj.filter(c=>c.parentId===p.id);return [{label:p.name,value:p.name},...ch.map(c=>({label:`  └ ${c.name}`,value:c.name}))];})},
                   {key:"assignee",icon:<UserIcon style={ICON_SM} />,label:"담당자",opts:members.map(m=>({label:m,value:m}))},
                   {key:"priority",icon:<BoltIcon style={ICON_SM} />,label:"우선순위",opts:pris.map(p=>({label:p,value:p}))},
                 ] as {key:string,icon:React.ReactNode,label:string,opts:{label:string,value:string}[]}[]).map(({key,icon,label,opts})=>(
@@ -788,7 +796,7 @@ export function AddTodoSection({
                     <select value={mp?.id||""} onChange={e=>{const n=[...aiParsed];n[i].project=aProj.find(p=>p.id===parseInt(e.target.value))?.name||"";setAiParsed(n);}}
                       style={{...aiSelBase,borderColor:pc+"55",background:pc+"18",color:pc}}>
                       <option value="">미배정</option>
-                      {aProj.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+                      {projOptions}
                     </select>
                     <select value={members.find(m=>m===t.assignee)||t.assignee||""} onChange={e=>{const n=[...aiParsed];n[i].assignee=e.target.value;setAiParsed(n);}}
                       style={{...aiSelBase,borderColor:"#e2e8f0",background:"#f1f5f9",color:"#475569"}}>
@@ -1045,7 +1053,7 @@ export function AddTodoSection({
                   </div>
                   {/* 프로젝트 / 담당자 / 우선순위 — AI와 동일한 fixed 드롭다운 */}
                   {([
-                    {key:"project",icon:<FolderIcon style={ICON_SM}/>,label:"프로젝트",opts:aProj.map(p=>({label:p.name,value:p.name}))},
+                    {key:"project",icon:<FolderIcon style={ICON_SM}/>,label:"프로젝트",opts:aProj.filter(p=>!p.parentId).flatMap(p=>{const ch=aProj.filter(c=>c.parentId===p.id);return [{label:p.name,value:p.name},...ch.map(c=>({label:`  └ ${c.name}`,value:c.name}))];})},
                     {key:"who",icon:<UserIcon style={ICON_SM}/>,label:"담당자",opts:members.map(m=>({label:m,value:m}))},
                     {key:"pri",icon:<BoltIcon style={ICON_SM}/>,label:"우선순위",opts:pris.map(p=>({label:p,value:p}))},
                   ] as {key:string,icon:React.ReactNode,label:string,opts:{label:string,value:string}[]}[]).map(({key,icon,label,opts})=>(
@@ -1122,7 +1130,7 @@ export function AddTodoSection({
                       <select value={mp?.id||""} onChange={e=>{const n=[...tplApplyItems];n[i]={...n[i],project:aProj.find(p=>p.id===parseInt(e.target.value))?.name||"",pid:parseInt(e.target.value)||0};setTplApplyItems(n);}}
                         style={{...aiSelBase,borderColor:pc+"55",background:pc+"18",color:pc}}>
                         <option value="">미배정</option>
-                        {aProj.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+                        {projOptions}
                       </select>
                       {/* 담당자 */}
                       <select value={t.who||""} onChange={e=>{const n=[...tplApplyItems];n[i]={...n[i],who:e.target.value};setTplApplyItems(n);}}

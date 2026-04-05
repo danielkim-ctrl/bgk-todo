@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { RichEditor } from "../editor/RichEditor";
-import { Project, ActivityLog } from "../../types";
-import { DocumentTextIcon, ArrowPathIcon, ICON_SM } from "../ui/Icons";
+import { Project, ActivityLog, Attachment } from "../../types";
+import { DocumentTextIcon, ArrowPathIcon, PaperClipIcon, LinkIcon, XMarkIcon, PlusIcon, ICON_SM } from "../ui/Icons";
 import { RepeatPicker } from "../ui/RepeatPicker";
 
 // ── 로그 패널 ──────────────────────────────────────────────────────────────────
@@ -196,6 +196,101 @@ function LogPanel({ logs, gPr, onAddComment }: {
 }
 
 // ── 편집 폼 ────────────────────────────────────────────────────────────────────
+// ── 첨부 파일/링크 관리 영역 ──────────────────────────────────────────────────
+function AttachmentSection({ attachments, onChange }: { attachments: Attachment[]; onChange: (v: Attachment[]) => void }) {
+  const [adding, setAdding] = useState(false);
+  const [name, setName] = useState("");
+  const [url, setUrl] = useState("");
+
+  // URL에서 파일 타입 자동 감지
+  const detectType = (u: string): Attachment["type"] => {
+    if (u.includes("docs.google.com/spreadsheets")) return "sheets";
+    if (u.includes("docs.google.com/document")) return "docs";
+    if (u.includes("drive.google.com")) return "drive";
+    return "link";
+  };
+
+  // URL에서 이름 자동 추출 (비어있을 때)
+  const autoName = (u: string): string => {
+    try { return new URL(u).hostname.replace("www.", ""); } catch { return "링크"; }
+  };
+
+  const typeIcon: Record<string, { bg: string; color: string; label: string }> = {
+    sheets: { bg: "#e8f5e9", color: "#16a34a", label: "Sheets" },
+    docs: { bg: "#e3f2fd", color: "#2563eb", label: "Docs" },
+    drive: { bg: "#fff3e0", color: "#f59e0b", label: "Drive" },
+    link: { bg: "#f1f5f9", color: "#64748b", label: "Link" },
+    file: { bg: "#fce4ec", color: "#dc2626", label: "File" },
+  };
+
+  const handleAdd = () => {
+    if (!url.trim()) return;
+    const newAtt: Attachment = { name: name.trim() || autoName(url), url: url.trim(), type: detectType(url) };
+    onChange([...attachments, newAtt]);
+    setName(""); setUrl(""); setAdding(false);
+  };
+
+  return (
+    <div style={{ marginBottom: 4 }}>
+      <label style={{ fontSize: 11, fontWeight: 600, color: "#334155", display: "flex", alignItems: "center", gap: 3, marginBottom: 6 }}>
+        <PaperClipIcon style={ICON_SM} /> 첨부 {attachments.length > 0 && <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400 }}>({attachments.length})</span>}
+      </label>
+      {/* 첨부 목록 */}
+      {attachments.length > 0 && (
+        <div style={{ border: "1px solid #e2e8f0", borderRadius: 8, marginBottom: 8, overflow: "hidden" }}>
+          {attachments.map((att, i) => {
+            const t = typeIcon[att.type] || typeIcon.link;
+            return (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderBottom: i < attachments.length - 1 ? "1px solid #f1f5f9" : "none" }}>
+                <div style={{ width: 28, height: 28, borderRadius: 6, background: t.bg, color: t.color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 12, fontWeight: 700 }}>
+                  <LinkIcon style={{ width: 14, height: 14 }} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
+                  <a href={att.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, fontWeight: 500, color: "#334155", textDecoration: "none", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#2563eb"; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#334155"; }}
+                  >{att.name}</a>
+                  <div style={{ fontSize: 10, color: "#94a3b8" }}>{t.label}</div>
+                </div>
+                {/* 삭제 버튼 */}
+                <button onClick={() => onChange(attachments.filter((_, j) => j !== i))}
+                  style={{ background: "none", border: "none", color: "#cbd5e1", cursor: "pointer", padding: 2, transition: "color .12s", flexShrink: 0 }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#dc2626"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#cbd5e1"; }}
+                ><XMarkIcon style={{ width: 14, height: 14 }} /></button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {/* 추가 폼 */}
+      {adding ? (
+        <div style={{ border: "1px solid #2563eb", borderRadius: 8, padding: 10, background: "#f8faff" }}>
+          <input value={url} onChange={e => setUrl(e.target.value)} placeholder="URL 입력 (https://...)"
+            style={{ width: "100%", padding: "6px 8px", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: 12, outline: "none", fontFamily: "inherit", marginBottom: 6 }}
+            onKeyDown={e => { if (e.key === "Enter") handleAdd(); }}
+            autoFocus />
+          <input value={name} onChange={e => setName(e.target.value)} placeholder="표시 이름 (선택, 비우면 자동)"
+            style={{ width: "100%", padding: "6px 8px", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: 12, outline: "none", fontFamily: "inherit", marginBottom: 8 }}
+            onKeyDown={e => { if (e.key === "Enter") handleAdd(); }} />
+          <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+            <button onClick={() => { setAdding(false); setName(""); setUrl(""); }}
+              style={{ fontSize: 11, padding: "4px 10px", borderRadius: 6, border: "1px solid #e2e8f0", background: "#fff", color: "#64748b", cursor: "pointer", fontFamily: "inherit" }}>취소</button>
+            <button onClick={handleAdd}
+              style={{ fontSize: 11, padding: "4px 10px", borderRadius: 6, border: "none", background: "#2563eb", color: "#fff", cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>추가</button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={() => setAdding(true)}
+          style={{ width: "100%", padding: "8px", border: "1px dashed #cbd5e1", borderRadius: 8, background: "none", color: "#94a3b8", fontSize: 11, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 4, transition: "all .12s" }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "#2563eb"; (e.currentTarget as HTMLElement).style.color = "#2563eb"; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "#cbd5e1"; (e.currentTarget as HTMLElement).style.color = "#94a3b8"; }}
+        ><PlusIcon style={{ width: 12, height: 12 }} /> 파일/링크 추가</button>
+      )}
+    </div>
+  );
+}
+
 export function EditForm({ f, onChange, proj, members, pris, stats, currentUser, gPr, onAddComment }: {
   f: any;
   onChange: (v: any) => void;
@@ -246,7 +341,14 @@ export function EditForm({ f, onChange, proj, members, pris, stats, currentUser,
           <label style={{ fontSize: 11, fontWeight: 600, color: "#334155", display: "block", marginBottom: 4 }}>프로젝트 *</label>
           <select value={f.pid || ""} onChange={e => u("pid", e.target.value)} style={{ width: "100%", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: 13, fontFamily: "inherit" }}>
             <option value="">선택</option>
-            {proj.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            {/* 트리형 프로젝트 목록 — 상위 아래에 세부 들여쓰기 */}
+            {proj.filter(p => !p.parentId).flatMap(p => {
+              const children = proj.filter(ch => ch.parentId === p.id);
+              return [
+                <option key={p.id} value={p.id}>{p.name}</option>,
+                ...children.map(ch => <option key={ch.id} value={ch.id}>&nbsp;&nbsp;└ {ch.name}</option>)
+              ];
+            })}
           </select>
         </div>
         <div style={{ marginBottom: 12 }}>
@@ -282,12 +384,17 @@ export function EditForm({ f, onChange, proj, members, pris, stats, currentUser,
         <div style={{ marginBottom: 12 }}>
           <RepeatPicker value={f.repeat || "없음"} onChange={v => u("repeat", v)} startDate={f.due || ""} />
         </div>
-        <div style={{ marginBottom: 4 }}>
+        <div style={{ marginBottom: 12 }}>
           <label style={{ fontSize: 11, fontWeight: 600, color: "#334155", display: "flex", alignItems: "center", gap: 3, marginBottom: 6 }}>
             <DocumentTextIcon style={ICON_SM} /> 상세내용
           </label>
           <RichEditor value={f.det || ""} onChange={v => u("det", v)} />
         </div>
+        {/* 첨부 파일/링크 영역 */}
+        <AttachmentSection
+          attachments={f.attachments || []}
+          onChange={v => u("attachments", v)}
+        />
       </>}
 
       {/* 로그 탭 */}

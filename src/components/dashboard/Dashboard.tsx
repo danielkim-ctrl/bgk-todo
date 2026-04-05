@@ -4,7 +4,7 @@ import { isOD, stripHtml } from "../../utils";
 import { Project, DeletedTodo } from "../../types";
 import { CheckCircleIcon, ExclamationTriangleIcon, UserIcon, FolderIcon, CalendarIcon, ListBulletIcon, CheckIcon, BoltIcon, ICON_SM } from "../ui/Icons";
 
-export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,deletedLog=[],onNavigate,isMobile}: {
+export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,deletedLog=[],onNavigate,isMobile,currentUser}: {
   todos: any[];
   projects: Project[];
   members: string[];
@@ -14,10 +14,9 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
   stBg: Record<string,string>;
   gPr: (id: number) => Project;
   deletedLog?: DeletedTodo[];
-  /** KPI 카드 클릭 시 리스트 뷰로 이동하는 콜백 (상태 필터 배열 전달) */
   onNavigate?: (stFilter: string[]) => void;
-  /** 모바일 여부 — KPI 카드 2열 레이아웃, 텍스트 크기 조정 */
   isMobile?: boolean;
+  currentUser?: string | null;
 }) {
   const [tab,setTab]=useState("member");
   // KPI 기간 필터 — 마감기한 기준으로 표시 범위 조정
@@ -194,7 +193,47 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
     );
   };
 
+  // ── 내 업무 현황 위젯 ──────────────────────────────────────────
+  const myTodos = currentUser ? todos.filter((t: any) => t.who === currentUser) : [];
+  const myActive = myTodos.filter((t: any) => t.st !== "완료");
+  const myDone = myTodos.filter((t: any) => t.st === "완료");
+  const myOverdue = myActive.filter((t: any) => t.due?.split(" ")[0] && t.due.split(" ")[0] < todayIso);
+  const myTodayDue = myActive.filter((t: any) => t.due?.split(" ")[0] === todayIso);
+  const myPct = myTodos.length > 0 ? Math.round(myDone.length / myTodos.length * 100) : 0;
+  // 이번 주 완료 수
+  const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
+  const weekAgoStr = weekAgo.toISOString().slice(0, 10);
+  const myWeekDone = myDone.filter((t: any) => t.done && t.done >= weekAgoStr).length;
+
   return <div>
+    {/* ── 내 업무 현황 카드 ── */}
+    {currentUser && (
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(4,1fr)", gap: 10, marginBottom: 14 }}>
+        <div style={{ ...S.card, padding: "12px 16px" }}>
+          <div style={{ fontSize: 11, color: "#64748b", marginBottom: 2 }}>오늘 할 일</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: myOverdue.length > 0 ? "#dc2626" : "#2563eb" }}>
+            {myTodayDue.length + myOverdue.length}
+          </div>
+          {myOverdue.length > 0 && <div style={{ fontSize: 10, color: "#dc2626" }}>지연 {myOverdue.length}건 포함</div>}
+        </div>
+        <div style={{ ...S.card, padding: "12px 16px" }}>
+          <div style={{ fontSize: 11, color: "#64748b", marginBottom: 2 }}>이번 주 완료</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: "#16a34a" }}>{myWeekDone}</div>
+        </div>
+        <div style={{ ...S.card, padding: "12px 16px" }}>
+          <div style={{ fontSize: 11, color: "#64748b", marginBottom: 2 }}>진행중</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: "#2563eb" }}>{myActive.length}</div>
+        </div>
+        <div style={{ ...S.card, padding: "12px 16px" }}>
+          <div style={{ fontSize: 11, color: "#64748b", marginBottom: 2 }}>전체 완료율</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: "#0f172a" }}>{myPct}%</div>
+          <div style={{ height: 4, borderRadius: 99, background: "#e2e8f0", marginTop: 4, overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${myPct}%`, background: myPct === 100 ? "#16a34a" : "linear-gradient(90deg,#2563eb,#16a34a)", borderRadius: 99, transition: "width .4s" }} />
+          </div>
+        </div>
+      </div>
+    )}
+
     {/* ── 오늘의 브리핑 ───────────────────────────────────────────────────── */}
     {(overdueItems.length > 0 || todayItems.length > 0 || tomorrowItems.length > 0) && (
       <div style={{...S.card,marginBottom:16,padding:0,overflow:"hidden"}}>

@@ -4,7 +4,7 @@ import { avColor, avColor2, avInitials } from "../../utils/avatarUtils";
 import { PROJ_PALETTE } from "../../constants";
 import { Project, Team, TeamRole, TEAM_ROLE_LABELS, ALL_PERMISSIONS, TEAM_ROLE_PERMISSIONS } from "../../types";
 import { topProjects, childProjects } from "../../utils";
-import { UserIcon, UserGroupIcon, BoltIcon, CheckCircleIcon, Cog6ToothIcon, FolderIcon, CheckIcon, PencilSquareIcon, TrashIcon, PlusIcon, XMarkIcon, ChevronRightIcon, Bars3Icon, ICON_SM } from "../ui/Icons";
+import { UserIcon, UserGroupIcon, BoltIcon, CheckCircleIcon, Cog6ToothIcon, FolderIcon, CheckIcon, PencilSquareIcon, TrashIcon, PlusIcon, XMarkIcon, ChevronRightIcon, Bars3Icon, EyeIcon, EyeSlashIcon, ICON_SM } from "../ui/Icons";
 
 export function SettingsMgr({
   members, setMembers,
@@ -38,7 +38,7 @@ export function SettingsMgr({
   setProjects: (fn: any) => void;
   pNId: number;
   setPNId: (v: number) => void;
-  onAddProj: (p: Omit<Project,"id">) => void;
+  onAddProj: (p: Omit<Project,"id">) => number | void;
   onDelProj: (id: number) => void;
   onEditProj: (id: number, u: Partial<Project>) => void;
   todos: any[];
@@ -79,6 +79,8 @@ export function SettingsMgr({
   const nextColor = PROJ_PALETTE.find(c => !usedColors.includes(c)) || PROJ_PALETTE[0];
   const [projNm, setProjNm] = useState("");
   const [projCo, setProjCo] = useState(nextColor);
+  const [showHiddenProj, setShowHiddenProj] = useState(false);
+  const [projTeamId, setProjTeamId] = useState("");
 
   // ── 공통 스타일 토큰 — 모든 탭에서 동일하게 적용 ──────────────────────────
   const tS = (a: boolean): React.CSSProperties => ({
@@ -307,91 +309,164 @@ export function SettingsMgr({
       {apiKey&&<div style={{fontSize:13,color:"#16a34a",fontWeight:600,display:"flex",alignItems:"center",gap:4}}><CheckIcon style={ICON_SM}/> API 키 설정됨</div>}
     </div>}
 
-    {/* ── 프로젝트 탭 — 상위/세부 트리 구조 ── */}
-    {tab==="proj"&&<div style={{display:"flex",flexDirection:"column",flex:1,minHeight:0}}>
-      <div style={{display:"flex",flexDirection:"column",flex:1,overflowY:"auto",marginBottom:14}}>
-        {topProjects(projects).map(p=>{
-          const children = childProjects(projects, p.id);
-          // 상위 + 하위 전체 업무 수
-          const allIds = [p.id, ...children.map(ch=>ch.id)];
-          const totalC = todos.filter((t:any)=>allIds.includes(t.pid)).length;
-          return <div key={p.id}>
-            {/* 상위 프로젝트 행 */}
-            <div style={{...ROW,cursor:"default"}}
-              onMouseEnter={e=>{(e.currentTarget as HTMLElement).style.background="#f8fafc";}}
-              onMouseLeave={e=>{(e.currentTarget as HTMLElement).style.background="#fff";}}>
-              <ColorDot color={p.color} onChange={c=>onEditProj(p.id,{color:c})}/>
-              <div style={{flex:1,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>{p.name}</div>
-              {/* 프로젝트 소속 팀 */}
-              {teams.length>0&&(()=>{
-                const projTeams=teams.filter(t=>t.projectIds.includes(p.id));
-                const availTeams=teams.filter(t=>!t.projectIds.includes(p.id));
-                return <div style={{display:"flex",gap:3,alignItems:"center",flexWrap:"wrap" as const}}>
-                  {projTeams.map(t=>(
-                    <span key={t.id} style={{display:"inline-flex",alignItems:"center",gap:3,padding:"3px 10px",background:"#eff6ff",borderRadius:99,fontSize:12,color:"#2563eb",fontWeight:500,border:"1px solid #bfdbfe",whiteSpace:"nowrap" as const}}>
-                      <span style={{width:7,height:7,borderRadius:"50%",background:t.color,flexShrink:0}}/>
-                      {t.name}
-                      <span onClick={()=>removeTeamProject(t.id,p.id)} style={{cursor:"pointer",color:"#93c5fd",marginLeft:2,fontSize:13,lineHeight:1}}>×</span>
-                    </span>
-                  ))}
-                  {availTeams.length>0&&(
-                    <select value="" onChange={e=>{if(e.target.value)addTeamProject(e.target.value,p.id);}}
-                      style={{padding:"2px 6px",border:"1px dashed #93c5fd",borderRadius:6,fontSize:12,fontFamily:"inherit",color:"#93c5fd",maxWidth:44,background:"#f8fbff"}}>
-                      <option value="">+</option>
-                      {availTeams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
-                    </select>
-                  )}
-                </div>;
-              })()}
-              <span style={{fontSize:12,color:"#94a3b8",flexShrink:0}}>{totalC}건</span>
-              <button onClick={()=>{const n=prompt("이름:",p.name);if(n)onEditProj(p.id,{name:n.trim()})}} style={ICON_BTN} onMouseEnter={e=>iconHover(e,true)} onMouseLeave={e=>iconHover(e,false)}><PencilSquareIcon style={ICON_SM}/></button>
-              <button onClick={()=>{if(window.confirm("해당 프로젝트를 삭제하시겠습니까? (세부 프로젝트도 함께 삭제됩니다)")){children.forEach(ch=>onDelProj(ch.id));onDelProj(p.id);}}} style={ICON_BTN} onMouseEnter={e=>iconHover(e,true)} onMouseLeave={e=>iconHover(e,false)}><TrashIcon style={ICON_SM}/></button>
+    {/* ── 프로젝트 탭 — 팀별 그룹 + 상위/세부 트리 + 숨기기 ── */}
+    {tab==="proj"&&(()=>{
+      const activeProjs = projects.filter(p => p.status === "활성");
+      const hiddenProjs = projects.filter(p => p.status !== "활성");
+
+      // 프로젝트 행 — 기존 ROW 스타일 기반, 세로줄 없음
+      const projCard = (p: any) => {
+        const children = childProjects(activeProjs, p.id);
+        const allIds = [p.id, ...children.map((ch: any) => ch.id)];
+        const totalC = todos.filter((t: any) => allIds.includes(t.pid)).length;
+        const isHidden = p.status !== "활성";
+        const projTeamsArr = teams.filter(t => t.projectIds.includes(p.id));
+        const availTeams = teams.filter(t => !t.projectIds.includes(p.id));
+        return <div key={p.id} style={{ opacity: isHidden ? 0.5 : 1 }}>
+          {/* 상위 행 */}
+          <div style={{...ROW, cursor: "default" }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#f8fafc"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#fff"; }}>
+            <ColorDot color={p.color} onChange={c => onEditProj(p.id, { color: c })} />
+            <div style={{ flex: 1, fontWeight: 700, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{p.name}</div>
+            {teams.length > 0 && <div style={{ display: "flex", gap: 3, alignItems: "center", flexWrap: "wrap" as const }}>
+              {projTeamsArr.map(t => (
+                <span key={t.id} style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "2px 8px", background: "#eff6ff", borderRadius: 99, fontSize: 10, color: "#2563eb", fontWeight: 500, border: "1px solid #bfdbfe", whiteSpace: "nowrap" as const }}>
+                  <span style={{ width: 5, height: 5, borderRadius: "50%", background: t.color }} />
+                  {t.name}
+                  <span onClick={() => removeTeamProject(t.id, p.id)} style={{ cursor: "pointer", color: "#93c5fd", marginLeft: 1, fontSize: 12, lineHeight: 1 }}>×</span>
+                </span>
+              ))}
+              {availTeams.length > 0 && (
+                <select value="" onChange={e => { if (e.target.value) addTeamProject(e.target.value, p.id); }}
+                  style={{ padding: "2px 6px", border: "1px dashed #93c5fd", borderRadius: 6, fontSize: 10, fontFamily: "inherit", color: "#93c5fd", maxWidth: 44, background: "#f8fbff" }}>
+                  <option value="">+</option>
+                  {availTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              )}
+            </div>}
+            <span style={{ fontSize: 11, color: "#94a3b8", flexShrink: 0 }}>{totalC}건</span>
+            <button onClick={() => onEditProj(p.id, { status: isHidden ? "활성" : "숨김" })} title={isHidden ? "표시" : "숨기기"} style={ICON_BTN} onMouseEnter={e => iconHover(e, true)} onMouseLeave={e => iconHover(e, false)}>{isHidden ? <EyeIcon style={ICON_SM} /> : <EyeSlashIcon style={ICON_SM} />}</button>
+            <button onClick={() => { const n = prompt("이름:", p.name); if (n) onEditProj(p.id, { name: n.trim() }); }} style={ICON_BTN} onMouseEnter={e => iconHover(e, true)} onMouseLeave={e => iconHover(e, false)}><PencilSquareIcon style={ICON_SM} /></button>
+            <button onClick={() => { if (window.confirm("프로젝트를 삭제하시겠습니까?")) { children.forEach((ch: any) => onDelProj(ch.id)); onDelProj(p.id); } }} style={ICON_BTN} onMouseEnter={e => iconHover(e, true)} onMouseLeave={e => iconHover(e, false)}><TrashIcon style={ICON_SM} /></button>
+          </div>
+          {/* 세부 프로젝트 */}
+          {children.map(ch => {
+            const chC = todos.filter((t: any) => t.pid === ch.id).length;
+            return <div key={ch.id} style={{...ROW, cursor: "default", paddingLeft: 30 }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#f8fafc"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#fff"; }}>
+              <span style={{ color: "#cbd5e1", fontSize: 10 }}>└</span>
+              <ColorDot color={ch.color} onChange={c => onEditProj(ch.id, { color: c })} />
+              <div style={{ flex: 1, fontSize: 12, fontWeight: 500, color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{ch.name}</div>
+              <span style={{ fontSize: 11, color: "#94a3b8", flexShrink: 0 }}>{chC}건</span>
+              <button onClick={() => onEditProj(ch.id, { status: ch.status !== "활성" ? "활성" : "숨김" })} style={ICON_BTN} onMouseEnter={e => iconHover(e, true)} onMouseLeave={e => iconHover(e, false)}>{ch.status !== "활성" ? <EyeIcon style={ICON_SM} /> : <EyeSlashIcon style={ICON_SM} />}</button>
+              <button onClick={() => { const n = prompt("이름:", ch.name); if (n) onEditProj(ch.id, { name: n.trim() }); }} style={ICON_BTN} onMouseEnter={e => iconHover(e, true)} onMouseLeave={e => iconHover(e, false)}><PencilSquareIcon style={ICON_SM} /></button>
+              <button onClick={() => { if (window.confirm("세부 프로젝트를 삭제하시겠습니까?")) onDelProj(ch.id); }} style={ICON_BTN} onMouseEnter={e => iconHover(e, true)} onMouseLeave={e => iconHover(e, false)}><TrashIcon style={ICON_SM} /></button>
+            </div>;
+          })}
+          {/* 세부 추가 */}
+          <div style={{ padding: "3px 14px 3px 38px" }}>
+            <button onClick={() => { const n = prompt("세부 프로젝트 이름:"); if (!n?.trim()) return; onAddProj({ name: n.trim(), color: p.color, status: "활성", parentId: p.id }); }}
+              style={{ fontSize: 10, color: "#cbd5e1", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", transition: "color .12s" }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#2563eb"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#cbd5e1"; }}
+            >+ 세부 프로젝트 추가</button>
+          </div>
+        </div>;
+      };
+
+      // 팀별 프로젝트 그룹
+      const assignedIds = new Set<number>();
+      const teamGroups = teams.map(team => {
+        const tProjs = topProjects(activeProjs).filter(p => team.projectIds.includes(p.id));
+        tProjs.forEach(p => assignedIds.add(p.id));
+        return { team, projs: tProjs };
+      }).filter(g => g.projs.length > 0);
+      const unassignedProjs = topProjects(activeProjs).filter(p => !assignedIds.has(p.id));
+
+      return <div style={{ display: "flex", flexDirection: "column" as const, flex: 1, minHeight: 0 }}>
+        <div style={{ display: "flex", flexDirection: "column" as const, flex: 1, overflowY: "auto" as const, marginBottom: 14 }}>
+          {/* 팀별 그룹 — 사이드바 팀 헤더와 동일 패턴 */}
+          {teams.length >= 2 ? <>
+            {teamGroups.map(({ team, projs }) => (
+              <div key={team.id} style={{ marginBottom: 6 }}>
+                {/* 팀 헤더 — 배경색으로 눈에 띄게 */}
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 8, padding: "8px 14px",
+                  background: "#f1f5f9", borderBottom: "1px solid #e2e8f0",
+                  position: "sticky" as const, top: 0, zIndex: 1,
+                }}>
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: team.color, flexShrink: 0 }} />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "#334155", flex: 1 }}>{team.name}</span>
+                  <span style={{ fontSize: 10, color: "#94a3b8", background: "#e2e8f0", borderRadius: 99, padding: "1px 8px", fontWeight: 600 }}>{projs.length}</span>
+                </div>
+                {projs.map(p => projCard(p))}
+              </div>
+            ))}
+            {unassignedProjs.length > 0 && <div style={{ marginBottom: 6 }}>
+              <div style={{
+                display: "flex", alignItems: "center", gap: 8, padding: "8px 14px",
+                background: "#f8fafc", borderBottom: "1px solid #e2e8f0",
+              }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", flex: 1 }}>팀 미배정</span>
+                <span style={{ fontSize: 10, color: "#cbd5e1", background: "#e2e8f0", borderRadius: 99, padding: "1px 8px", fontWeight: 600 }}>{unassignedProjs.length}</span>
+              </div>
+              {unassignedProjs.map(p => projCard(p))}
+            </div>}
+          </> : <>
+            {topProjects(activeProjs).map(p => projCard(p))}
+          </>}
+
+          {/* 숨긴 프로젝트 — 접힌 섹션 */}
+          {hiddenProjs.length > 0 && <div style={{ marginTop: 4 }}>
+            <div onClick={() => setShowHiddenProj(v => !v)}
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px 4px", fontSize: 11, fontWeight: 700, color: "#94a3b8", cursor: "pointer" }}>
+              <EyeSlashIcon style={{ width: 12, height: 12 }} />
+              숨긴 프로젝트
+              <span style={{ fontSize: 9, background: "#f1f5f9", color: "#64748b", borderRadius: 99, padding: "1px 6px", fontWeight: 600 }}>{hiddenProjs.length}</span>
+              <span style={{ flex: 1, height: 1, background: "#e2e8f0" }} />
+              <span style={{ fontSize: 8 }}>{showHiddenProj ? "▲" : "▼"}</span>
             </div>
-            {/* 세부 프로젝트 목록 */}
-            {children.map(ch=>{
-              const chC=todos.filter((t:any)=>t.pid===ch.id).length;
-              return <div key={ch.id} style={{...ROW,paddingLeft:32,cursor:"default"}}
-                onMouseEnter={e=>{(e.currentTarget as HTMLElement).style.background="#f8fafc";}}
-                onMouseLeave={e=>{(e.currentTarget as HTMLElement).style.background="#fff";}}>
-                <span style={{color:"#cbd5e1",fontSize:11,marginRight:2}}>└─</span>
-                <ColorDot color={ch.color} onChange={c=>onEditProj(ch.id,{color:c})}/>
-                <div style={{flex:1,fontWeight:500,fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>{ch.name}</div>
-                <span style={{fontSize:11,color:"#94a3b8",flexShrink:0}}>{chC}건</span>
-                <button onClick={()=>{const n=prompt("이름:",ch.name);if(n)onEditProj(ch.id,{name:n.trim()})}} style={ICON_BTN} onMouseEnter={e=>iconHover(e,true)} onMouseLeave={e=>iconHover(e,false)}><PencilSquareIcon style={ICON_SM}/></button>
-                <button onClick={()=>{if(window.confirm("세부 프로젝트를 삭제하시겠습니까?"))onDelProj(ch.id)}} style={ICON_BTN} onMouseEnter={e=>iconHover(e,true)} onMouseLeave={e=>iconHover(e,false)}><TrashIcon style={ICON_SM}/></button>
-              </div>;
-            })}
-            {/* 세부 프로젝트 추가 버튼 */}
-            <div style={{paddingLeft:32,padding:"4px 14px 4px 42px"}}>
-              <button
-                onClick={()=>{
-                  const n=prompt("세부 프로젝트 이름:");
-                  if(!n?.trim())return;
-                  // 세부 프로젝트: 상위 색상 상속, parentId 설정
-                  onAddProj({name:n.trim(),color:p.color,status:"활성",parentId:p.id});
-                }}
-                style={{fontSize:11,color:"#94a3b8",background:"none",border:"none",padding:"2px 0",cursor:"pointer",fontFamily:"inherit",transition:"color .15s"}}
-                onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.color="#2563eb";}}
-                onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.color="#94a3b8";}}
-              >+ 세부 프로젝트 추가</button>
-            </div>
-            {/* 상위 프로젝트 구분선 */}
-            <div style={{height:1,background:"#f1f5f9",margin:"2px 0"}}/>
-          </div>;
-        })}
-      </div>
-      <div style={{borderTop:"1px solid #e2e8f0",paddingTop:12,flexShrink:0}}>
-        <div style={SEC_LABEL}>새 프로젝트</div>
-        <div style={{display:"flex",gap:6,alignItems:"center"}}>
-          <ColorDot color={projCo} onChange={setProjCo}/>
-          <input value={projNm} onChange={e=>setProjNm(e.target.value)}
-            onKeyDown={e=>{if(e.key==="Enter"&&projNm.trim()){onAddProj({name:projNm.trim(),color:projCo,status:"활성"});setProjNm("");const nu=[...usedColors,projCo];setProjCo(PROJ_PALETTE.find(c=>!nu.includes(c))||PROJ_PALETTE[0]);}}}
-            placeholder="이름" style={INP}/>
-          <button style={BTN_ADD}
-            onClick={()=>{if(!projNm.trim())return;onAddProj({name:projNm.trim(),color:projCo,status:"활성"});setProjNm("");const nu=[...usedColors,projCo];setProjCo(PROJ_PALETTE.find(c=>!nu.includes(c))||PROJ_PALETTE[0]);}}>추가</button>
+            {showHiddenProj && topProjects(hiddenProjs).map(p => projCard(p))}
+          </div>}
         </div>
-      </div>
-    </div>}
+
+        {/* 새 프로젝트 추가 — 이름 + 색상 + 팀 선택 */}
+        <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: 12, flexShrink: 0 }}>
+          <div style={SEC_LABEL}>새 프로젝트</div>
+          <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" as const }}>
+            <ColorDot color={projCo} onChange={setProjCo} />
+            <input value={projNm} onChange={e => setProjNm(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === "Enter" && projNm.trim()) {
+                  const np = onAddProj({ name: projNm.trim(), color: projCo, status: "활성" });
+                  // 팀 배정
+                  if (projTeamId && np) addTeamProject(projTeamId, typeof np === "number" ? np : pNId - 1);
+                  setProjNm(""); setProjTeamId("");
+                  const nu = [...usedColors, projCo]; setProjCo(PROJ_PALETTE.find(c => !nu.includes(c)) || PROJ_PALETTE[0]);
+                }
+              }}
+              placeholder="프로젝트 이름" style={{ ...INP, flex: 1 }} />
+            {teams.length > 0 && (
+              <select value={projTeamId} onChange={e => setProjTeamId(e.target.value)}
+                style={{ padding: "6px 8px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: 12, fontFamily: "inherit", color: projTeamId ? "#2563eb" : "#94a3b8", minWidth: 70 }}>
+                <option value="">팀 선택</option>
+                {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            )}
+            <button style={BTN_ADD}
+              onClick={() => {
+                if (!projNm.trim()) return;
+                const np = onAddProj({ name: projNm.trim(), color: projCo, status: "활성" });
+                if (projTeamId && np) addTeamProject(projTeamId, typeof np === "number" ? np : pNId - 1);
+                setProjNm(""); setProjTeamId("");
+                const nu = [...usedColors, projCo]; setProjCo(PROJ_PALETTE.find(c => !nu.includes(c)) || PROJ_PALETTE[0]);
+              }}>추가</button>
+          </div>
+        </div>
+      </div>;
+    })()}
 
     {/* ── 담당자 / 우선순위 / 상태 탭 — 공통 목록 ── */}
     {(tab==="members"||tab==="pris"||tab==="stats")&&<div style={{display:"flex",flexDirection:"column",flex:1,minHeight:0}}>

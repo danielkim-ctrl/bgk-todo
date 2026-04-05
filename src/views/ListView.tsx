@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useCallback, useMemo } from "react";
+import React, { useRef, useState, useEffect, useCallback, useMemo } from "react";
 import { S } from "../styles";
 import { isOD, dDay, fDow, fmt2, stripHtml, sanitize, getParentProj } from "../utils";
 import { usePermission } from "../auth/PermissionContext";
@@ -12,7 +12,7 @@ import { SectionLabel } from "../components/ui/SectionLabel";
 import { DropPanel } from "../components/ui/DropPanel";
 import { RepeatBadge } from "../components/ui/RepeatBadge";
 import { ColumnFilterDropdown } from "../components/ui/ColumnFilterDropdown";
-import { Bars3Icon, ListBulletIcon, FolderIcon, UserIcon, ArrowPathIcon, MagnifyingGlassIcon, ExclamationTriangleIcon, CheckIcon, CheckCircleIcon, FlagIcon, PencilSquareIcon, TrashIcon, InboxIcon, StarIcon, StarOutlineIcon, XMarkIcon, BookmarkIcon, ICON_SM } from "../components/ui/Icons";
+import { Bars3Icon, ListBulletIcon, FolderIcon, UserIcon, ArrowPathIcon, MagnifyingGlassIcon, ExclamationTriangleIcon, CheckIcon, CheckCircleIcon, FlagIcon, PencilSquareIcon, TrashIcon, InboxIcon, StarIcon, StarOutlineIcon, XMarkIcon, BookmarkIcon, DocumentDuplicateIcon, ICON_SM } from "../components/ui/Icons";
 import { Chip } from "../components/ui/Chip";
 import { SavedFilter, Filters, TodoTemplate } from "../types";
 
@@ -257,6 +257,38 @@ export function ListView(props: ListViewProps) {
 
   // sfSaving 활성화 시 입력 필드에 포커스
   useEffect(() => { if (sfSaving) sfInputRef.current?.focus(); }, [sfSaving]);
+
+  // ── 우클릭 컨텍스트 메뉴 상태 ──────────────────────────────────────────────
+  // 행 우클릭 시 편집/복제/즐겨찾기/프로젝트이동/삭제 메뉴를 마우스 위치에 표시
+  const [ctxMenu, setCtxMenu] = useState<{x:number;y:number;todoId:number}|null>(null);
+
+  // 컨텍스트 메뉴 바깥 클릭 또는 ESC로 닫기
+  useEffect(()=>{
+    if(!ctxMenu) return;
+    const onClickOutside=()=>setCtxMenu(null);
+    const onEsc=(e:KeyboardEvent)=>{if(e.key==="Escape")setCtxMenu(null);};
+    document.addEventListener("mousedown",onClickOutside);
+    document.addEventListener("keydown",onEsc);
+    return ()=>{document.removeEventListener("mousedown",onClickOutside);document.removeEventListener("keydown",onEsc);};
+  },[ctxMenu]);
+
+  // 업무 복제 — 원본 필드를 기반으로 새 업무 생성 (마감일 미설정, 상태 "대기")
+  const duplicateTodo = useCallback((todoId:number)=>{
+    const t = sorted.find(x=>x.id===todoId);
+    if(!t) return;
+    addTodo({
+      task: `[복사] ${t.task}`,
+      pid: t.pid,
+      who: t.who,
+      pri: t.pri,
+      det: t.det,
+      repeat: t.repeat,
+      due: "",       // 마감일 미설정 — 복사본은 새로 지정
+      st: "대기",    // 상태 초기화
+    });
+    flash("업무가 복제되었습니다");
+    setCtxMenu(null);
+  },[sorted,addTodo,flash]);
 
   // ── 컬럼 너비 조절 상태 ──────────────────────────────────────────────────────
   // 일반 모드(8컬럼) / 확장 모드(6컬럼) 각각 별도 유지 — 모드 전환 시에도 너비 기억
@@ -828,11 +860,20 @@ export function ListView(props: ListViewProps) {
         <div style={{fontSize:12,color:"#94a3b8",marginBottom:24}}>
           {hasFilter?"다른 검색어나 필터를 시도해보세요":"팀과 함께할 첫 번째 업무를 추가해보세요"}
         </div>
+        {/* 검색어가 있을 때 빠른 업무 추가 버튼 */}
+        {search && <button
+          onClick={()=>{
+            addTodo({pid:0,task:search.trim(),who:currentUser||"",due:"",pri:"보통",st:"대기",det:"",repeat:"없음"});
+            flash(`"${search.trim()}" 업무가 추가되었습니다`);
+            setSearch("");
+          }}
+          style={{padding:"9px 22px",borderRadius:8,border:"none",background:"linear-gradient(135deg,#2563eb,#1d4ed8)",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",marginBottom:12,display:"inline-flex",alignItems:"center",gap:6}}>
+          + "{search}" 업무로 추가
+        </button>}
         {hasFilter
-          // 필터 있을 때: 초기화 버튼
           ? <button
               onClick={()=>{setSearch("");setFilters({proj:[],who:[],pri:[],st:[],repeat:[],fav:""});}}
-              style={{padding:"9px 22px",borderRadius:8,border:"none",background:"#2563eb",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>
+              style={{padding:"9px 22px",borderRadius:8,border:"none",background:search?"#f1f5f9":"#2563eb",color:search?"#475569":"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>
               필터 초기화
             </button>
           : null
@@ -872,6 +913,7 @@ export function ListView(props: ListViewProps) {
                 onDrop={e=>{if(!canDrag||dragRowId===null||dragRowId===t.id)return;e.preventDefault();reorderTodo(dragRowId,dropAtEnd?null:dropBeforeId);setDragRowId(null);setDropBeforeId(null);setDropAtEnd(false);
                   // 수동 드래그 순서가 최우선 — 드롭 완료 시 컬럼 정렬 해제
                   setSortCol(null);setActiveSortFields([]);setCustomSortOrders({});}}
+                onContextMenu={e=>{e.preventDefault();setCtxMenu({x:e.clientX,y:e.clientY,todoId:t.id});}}
                 onMouseEnter={e=>{if(editCell||datePop)return;setHoverRow(t.id);const r=(e.currentTarget as HTMLTableRowElement).getBoundingClientRect();setHoverRowRect({top:r.top,height:r.height});}}
                 style={{borderBottom:"1px solid #f1f5f9",borderLeft:isSel?"3px solid #2563eb":undefined,
                   ...(showDropLine?{borderTop:"3px solid #2563eb"}:{}),
@@ -984,6 +1026,7 @@ export function ListView(props: ListViewProps) {
             })()}
             {showDone&&sorted.filter(t=>t.st==="완료").map(t=>{const plain=stripHtml(t.det||"");
               return <tr key={t.id} data-rowid={t.id} style={{borderBottom:"1px solid #f1f5f9",background:"#fafafa",opacity:.72}}
+                onContextMenu={e=>{e.preventDefault();setCtxMenu({x:e.clientX,y:e.clientY,todoId:t.id});}}
                 onMouseEnter={e=>{if(editCell||datePop)return;setHoverRow(t.id);const r=(e.currentTarget as HTMLTableRowElement).getBoundingClientRect();setHoverRowRect({top:r.top,height:r.height});}}>
 
                 {/* 완료 행 — 프로젝트 컬럼 */}
@@ -1028,6 +1071,50 @@ export function ListView(props: ListViewProps) {
         </table>
     </div>}
     </div>
+
+    {/* ── 우클릭 컨텍스트 메뉴 ───────────────────────────────── */}
+    {/* 행 우클릭 시 편집/복제/즐겨찾기/프로젝트이동/삭제 메뉴 표시 */}
+    {ctxMenu&&(()=>{
+      const t=sorted.find(x=>x.id===ctxMenu.todoId);
+      if(!t) return null;
+      const isDone=t.st==="완료";
+      const canEditThis=permCanEdit(t.who);
+      const canDeleteThis=canDelete(t.who);
+      // 메뉴 항목 정의 — 조건에 따라 표시/숨김
+      const items:{icon:React.ReactNode;label:string;color?:string;onClick:()=>void;dividerAfter?:boolean}[]=[];
+      if(!isDone&&canEditThis) items.push({icon:<PencilSquareIcon style={ICON_SM}/>,label:"편집",onClick:()=>{setEditMod(t);setCtxMenu(null);}});
+      items.push({icon:<DocumentDuplicateIcon style={ICON_SM}/>,label:"복제",onClick:()=>duplicateTodo(t.id)});
+      items.push({icon:isFav(t.id)?<StarIcon style={ICON_SM}/>:<StarOutlineIcon style={ICON_SM}/>,label:isFav(t.id)?"즐겨찾기 해제":"즐겨찾기",onClick:()=>{toggleFav(t.id);setCtxMenu(null);}});
+      if(canEditThis) items.push({icon:<FolderIcon style={ICON_SM}/>,label:"프로젝트 이동",dividerAfter:true,onClick:()=>{
+        // 프로젝트 이동 — 인라인 편집 셀로 진입시켜 DropPanel 사용
+        setEditCell({id:t.id,field:"pid"});setCtxMenu(null);
+      }});
+      if(canDeleteThis) items.push({icon:<TrashIcon style={ICON_SM}/>,label:"삭제",color:"#dc2626",onClick:()=>{
+        if(confirm(`"${t.task}" 업무를 삭제하시겠습니까?`)){delTodo(t.id);}setCtxMenu(null);
+      }});
+      return <div onMouseDown={e=>e.stopPropagation()} style={{
+        position:"fixed",left:ctxMenu.x,top:ctxMenu.y,zIndex:9000,
+        background:"#fff",borderRadius:10,boxShadow:"0 4px 20px rgba(0,0,0,.15)",
+        border:"1px solid #e2e8f0",padding:"4px 0",minWidth:180,
+        fontFamily:"inherit",
+      }}>
+        {items.map((item,i)=><React.Fragment key={i}>
+          <button onClick={item.onClick}
+            onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.background="#f1f5f9";}}
+            onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.background="transparent";}}
+            style={{
+              display:"flex",alignItems:"center",gap:8,width:"100%",padding:"8px 14px",
+              background:"transparent",border:"none",cursor:"pointer",
+              fontSize:13,color:item.color||"#334155",fontFamily:"inherit",
+              transition:"background .1s",textAlign:"left" as const,
+            }}>
+            <span style={{color:item.color||"#64748b",display:"flex"}}>{item.icon}</span>
+            {item.label}
+          </button>
+          {item.dividerAfter&&<div style={{height:1,background:"#e2e8f0",margin:"4px 0"}}/>}
+        </React.Fragment>)}
+      </div>;
+    })()}
 
     {/* ── 리스트 hover 플로팅 액션 버튼 ───────────────────────── */}
     {/* mouseEnter/mouseLeave 대신 document mousemove로 좌표 감지 — 깜빡임 원천 차단 */}

@@ -31,6 +31,7 @@ export interface Todo {
   noteColor?: number;
   memoOrder?: number;
   teamId?: string;       // 소속 팀 ID (미지정 시 관리자만 조회 가능)
+  attachments?: Attachment[];  // 첨부 파일/링크
   logs?: ActivityLog[];  // 활동 로그 기록
   _instance?: boolean;
   _originDue?: string;
@@ -41,6 +42,13 @@ export interface ToastState {
   t: string;
   /** 토스트에 표시할 액션 버튼 (예: "실행 취소") */
   action?: { label: string; fn: () => void };
+}
+
+// 업무 첨부 파일/링크
+export interface Attachment {
+  name: string;
+  url: string;
+  type: "drive" | "sheets" | "docs" | "link" | "file";
 }
 
 export interface Filters {

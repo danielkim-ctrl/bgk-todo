@@ -26,6 +26,7 @@ export { PlusIcon } from "@heroicons/react/24/outline";             // 추가
 export { DocumentTextIcon } from "@heroicons/react/24/outline";     // 메모
 export { PencilSquareIcon } from "@heroicons/react/24/outline";     // 수정
 export { ClipboardDocumentIcon } from "@heroicons/react/24/outline";// 복제
+export { DocumentDuplicateIcon } from "@heroicons/react/24/outline"; // 업무 복제
 export { RectangleStackIcon } from "@heroicons/react/24/outline";  // 템플릿(스택)
 export { BoltIcon } from "@heroicons/react/24/outline";             // 우선순위(번개)
 export { InformationCircleIcon } from "@heroicons/react/24/outline";// 정보
@@ -45,6 +46,7 @@ export { InboxIcon } from "@heroicons/react/24/outline";                // 빈 �
 export { EyeIcon } from "@heroicons/react/24/outline";                 // 표시/숨기기 토글
 export { EyeSlashIcon } from "@heroicons/react/24/outline";            // 숨겨진 항목
 export { PaperClipIcon } from "@heroicons/react/24/outline";           // 파일 첨부
+export { LinkIcon } from "@heroicons/react/24/outline";                // 링크
 export { DocumentIcon } from "@heroicons/react/24/outline";            // 문서 (PDF 등)
 export { SparklesIcon } from "@heroicons/react/24/outline";            // AI 결과/자동생성
 export { PencilIcon } from "@heroicons/react/24/outline";              // 수정 (인라인)
