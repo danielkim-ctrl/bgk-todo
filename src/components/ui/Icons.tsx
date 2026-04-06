@@ -30,6 +30,7 @@ export { DocumentDuplicateIcon } from "@heroicons/react/24/outline"; // 업무 �
 export { RectangleStackIcon } from "@heroicons/react/24/outline";  // 템플릿(스택)
 export { BoltIcon } from "@heroicons/react/24/outline";             // 우선순위(번개)
 export { InformationCircleIcon } from "@heroicons/react/24/outline";// 정보
+export { BookOpenIcon } from "@heroicons/react/24/outline";         // 사용자 매뉴얼
 export { EllipsisHorizontalIcon } from "@heroicons/react/24/outline"; // 더보기(···)
 export { ChevronDownIcon } from "@heroicons/react/24/outline";      // 펼치기
 export { ChevronRightIcon } from "@heroicons/react/24/outline";     // 접기

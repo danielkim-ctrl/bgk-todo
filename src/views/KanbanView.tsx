@@ -179,9 +179,8 @@ export function KanbanView({
               return <div key={t.id}>
                 {/* 삽입 위치 파란 라인 */}
                 {showLine&&<div style={{height:4,background:"#2563eb",borderRadius:2,margin:"2px 4px 4px",boxShadow:"0 0 6px rgba(37,99,235,.4)"}}/>}
-                {isDragging
-                  ?<div style={{borderRadius:7,minHeight:72,border:"2px dashed #cbd5e1",background:"#f1f5f9",marginBottom:5}}/>
-                  :<div data-kbcard
+                {/* 드래그 중에도 카드를 유지 — DOM 교체 시 브라우저 drag 세션이 끊기므로 opacity로 처리 */}
+                <div data-kbcard
                       draggable
                       onDragStart={e=>{setDragId(t.id);e.dataTransfer.effectAllowed="move";document.body.style.cursor="grabbing";}}
                       onDragEnd={()=>{setDragId(null);setDragOver(null);setKbInsert(null);document.body.style.cursor="";}}
@@ -200,11 +199,11 @@ export function KanbanView({
                       onClick={()=>setDetMod(t)}
                       onMouseEnter={e=>{(e.currentTarget as HTMLDivElement).style.boxShadow="0 4px 14px rgba(0,0,0,.15)";(e.currentTarget as HTMLDivElement).style.transform="translateY(-1px)";}}
                       onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.boxShadow="0 1px 3px rgba(0,0,0,.08)";(e.currentTarget as HTMLDivElement).style.transform="none";}}
-                      style={{background:"#fff",borderRadius:7,padding:10,boxShadow:"0 1px 3px rgba(0,0,0,.08)",borderLeft:`4px solid ${priC[t.pri]||"#94a3b8"}`,cursor:"pointer",transition:"box-shadow .15s, transform .15s",marginBottom:5}}>
+                      style={{background:"#fff",borderRadius:7,padding:10,boxShadow:isDragging?"none":"0 1px 3px rgba(0,0,0,.08)",borderLeft:`4px solid ${priC[t.pri]||"#94a3b8"}`,cursor:"pointer",transition:"box-shadow .15s, transform .15s, opacity .15s",marginBottom:5,opacity:isDragging?.3:1}}>
                       <div style={{fontSize:10,color:"#94a3b8",display:"flex",alignItems:"center",gap:4,marginBottom:3}}><span style={{...S.dot(p.color),width:6,height:6}}/>{p.name}</div>
                       <div style={{fontSize:13,fontWeight:600,marginBottom:5,display:"flex",alignItems:"center",gap:4}}><span style={{overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical" as any}}>{t.task}</span><RepeatBadge repeat={t.repeat}/></div>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,color:"#64748b"}}><span>{t.who}</span><span style={{display:"flex",alignItems:"center",gap:4}}><span style={{color:od?"#dc2626":"#94a3b8"}}>{fD(t.due)}</span>{(()=>{const dd=dDay(t.due,t.st);return dd?<span style={{fontSize:10,fontWeight:700,color:dd.color,background:dd.bg,border:`1px solid ${dd.border}`,padding:"0 5px",borderRadius:3}}>{dd.label}</span>:null;})()}</span></div>
-                    </div>}
+                    </div>
               </div>;
             }):<div style={{textAlign:"center",padding:"28px 8px",color:"#cbd5e1",fontSize:11,display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
                 <ListBulletIcon style={{width:22,height:22,opacity:0.6}} />

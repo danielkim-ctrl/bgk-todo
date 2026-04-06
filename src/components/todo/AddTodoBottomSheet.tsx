@@ -78,7 +78,7 @@ export function AddTodoBottomSheet({
   };
 
   return (
-    <BottomSheet open={open} onClose={handleClose} title="새 업무 추가" fullHeight={false}>
+    <BottomSheet open={open} onClose={handleClose} title="새 업무 추가" fullHeight={false} onCtrlEnter={handleSave}>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
         {/* 업무명 * */}

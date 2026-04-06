@@ -19,9 +19,11 @@ interface BottomSheetProps {
   fullHeight?: boolean;
   /** 시트 최대 높이 비율 (기본: 90vh) */
   maxHeight?: string;
+  /** Ctrl+Enter로 저장 핸들러 */
+  onCtrlEnter?: () => void;
 }
 
-export function BottomSheet({ open, onClose, title, children, fullHeight = false, maxHeight = "90vh" }: BottomSheetProps) {
+export function BottomSheet({ open, onClose, title, children, fullHeight = false, maxHeight = "90vh", onCtrlEnter }: BottomSheetProps) {
   // 전체화면 확장 상태
   const [expanded, setExpanded] = useState(fullHeight);
   // 드래그 시작 Y 좌표
@@ -34,13 +36,16 @@ export function BottomSheet({ open, onClose, title, children, fullHeight = false
     if (open) setExpanded(fullHeight);
   }, [open, fullHeight]);
 
-  // ESC 키로 닫기
+  // ESC 키로 닫기 + Ctrl+Enter로 저장
   useEffect(() => {
     if (!open) return;
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && onCtrlEnter) { e.preventDefault(); onCtrlEnter(); }
+    };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [open, onClose]);
+  }, [open, onClose, onCtrlEnter]);
 
   // 시트가 열려 있는 동안 배경 스크롤 차단
   useEffect(() => {

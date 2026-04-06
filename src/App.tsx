@@ -5,7 +5,7 @@ import { PermissionProvider } from "./auth/PermissionContext";
 import { S } from "./styles";
 import { REPEAT_OPTS, INIT_ST } from "./constants";
 import { ActivityLog, TEAM_ROLE_PERMISSIONS, TeamRole } from "./types";
-import { FolderIcon, Cog6ToothIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, TrashIcon, KeyboardIcon, ChartBarIcon, ListBulletIcon, CalendarIcon, ViewColumnsIcon, ArrowPathIcon, UserIcon, BoltIcon, CheckCircleIcon, DocumentTextIcon, StarIcon as StarSolidIcon, StarOutlineIcon, PlusIcon, ClipboardDocumentIcon, CheckIcon, PencilSquareIcon, XMarkIcon, Bars3Icon, ExclamationTriangleIcon, ICON_SM } from "./components/ui/Icons";
+import { FolderIcon, Cog6ToothIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, TrashIcon, KeyboardIcon, ChartBarIcon, ListBulletIcon, CalendarIcon, ViewColumnsIcon, ArrowPathIcon, UserIcon, BoltIcon, CheckCircleIcon, DocumentTextIcon, StarIcon as StarSolidIcon, StarOutlineIcon, PlusIcon, ClipboardDocumentIcon, CheckIcon, PencilSquareIcon, XMarkIcon, Bars3Icon, ExclamationTriangleIcon, BookOpenIcon, ICON_SM } from "./components/ui/Icons";
 import { getParentProj } from "./utils";
 import { BottomTabBar } from "./components/ui/BottomTabBar";
 import { SidebarDrawer } from "./components/sidebar/SidebarDrawer";
@@ -440,6 +440,7 @@ export default function App() {
             <div style={{fontSize:14,fontWeight:700,letterSpacing:"0.01em"}}>팀 TODO</div>
           </div>
           <div style={{display:"flex",alignItems:"center",gap:6}}>
+            <button style={S.hBtn} onClick={()=>window.open(`${import.meta.env.BASE_URL}user-manual.html`,"_blank")} title="매뉴얼"><BookOpenIcon style={ICON_SM}/></button>
             <button style={S.hBtn} onClick={()=>setSettMod(true)}><Cog6ToothIcon style={ICON_SM}/></button>
             {deletedLog.length>0&&<button style={{...S.hBtn,position:"relative" as const}} onClick={()=>setShowTrash(true)} title="휴지통">
               <TrashIcon style={ICON_SM}/>
@@ -494,7 +495,7 @@ export default function App() {
               <TrashIcon style={ICON_SM}/> 휴지통
               <span style={{position:"absolute" as const,top:-4,right:-4,background:"#ef4444",color:"#fff",borderRadius:99,fontSize:10,fontWeight:800,padding:"1px 5px",lineHeight:1.4}}>{deletedLog.length}</span>
             </button>}
-            <button style={S.hBtn} onClick={()=>setShowShortcuts(true)} title="단축키 도움말 (?)"><KeyboardIcon style={ICON_SM}/></button>
+            <button style={S.hBtn} onClick={()=>window.open(`${import.meta.env.BASE_URL}user-manual.html`,"_blank")} title="사용자 매뉴얼"><BookOpenIcon style={ICON_SM}/> 매뉴얼</button>
             <div style={{width:1,height:20,background:"rgba(255,255,255,.25)",margin:"0 4px"}}/>
             <div style={{display:"flex",alignItems:"center",gap:7}}>
               <div style={{width:28,height:28,borderRadius:"50%",background:"rgba(255,255,255,.25)",border:"1.5px solid rgba(255,255,255,.4)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,color:"#fff",flexShrink:0}}>{currentUser?.[0]}</div>
@@ -736,7 +737,7 @@ export default function App() {
 
     {/* 편집 모달 — 모바일에서는 BottomSheet, 데스크톱에서는 Modal로 렌더링 */}
     {isMobile ? (
-      <BottomSheet open={!!editMod} onClose={()=>setEditMod(null)} title={editMod?.id?"업무 수정":"새 업무"} fullHeight>
+      <BottomSheet open={!!editMod} onClose={()=>setEditMod(null)} title={editMod?.id?"업무 수정":"새 업무"} fullHeight onCtrlEnter={()=>{if(editMod)saveMod(editMod);}}>
         {editMod&&<>
           <EditForm f={editMod} onChange={setEditMod} proj={visibleProj} members={visibleMembers} pris={pris} stats={stats}
             currentUser={currentUser} gPr={gPr}
@@ -758,7 +759,7 @@ export default function App() {
         </>}
       </BottomSheet>
     ) : (
-      <Modal open={!!editMod} onClose={()=>setEditMod(null)} title={editMod?.id?"업무 수정":"새 업무"} footer={<>
+      <Modal open={!!editMod} onClose={()=>setEditMod(null)} title={editMod?.id?"업무 수정":"새 업무"} onCtrlEnter={()=>{if(editMod)saveMod(editMod);}} footer={<>
         {editMod?.id&&(can("todo.delete.all")||(isOwner(editMod.who)&&can("todo.delete.own")))&&<button style={{...S.bd,marginRight:"auto"}} onClick={()=>{if(confirm(`"${editMod.task}" 업무를 삭제하시겠습니까?`)){const id=parseInt(editMod.id);setEditMod(null);delTodo(id)}}}><TrashIcon style={ICON_SM}/> 삭제</button>}
         <button style={S.bs} onClick={()=>setEditMod(null)}>취소</button>
         {(editMod?.id?(can("todo.edit.all")||(isOwner(editMod?.who)&&can("todo.edit.own"))):can("todo.create"))?<button style={S.bp} onClick={()=>saveMod(editMod)}>저장</button>:<button style={{...S.bp,opacity:.4,cursor:"default"}} disabled title="수정 권한이 없습니다">저장</button>}
