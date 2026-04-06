@@ -702,7 +702,7 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
                         : <span style={{fontSize:10,color:"#cbd5e1"}}>—</span>}
                       </td>
                       <td style={{padding:"4px 6px",textAlign:"center",verticalAlign:"middle",whiteSpace:"nowrap" as const}}>
-                        {hasRepeat ? <span style={{fontSize:10,color:"#7c3aed",fontWeight:600}}>{t.repeat.replace("매","")}</span>
+                        {hasRepeat ? <span style={{fontSize:10,color:"#7c3aed",fontWeight:600}}>{typeof t.repeat==="string"?t.repeat.replace("매",""):String(t.repeat)}</span>
                         : <span style={{fontSize:10,color:"#cbd5e1"}}>—</span>}
                       </td>
                       <td style={{padding:"4px 6px",textAlign:"right",verticalAlign:"middle",whiteSpace:"nowrap" as const,paddingRight:12}}>
