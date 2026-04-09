@@ -200,9 +200,11 @@ export function Sidebar({
   type WhoItem = { v: string; l: string; n: number; c?: string; teamHeader?: { id: string; name: string; color: string; total: number; collapsed: boolean } };
   const whoItems: WhoItem[] = [];
   if (useTeamGroup) {
+    // 멤버가 여러 팀에 소속된 경우 첫 번째 팀에만 표시 — 중복 push 방지
     const assignedMembers = new Set<string>();
     teams.forEach(team => {
-      const teamMembers = visibleMembers.filter(m => team.members.some(tm => normName(tm.name) === normName(m)));
+      // 이미 다른 팀에서 배정된 멤버는 제외
+      const teamMembers = visibleMembers.filter(m => !assignedMembers.has(m) && team.members.some(tm => normName(tm.name) === normName(m)));
       if (teamMembers.length === 0) return;
       const collapsed = !!teamCollapsed[`who_${team.id}`];
       whoItems.push({ v: `__team_who_${team.id}`, l: team.name, n: teamMembers.length, c: team.color, teamHeader: { id: `who_${team.id}`, name: team.name, color: team.color, total: teamMembers.length, collapsed } });
