@@ -126,7 +126,11 @@ export function Sidebar({
   // 숨겨진 항목 제외
   const visibleAProj = aProj.filter(p => !hiddenProjects.includes(p.id));
   const hiddenProjList = aProj.filter(p => hiddenProjects.includes(p.id));
-  const allMembers = [...new Set(todos.map((t: any) => t.who).concat(members))];
+  // 팀 선택 시: 팀 소속 멤버(members prop)만 표시 — 다른 팀 멤버가 해당 팀 프로젝트 업무를 갖고 있어도 필터에 미표시
+  // 전체 보기 시: 업무 담당자 + 설정 멤버 합산 (기존 동작)
+  const allMembers = selectedTeamId
+    ? [...new Set(members)]
+    : [...new Set(todos.map((t: any) => t.who).concat(members))];
   const visibleMembers = allMembers.filter(m => !hiddenMembers.includes(m));
   const hiddenMemberList = allMembers.filter(m => hiddenMembers.includes(m));
 

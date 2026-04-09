@@ -325,7 +325,8 @@ export function useTodoApp() {
     if (d.stBg) setStBg(merge ? (prev: any) => ({ ...prev, ...d.stBg }) : d.stBg);
     if (d.memberColors) setMemberColors(merge ? (prev: any) => ({ ...prev, ...d.memberColors }) : d.memberColors);
     if (d.members?.length) {
-      const rm = d.members.filter((m: string) => m !== "미배정");
+      // 중복·공백 정리 — Firestore 데이터 정합성 보정
+      const rm = [...new Set((d.members as string[]).filter((m: string) => m && m !== "미배정").map((m: string) => m.trim()))];
       if (merge) { setMembers(prev => { const rs = new Set(rm); return [...rm, ...prev.filter((x: string) => !rs.has(x))]; }); }
       else setMembers(rm);
     }
@@ -336,7 +337,20 @@ export function useTodoApp() {
     if (d.memberPins && Object.keys(d.memberPins).length > 0) {
       setMemberPins(d.memberPins);
     }
-    if (d.teams) setTeams(d.teams);
+    // 팀 데이터 복원 — members 배열 중복 제거 (Firestore 데이터 정합성 보정)
+    if (d.teams) {
+      const cleaned = (d.teams as Team[]).map(t => {
+        if (!t.members?.length) return t;
+        const seen = new Set<string>();
+        const deduped = t.members.filter(m => {
+          if (seen.has(m.name)) return false;
+          seen.add(m.name);
+          return true;
+        });
+        return deduped.length === t.members.length ? t : { ...t, members: deduped };
+      });
+      setTeams(cleaned);
+    }
     if (d.memberRoles && Object.keys(d.memberRoles).length > 0) {
       setMemberRoles(d.memberRoles);
     } else if (d.teams?.length) {
