@@ -272,7 +272,10 @@ export function useTodoApp() {
     const seen = new Set<number>();
     let maxId = 0;
     return todos.map(t => {
-      const base = VALID_ST.includes(t.st) ? t : { ...t, st: "대기" };
+      // 담당자 이름 유니코드 정규화 — NFC vs NFD 한글 차이 해소
+      const base = VALID_ST.includes(t.st)
+        ? (t.who !== t.who?.normalize?.("NFC") ? { ...t, who: t.who.trim().normalize("NFC") } : t)
+        : { ...t, st: "대기", ...(t.who !== t.who?.normalize?.("NFC") ? { who: t.who.trim().normalize("NFC") } : {}) };
       if (base.id > maxId) maxId = base.id;
       if (seen.has(base.id)) {
         const newId = ++maxId;
@@ -325,9 +328,9 @@ export function useTodoApp() {
     if (d.stBg) setStBg(merge ? (prev: any) => ({ ...prev, ...d.stBg }) : d.stBg);
     if (d.memberColors) setMemberColors(merge ? (prev: any) => ({ ...prev, ...d.memberColors }) : d.memberColors);
     if (d.members?.length) {
-      // 중복·공백 정리 — Firestore 데이터 정합성 보정
-      const rm = [...new Set((d.members as string[]).filter((m: string) => m && m !== "미배정").map((m: string) => m.trim()))];
-      if (merge) { setMembers(prev => { const rs = new Set(rm); return [...rm, ...prev.filter((x: string) => !rs.has(x))]; }); }
+      // 중복·공백·유니코드 정규화 — Firestore 데이터 정합성 보정 (NFC vs NFD 한글 차이 해소)
+      const rm = [...new Set((d.members as string[]).filter((m: string) => m && m !== "미배정").map((m: string) => m.trim().normalize("NFC")))];
+      if (merge) { setMembers(prev => { const rs = new Set(rm); return [...rm, ...prev.filter((x: string) => !rs.has(x.normalize("NFC")))]; }); }
       else setMembers(rm);
     }
     // 팀·역할·권한·PIN 데이터 복원
@@ -337,16 +340,18 @@ export function useTodoApp() {
     if (d.memberPins && Object.keys(d.memberPins).length > 0) {
       setMemberPins(d.memberPins);
     }
-    // 팀 데이터 복원 — members 배열 중복 제거 (Firestore 데이터 정합성 보정)
+    // 팀 데이터 복원 — members 이름 유니코드 정규화 + 중복 제거 (NFC vs NFD 한글 차이 해소)
     if (d.teams) {
       const cleaned = (d.teams as Team[]).map(t => {
         if (!t.members?.length) return t;
         const seen = new Set<string>();
-        const deduped = t.members.filter(m => {
-          if (seen.has(m.name)) return false;
-          seen.add(m.name);
-          return true;
-        });
+        const deduped = t.members
+          .map(m => ({ ...m, name: m.name.trim().normalize("NFC") }))
+          .filter(m => {
+            if (seen.has(m.name)) return false;
+            seen.add(m.name);
+            return true;
+          });
         return deduped.length === t.members.length ? t : { ...t, members: deduped };
       });
       setTeams(cleaned);
