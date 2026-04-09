@@ -334,6 +334,7 @@ export function useTodoApp() {
       // 이름 정규화(normName) + 중복 제거 — 제로 폭 문자·유니코드·공백 차이 해소
       const raw = (d.members as string[]).filter((m: string) => m && m !== "미배정");
       const rm = [...new Set(raw.map((m: string) => normName(m)))];
+      if (raw.length !== rm.length) console.warn(`[FIX] members 중복 ${raw.length - rm.length}건 제거됨:`, raw.length, "→", rm.length);
       if (merge) { setMembers(prev => { const rs = new Set(rm); return [...rm, ...prev.filter((x: string) => !rs.has(normName(x)))]; }); }
       else setMembers(rm);
     }
@@ -410,6 +411,20 @@ export function useTodoApp() {
         try { localStorage.setItem("todo-v5", JSON.stringify(d)); } catch (e) { }
         if (!hasLocal) setLoaded(true);
         fsBootstrapped.current = true;
+        // Firestore 원본 데이터에 중복이 있으면 정규화된 데이터로 덮어써서 영구 정리
+        const rawMembers = (d.members as string[] || []).filter((m: string) => m && m !== "미배정");
+        const cleanMembers = [...new Set(rawMembers.map((m: string) => normName(m)))];
+        const hasMemberDupes = rawMembers.length !== cleanMembers.length;
+        const hasTeamDupes = (d.teams || []).some((t: any) => {
+          if (!t.members?.length) return false;
+          const names = t.members.map((m: any) => normName(m.name));
+          return new Set(names).size !== names.length;
+        });
+        if (hasMemberDupes || hasTeamDupes) {
+          console.warn("[FIX] Firestore 데이터 중복 감지 — 정규화된 데이터로 덮어쓰기 수행");
+          // fromSnapshot을 해제하여 다음 save useEffect에서 정규화된 state가 Firestore에 저장되게 함
+          setTimeout(() => { fromSnapshot.current = false; }, 100);
+        }
         return;
       }
       // 이후 스냅샷 — 같은 클라이언트가 보낸 것이거나 더 오래된 데이터면 무시
