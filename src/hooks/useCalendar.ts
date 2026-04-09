@@ -58,7 +58,7 @@ export function useCalendar({ todos }: UseCalendarOptions) {
 
   // ── 캘린더용 할일 필터링 + 반복 일정 전개 ────────────────────────────────
   const ftodosBase = useMemo(
-    () => todos.filter(t => (calF.length===0 || calF.includes(String(t.pid))) && (calFWho.length===0 || calFWho.includes(t.who))),
+    () => todos.filter(t => (calF.length===0 || calF.includes(String(t.pid))) && (calFWho.length===0 || (t.who||[]).some((w: string) => calFWho.includes(w)))),
     [todos, calF, calFWho]
   );
   const ftodosExpanded = useMemo(

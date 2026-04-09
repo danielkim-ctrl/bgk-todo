@@ -20,7 +20,7 @@ export interface Todo {
   id: number;
   pid: number;
   task: string;
-  who: string;
+  who: string[];    // 담당자 배열 — 최대 2명, [0]=주 담당자, [1]=부 담당자
   due: string;
   pri: string;
   st: string;
@@ -63,7 +63,7 @@ export interface Filters {
 export interface NewRow {
   pid: string;
   task: string;
-  who: string;
+  who: string[];    // 담당자 배열 (최대 2명)
   due: string;
   pri: string;
   det: string;
@@ -208,7 +208,7 @@ export interface TodoTemplate {
 export interface DeletedTodo {
   id: number;
   task: string;
-  who: string;
+  who: string[];    // 담당자 배열
   pid: number;
   pri: string;
   st: string;

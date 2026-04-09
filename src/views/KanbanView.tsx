@@ -119,7 +119,7 @@ export function KanbanView({
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(260px, 1fr))",gap:12,alignItems:"start"}}>
       {stats.map(st=>{
         // kanbanOrder 기준으로 카드 정렬
-        const raw=todos.filter(t=>t.st===st&&(!kbF.length||kbF.includes(String(t.pid)))&&(!kbFWho.length||kbFWho.includes(t.who)));
+        const raw=todos.filter(t=>t.st===st&&(!kbF.length||kbF.includes(String(t.pid)))&&(!kbFWho.length||(t.who||[]).some((w: string)=>kbFWho.includes(w))));
         const items=(()=>{
           if(!kanbanOrder.length) return raw;
           const idx=new Map(kanbanOrder.map((id,i)=>[id,i]));
@@ -202,7 +202,7 @@ export function KanbanView({
                       style={{background:"#fff",borderRadius:7,padding:10,boxShadow:isDragging?"none":"0 1px 3px rgba(0,0,0,.08)",borderLeft:`4px solid ${priC[t.pri]||"#94a3b8"}`,cursor:"pointer",transition:"box-shadow .15s, transform .15s, opacity .15s",marginBottom:5,opacity:isDragging?.3:1}}>
                       <div style={{fontSize:10,color:"#94a3b8",display:"flex",alignItems:"center",gap:4,marginBottom:3}}><span style={{...S.dot(p.color),width:6,height:6}}/>{p.name}</div>
                       <div style={{fontSize:13,fontWeight:600,marginBottom:5,display:"flex",alignItems:"center",gap:4}}><span style={{overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical" as any}}>{t.task}</span><RepeatBadge repeat={t.repeat}/></div>
-                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,color:"#64748b"}}><span>{t.who}</span><span style={{display:"flex",alignItems:"center",gap:4}}><span style={{color:od?"#dc2626":"#94a3b8"}}>{fD(t.due)}</span>{(()=>{const dd=dDay(t.due,t.st);return dd?<span style={{fontSize:10,fontWeight:700,color:dd.color,background:dd.bg,border:`1px solid ${dd.border}`,padding:"0 5px",borderRadius:3}}>{dd.label}</span>:null;})()}</span></div>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,color:"#64748b"}}><span>{(t.who||[])[0]||""}</span><span style={{display:"flex",alignItems:"center",gap:4}}><span style={{color:od?"#dc2626":"#94a3b8"}}>{fD(t.due)}</span>{(()=>{const dd=dDay(t.due,t.st);return dd?<span style={{fontSize:10,fontWeight:700,color:dd.color,background:dd.bg,border:`1px solid ${dd.border}`,padding:"0 5px",borderRadius:3}}>{dd.label}</span>:null;})()}</span></div>
                     </div>
               </div>;
             }):<div style={{textAlign:"center",padding:"28px 8px",color:"#cbd5e1",fontSize:11,display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>

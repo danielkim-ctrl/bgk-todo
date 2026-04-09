@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { S } from "../styles";
 import { isOD, dDay, fDow, fmt2, stripHtml, sanitize, getParentProj } from "../utils";
 import { usePermission } from "../auth/PermissionContext";
@@ -84,17 +85,17 @@ function HoverPopup({hoverRow,hoverRowRect,setHoverRow,setHoverRowRect,sorted,tb
   const tblRect = tblDivRef.current?.getBoundingClientRect();
   const visibleRight = tblRect ? tblRect.right / zoom : window.innerWidth / zoom - 16;
 
-  // 수정/삭제 권한 모두 없으면 팝업 자체를 숨김
-  if (!canEdit(t.who) && !canDelete(t.who)) return null;
+  // 수정/삭제 권한 모두 없으면 팝업 자체를 숨김 — 주 담당자(who[0]) 기준 권한 체크
+  if (!canEdit(t.who[0]) && !canDelete(t.who[0])) return null;
 
   return <div ref={popupRef}
     style={{position:"fixed",top:hoverRowRect.top / zoom,left:visibleRight + 6,height:hoverRowRect.height / zoom,
       display:"flex",alignItems:"center",gap:4,zIndex:500,
       background:"#fff",borderRadius:8,boxShadow:"0 2px 10px rgba(0,0,0,.14)",
       border:"1px solid #e2e8f0",padding:"0 8px",pointerEvents:"auto"}}>
-    {!isDone&&canEdit(t.who)&&<button onClick={()=>setEditMod(t)}
+    {!isDone&&canEdit(t.who[0])&&<button onClick={()=>setEditMod(t)}
       style={{background:"#f1f5f9",border:"none",cursor:"pointer",fontSize:11,color:"#475569",borderRadius:6,padding:"3px 7px",display:"inline-flex",alignItems:"center"}}><PencilSquareIcon style={ICON_SM}/></button>}
-    {canDelete(t.who)&&<button onClick={e=>{e.stopPropagation();if(confirm(`"${t.task}" 업무를 삭제하시겠습니까?`)){delTodo(t.id);setHoverRow(null);setHoverRowRect(null);}}}
+    {canDelete(t.who[0])&&<button onClick={e=>{e.stopPropagation();if(confirm(`"${t.task}" 업무를 삭제하시겠습니까?`)){delTodo(t.id);setHoverRow(null);setHoverRowRect(null);}}}
       style={{background:"#fee2e2",border:"none",cursor:"pointer",fontSize:11,color:"#dc2626",borderRadius:6,padding:"3px 7px",fontWeight:700,display:"inline-flex",alignItems:"center"}}><TrashIcon style={ICON_SM}/></button>}
   </div>;
 }
@@ -412,7 +413,8 @@ export function ListView(props: ListViewProps) {
     todos.forEach((t: any) => {
       let val = "";
       if (col === "pid") val = gPr(t.pid).name || "미배정";
-      else if (col === "who") val = t.who || "";
+      // who가 배열이므로 주 담당자(who[0])를 기준으로 필터 값 추출
+      else if (col === "who") val = t.who[0] || "";
       else if (col === "pri") val = t.pri || "";
       else if (col === "st") val = t.st || "";
       else if (col === "due") val = t.due ? t.due.split(" ")[0] : "(없음)";
@@ -485,14 +487,15 @@ export function ListView(props: ListViewProps) {
     const isE = editCell?.id === todo.id && editCell?.field === field;
     const stop = () => setEditCell(null);
     const start = (e: React.MouseEvent) => {
-      // 수정 권한 없으면 인라인 편집 진입 차단
-      if (!permCanEdit(todo.who)) return;
+      // 수정 권한 없으면 인라인 편집 진입 차단 — 주 담당자(who[0]) 기준
+      if (!permCanEdit(todo.who[0])) return;
       const r = e.currentTarget.getBoundingClientRect();
       clickRectRef.current = {top:r.top, left:r.left, bottom:r.bottom, right:r.right};
       setEditCell({id: todo.id, field});
     };
-    const save = (val: string) => { updTodo(todo.id, {[field]: field === "pid" ? parseInt(val) : val}); stop(); };
-    if (!isE) return <td style={{...S.tdc,...tdStyle}} onClick={e => { if (!permCanEdit(todo.who)) return; if (field === "due") { const r = e.currentTarget.getBoundingClientRect(); setDatePop({id: todo.id, rect: {top:r.top,left:r.left,bottom:r.bottom,right:r.right}, value: todo.due || ""}); return; } start(e); }} onMouseEnter={e => { e.currentTarget.style.cursor = permCanEdit(todo.who) ? "pointer" : "default"; }} onMouseLeave={e => { e.currentTarget.style.cursor = ""; }}>{children}</td>;
+    // who 필드는 배열로 저장, pid는 숫자 변환, 나머지는 문자열 그대로
+    const save = (val: string | string[]) => { updTodo(todo.id, {[field]: field === "pid" ? parseInt(val as string) : val}); stop(); };
+    if (!isE) return <td style={{...S.tdc,...tdStyle}} onClick={e => { if (!permCanEdit(todo.who[0])) return; if (field === "due") { const r = e.currentTarget.getBoundingClientRect(); setDatePop({id: todo.id, rect: {top:r.top,left:r.left,bottom:r.bottom,right:r.right}, value: todo.due || ""}); return; } start(e); }} onMouseEnter={e => { e.currentTarget.style.cursor = permCanEdit(todo.who[0]) ? "pointer" : "default"; }} onMouseLeave={e => { e.currentTarget.style.cursor = ""; }}>{children}</td>;
     if (field === "task") return <td style={{...S.tdc, overflow:"visible"}}><input autoFocus defaultValue={todo.task} style={S.iinp} onKeyDown={e => { if ((e as any).key === "Enter") save((e.target as HTMLInputElement).value); if ((e as any).key === "Escape") stop(); }} onBlur={e => save(e.target.value)}/></td>;
     if (field === "due") return <td style={{...S.tdc, background:"#eff6ff"}}>{children}</td>;
     const ar = clickRectRef.current || undefined;
@@ -507,7 +510,63 @@ export function ListView(props: ListViewProps) {
       });
       return <td style={S.tdc}>{children}<DropPanel anchorRect={ar} items={projItems} current={String(todo.pid)} onSelect={v => save(v)} onClose={stop} renderItem={it => <div style={{display:"flex",alignItems:"center",gap:5,...(it.indent?{paddingLeft:20,fontSize:11}:{})}}>{it.indent&&<span style={{color:"#cbd5e1",fontSize:10,marginRight:-2}}>└</span>}<span style={S.dot(it.color!)}/>{it.label}</div>}/></td>;
     }
-    if (field === "who") return <td style={S.tdc}>{children}<DropPanel anchorRect={ar} items={visibleMembers.map(m => ({value: m, label: m}))} current={todo.who} onSelect={v => save(v)} onClose={stop} renderItem={it => <><span style={{width:20,height:20,borderRadius:"50%",background:memberColors[it.label]||`linear-gradient(135deg,${avColor(it.label)},${avColor2(it.label)})`,color:"#fff",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:8,fontWeight:700,flexShrink:0}}>{avInitials(it.label)}</span>{it.label}</>}/></td>;
+    // 담당자 다중 선택 패널 — 최대 2명, 체크박스 토글
+    if (field === "who") {
+      const curWho: string[] = todo.who || [];
+      const toggleWho = (name: string) => {
+        const idx = curWho.indexOf(name);
+        if (idx >= 0) {
+          // 최소 1명 유지
+          if (curWho.length <= 1) return;
+          save(curWho.filter(w => w !== name));
+        } else {
+          if (curWho.length >= 2) {
+            // 이미 2명이면 부 담당자(마지막) 교체
+            save([curWho[0], name]);
+          } else {
+            save([...curWho, name]);
+          }
+        }
+      };
+      const zoom = parseFloat(getComputedStyle(document.documentElement).zoom as string) || 1;
+      const panelTop = ar ? ar.bottom / zoom + 4 : 0;
+      const panelLeft = ar ? ar.left / zoom : 0;
+      return <td style={S.tdc}>{children}{createPortal(
+        <div style={{position:"fixed",top:panelTop,left:panelLeft,zIndex:9999,background:"#fff",borderRadius:8,boxShadow:"0 4px 16px rgba(0,0,0,.12)",border:"1px solid #e2e8f0",padding:0,minWidth:180,maxHeight:280,display:"flex",flexDirection:"column" as const,fontFamily:"'Pretendard',system-ui,sans-serif"}}
+          onMouseDown={e => e.stopPropagation()}>
+          {/* 선택된 담당자 칩 */}
+          <div style={{display:"flex",flexWrap:"wrap" as const,gap:4,padding:"8px 10px",borderBottom:"1px solid #f1f5f9",alignItems:"center",minHeight:36}}>
+            {curWho.length === 0 && <span style={{fontSize:11,color:"#94a3b8"}}>담당자를 선택하세요</span>}
+            {curWho.map((w,i) => (
+              <span key={w} style={{display:"inline-flex",alignItems:"center",gap:3,padding:"2px 8px 2px 3px",background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:99,fontSize:11,fontWeight:500,color:"#2563eb"}}>
+                <span style={{width:16,height:16,borderRadius:"50%",background:memberColors[w]||`linear-gradient(135deg,${avColor(w)},${avColor2(w)})`,color:"#fff",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:7,fontWeight:700,flexShrink:0}}>{avInitials(w)}</span>
+                {w}{i===0 && <span style={{fontSize:8,color:"#93c5fd",fontWeight:700,marginLeft:1}}>주</span>}
+                {curWho.length > 1 && <span onClick={() => toggleWho(w)} style={{cursor:"pointer",fontSize:12,color:"#93c5fd",marginLeft:2,lineHeight:1,transition:"color .12s"}} onMouseEnter={e=>{(e.target as HTMLElement).style.color="#dc2626"}} onMouseLeave={e=>{(e.target as HTMLElement).style.color="#93c5fd"}}>×</span>}
+              </span>
+            ))}
+            <span style={{fontSize:10,color:"#94a3b8",marginLeft:"auto"}}>{curWho.length}/2</span>
+          </div>
+          {/* 멤버 목록 */}
+          <div style={{overflowY:"auto",maxHeight:220,padding:4}}>
+            {visibleMembers.map(m => {
+              const sel = curWho.includes(m);
+              return <div key={m} onClick={() => toggleWho(m)} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",borderRadius:6,cursor:"pointer",fontSize:13,background:sel?"#eff6ff":"transparent",fontWeight:sel?600:400,transition:"background .1s"}}
+                onMouseEnter={e=>{if(!sel)(e.currentTarget as HTMLElement).style.background="#f8fafc"}}
+                onMouseLeave={e=>{if(!sel)(e.currentTarget as HTMLElement).style.background="transparent"}}>
+                <span style={{width:16,height:16,borderRadius:4,border:`1.5px solid ${sel?"#2563eb":"#cbd5e1"}`,background:sel?"#2563eb":"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#fff",flexShrink:0,transition:"all .15s"}}>{sel?"✓":""}</span>
+                <span style={{width:20,height:20,borderRadius:"50%",background:memberColors[m]||`linear-gradient(135deg,${avColor(m)},${avColor2(m)})`,color:"#fff",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:8,fontWeight:700,flexShrink:0}}>{avInitials(m)}</span>
+                <span style={{flex:1}}>{m}</span>
+                {curWho.indexOf(m)===0 && <span style={{fontSize:9,color:"#2563eb",fontWeight:700}}>주</span>}
+              </div>;
+            })}
+          </div>
+          {/* 닫기 버튼 */}
+          <div style={{borderTop:"1px solid #f1f5f9",padding:"6px 10px",display:"flex",justifyContent:"flex-end"}}>
+            <button onClick={stop} style={{background:"#2563eb",color:"#fff",border:"none",borderRadius:6,padding:"4px 14px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>확인</button>
+          </div>
+        </div>, document.body
+      )}</td>;
+    }
     if (field === "pri") return <td style={S.tdc}>{children}<DropPanel anchorRect={ar} items={pris.map(p => ({value: p, label: p, color: priC[p]}))} current={todo.pri} onSelect={v => save(v)} onClose={stop} renderItem={it => <><span style={{...S.dot(it.color!), width:8, height:8}}/>{it.label}</>}/></td>;
     if (field === "st") return <td style={S.tdc}>{children}<DropPanel anchorRect={ar} items={stats.map(s => ({value: s, label: s, color: stC[s]}))} current={todo.st} onSelect={v => save(v)} onClose={stop} renderItem={it => <><span style={{...S.dot(it.color!), width:8, height:8}}/>{it.label}</>}/></td>;
     if (field === "repeat") return <td style={S.tdc}>{children}<DropPanel anchorRect={ar} items={REPEAT_OPTS.map(r => ({value: r, label: r}))} current={todo.repeat || "없음"} onSelect={v => save(v)} onClose={stop} alignRight/></td>;
@@ -950,26 +1009,36 @@ export function ListView(props: ListViewProps) {
                            onKeyDown={e=>{if((e as any).key==="Enter"){updTodo(t.id,{task:(e.target as HTMLInputElement).value});setEditCell(null);}if((e as any).key==="Escape")setEditCell(null);}}
                            onBlur={e=>{updTodo(t.id,{task:e.target.value});setEditCell(null);}}/>
                         :<div style={{display:"flex",alignItems:expandMode?"flex-start":"center",gap:3,minWidth:0}}>
-                           <span style={{fontWeight:taskWeight,color:taskColor,cursor:permCanEdit(t.who)?"pointer":"default",fontSize:14,...(expandMode?{wordBreak:"break-word" as const}:{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,minWidth:0})}} onClick={()=>{if(permCanEdit(t.who))setEditCell({id:t.id,field:"task"});}}>{t.task}</span>
+                           <span style={{fontWeight:taskWeight,color:taskColor,cursor:permCanEdit(t.who[0])?"pointer":"default",fontSize:14,...(expandMode?{wordBreak:"break-word" as const}:{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,minWidth:0})}} onClick={()=>{if(permCanEdit(t.who[0]))setEditCell({id:t.id,field:"task"});}}>{t.task}</span>
                            <RepeatBadge repeat={t.repeat}/>
                            {od&&<span style={{color:"#dc2626",display:"inline-flex"}}><ExclamationTriangleIcon style={ICON_SM}/></span>}
                          </div>}
                     </div>
                   </div>
                 </td>
-                <td style={{...S.tdc,...priCellStyle,maxWidth:0,...(expandMode?{whiteSpace:"normal" as const,verticalAlign:"top" as const,cursor:permCanEdit(t.who)?"text":"default",wordBreak:"break-word" as const}:{})}}
-                  onClick={expandMode&&permCanEdit(t.who)?e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();setNotePopup({todo:t,x:r.left,y:r.bottom});}:undefined}>
+                <td style={{...S.tdc,...priCellStyle,maxWidth:0,...(expandMode?{whiteSpace:"normal" as const,verticalAlign:"top" as const,cursor:permCanEdit(t.who[0])?"text":"default",wordBreak:"break-word" as const}:{})}}
+                  onClick={expandMode&&permCanEdit(t.who[0])?e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();setNotePopup({todo:t,x:r.left,y:r.bottom});}:undefined}>
                   {expandMode
                     ?<div style={{fontSize:13,color:plain?"#374151":"#c0c8d4",lineHeight:1.7,padding:"4px 6px",fontStyle:plain?"normal":"italic",borderRadius:6,border:"1px solid transparent",transition:"border-color .15s"}}
-                        onMouseEnter={e=>{if(!permCanEdit(t.who))return;(e.currentTarget as HTMLDivElement).style.borderColor="#e2e8f0";(e.currentTarget as HTMLDivElement).style.background="#fafbfc";}}
+                        onMouseEnter={e=>{if(!permCanEdit(t.who[0]))return;(e.currentTarget as HTMLDivElement).style.borderColor="#e2e8f0";(e.currentTarget as HTMLDivElement).style.background="#fafbfc";}}
                         onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.borderColor="transparent";(e.currentTarget as HTMLDivElement).style.background="transparent";}}
                         dangerouslySetInnerHTML={{__html:sanitize(t.det||"<span style='color:#c0c8d4;font-style:italic'>상세내용 추가...</span>")}}/>
-                    :<span onClick={e=>{if(!permCanEdit(t.who))return;e.stopPropagation();const r=e.currentTarget.closest("td")!.getBoundingClientRect();setNotePopup({todo:t,x:r.left,y:r.bottom});}}
-                        style={{fontSize:13,color:plain?"#475569":"#c0c8d4",fontStyle:plain?"normal":"italic",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,display:"block",cursor:permCanEdit(t.who)?"text":"default"}}>
+                    :<span onClick={e=>{if(!permCanEdit(t.who[0]))return;e.stopPropagation();const r=e.currentTarget.closest("td")!.getBoundingClientRect();setNotePopup({todo:t,x:r.left,y:r.bottom});}}
+                        style={{fontSize:13,color:plain?"#475569":"#c0c8d4",fontStyle:plain?"normal":"italic",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,display:"block",cursor:permCanEdit(t.who[0])?"text":"default"}}>
                         {plain?plain.slice(0,50)+(plain.length>50?"…":""):"상세내용 추가..."}
                       </span>}
                 </td>
-                <CellEdit todo={t} field="who" tdStyle={priCellStyle}><div style={{display:"flex",alignItems:"center",gap:6,...(expandMode?{alignSelf:"flex-start" as const}:{})}}><span style={{width:26,height:26,borderRadius:"50%",background:memberColors[t.who]||`linear-gradient(135deg,${avColor(t.who)},${avColor2(t.who)})`,color:"#fff",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,flexShrink:0,letterSpacing:"-0.5px",boxShadow:"0 1px 3px rgba(0,0,0,.15)"}} title={t.who}>{avInitials(t.who)}</span><span style={{fontSize:13}}>{t.who}</span></div></CellEdit>
+                {/* 담당자 셀 — 아바타+이름 세로 배치, 높이 고정(1명이든 2명이든 동일) */}
+                <CellEdit todo={t} field="who" tdStyle={priCellStyle}><div style={{display:"flex",flexDirection:"column" as const,gap:2,height:46,justifyContent:"center",...(expandMode?{alignSelf:"flex-start" as const}:{})}}>
+                  <div style={{display:"flex",alignItems:"center",gap:5}}>
+                    <span style={{width:22,height:22,borderRadius:"50%",background:memberColors[t.who[0]]||`linear-gradient(135deg,${avColor(t.who[0])},${avColor2(t.who[0])})`,color:"#fff",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,flexShrink:0,letterSpacing:"-0.5px",boxShadow:"0 1px 2px rgba(0,0,0,.12)"}} title={t.who[0]}>{avInitials(t.who[0])}</span>
+                    <span style={{fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,minWidth:0}}>{t.who[0]}</span>
+                  </div>
+                  {t.who[1]&&<div style={{display:"flex",alignItems:"center",gap:5}}>
+                    <span style={{width:22,height:22,borderRadius:"50%",background:memberColors[t.who[1]]||`linear-gradient(135deg,${avColor(t.who[1])},${avColor2(t.who[1])})`,color:"#fff",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,flexShrink:0,letterSpacing:"-0.5px",boxShadow:"0 1px 2px rgba(0,0,0,.12)"}} title={t.who[1]}>{avInitials(t.who[1])}</span>
+                    <span style={{fontSize:11,color:"#64748b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,minWidth:0}}>{t.who[1]}</span>
+                  </div>}
+                </div></CellEdit>
                 {/* 마감기한 셀 — 날짜+D-day 뱃지 세로 배치 시 행 높이 증가 방지
                     padding을 10px→3px로 줄이고 뱃지 lineHeight 압축해 표준 행 높이 유지 */}
                 <CellEdit todo={t} field="due" tdStyle={{...priCellStyle,padding:"3px 12px",verticalAlign:"middle" as const}}>{(()=>{const[dpart,tpart]=(t.due||"").split(" ");const fmt12v=(v: string)=>{if(!v)return "";const[hh,mm]=v.split(":").map(Number);const ap=hh<12?"오전":"오후";const h12=hh===0?12:hh>12?hh-12:hh;return `${ap} ${h12}:${fmt2(mm)}`;};const dd=dDay(t.due,t.st);return <div style={{display:"flex",flexDirection:"column" as const,alignItems:"center",gap:1}}>
@@ -982,7 +1051,7 @@ export function ListView(props: ListViewProps) {
                 </>}
                 <td style={{...S.tdc,...priCellStyle,padding:"0 6px",textAlign:"center" as const,verticalAlign:"middle" as const}} onClick={e=>e.stopPropagation()}>
                   {/* 수정/삭제 권한이 하나라도 있을 때만 체크박스 표시 — 권한 없으면 빈 칸 */}
-                  {(permCanEdit(t.who)||canDelete(t.who))
+                  {(permCanEdit(t.who[0])||canDelete(t.who[0]))
                     ?<input type="checkbox" checked={selectedIds.has(t.id)} onChange={()=>{}} onClick={(e)=>{e.stopPropagation();handleCheck(t.id,(e as any).shiftKey);}}
                       style={{width:15,height:15,cursor:"pointer",accentColor:"#2563eb"}}/>
                     :null}
@@ -1056,7 +1125,17 @@ export function ListView(props: ListViewProps) {
                     ?<div style={{fontSize:13,color:plain?"#94a3b8":"#c0c8d4",lineHeight:1.7,padding:"2px 0",textDecoration:plain?"line-through":"none"}} dangerouslySetInnerHTML={{__html:sanitize(t.det||"—")}}/>
                     :<span style={{fontSize:13,color:"#c0c8d4",fontStyle:"italic",display:"block",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>{plain?plain.slice(0,50):"—"}</span>}
                 </td>
-                <td style={S.tdc}><div style={{display:"flex",alignItems:"center",gap:6}}><span style={{width:26,height:26,borderRadius:"50%",background:memberColors[t.who]||`linear-gradient(135deg,${avColor(t.who)},${avColor2(t.who)})`,color:"#fff",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,flexShrink:0,letterSpacing:"-0.5px",opacity:.5}} title={t.who}>{avInitials(t.who)}</span><span style={{fontSize:13,color:"#94a3b8"}}>{t.who}</span></div></td>
+                {/* 완료 행 담당자 — 아바타+이름 세로 배치, 높이 고정 */}
+                <td style={S.tdc}><div style={{display:"flex",flexDirection:"column" as const,gap:2,height:46,justifyContent:"center"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:5}}>
+                    <span style={{width:22,height:22,borderRadius:"50%",background:memberColors[t.who[0]]||`linear-gradient(135deg,${avColor(t.who[0])},${avColor2(t.who[0])})`,color:"#fff",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,flexShrink:0,letterSpacing:"-0.5px",opacity:.5}} title={t.who[0]}>{avInitials(t.who[0])}</span>
+                    <span style={{fontSize:13,color:"#94a3b8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>{t.who[0]}</span>
+                  </div>
+                  {t.who[1]&&<div style={{display:"flex",alignItems:"center",gap:5}}>
+                    <span style={{width:22,height:22,borderRadius:"50%",background:memberColors[t.who[1]]||`linear-gradient(135deg,${avColor(t.who[1])},${avColor2(t.who[1])})`,color:"#fff",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,flexShrink:0,letterSpacing:"-0.5px",opacity:.5}} title={t.who[1]}>{avInitials(t.who[1])}</span>
+                    <span style={{fontSize:11,color:"#b0b8c4",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>{t.who[1]}</span>
+                  </div>}
+                </div></td>
                 <td style={S.tdc}><span style={{fontSize:13,color:"#94a3b8",textDecoration:"line-through"}}>{t.due}</span></td>
                 {!expandMode&&<>
                   <td style={S.tdc}><span style={{...S.badge("#f1f5f9","#94a3b8")}}>{t.pri}</span></td>
@@ -1078,8 +1157,9 @@ export function ListView(props: ListViewProps) {
       const t=sorted.find(x=>x.id===ctxMenu.todoId);
       if(!t) return null;
       const isDone=t.st==="완료";
-      const canEditThis=permCanEdit(t.who);
-      const canDeleteThis=canDelete(t.who);
+      // 주 담당자(who[0]) 기준으로 권한 체크
+      const canEditThis=permCanEdit(t.who[0]);
+      const canDeleteThis=canDelete(t.who[0]);
       // 메뉴 항목 정의 — 조건에 따라 표시/숨김
       const items:{icon:React.ReactNode;label:string;color?:string;onClick:()=>void;dividerAfter?:boolean}[]=[];
       if(!isDone&&canEditThis) items.push({icon:<PencilSquareIcon style={ICON_SM}/>,label:"편집",onClick:()=>{setEditMod(t);setCtxMenu(null);}});

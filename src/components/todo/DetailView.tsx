@@ -24,7 +24,7 @@ export function DetailView({t,p,stats,stC,stBg,priC,priBg,onSt}: {
       {od&&<span style={{fontSize:10,padding:"1px 5px",borderRadius:99,background:"#fee2e2",color:"#dc2626",fontWeight:600,display:"inline-flex",alignItems:"center",gap:2}}><ExclamationTriangleIcon style={ICON_SM}/>지연</span>}
     </div>
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,background:"#f8fafc",padding:10,borderRadius:7,fontSize:12}}>
-      <div><div style={{fontSize:10,color:"#94a3b8"}}>담당자</div><b>{t.who}</b></div>
+      <div><div style={{fontSize:10,color:"#94a3b8"}}>담당자</div><b>{(t.who||[]).join(", ")}</b></div>
       <div><div style={{fontSize:10,color:"#94a3b8"}}>마감기한</div><b style={{color:od?"#dc2626":"inherit"}}>{t.due}</b></div>
       <div><div style={{fontSize:10,color:"#94a3b8"}}>등록</div>{t.cre||"—"}</div>
       <div><div style={{fontSize:10,color:"#94a3b8"}}>완료</div>{t.done||"—"}</div>

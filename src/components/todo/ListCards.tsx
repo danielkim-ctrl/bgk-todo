@@ -274,7 +274,7 @@ function TodoCard({
 
         {/* 하단: 담당자 · 마감 · D-day */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#64748b" }}>
-          <span style={{ fontWeight: 500 }}>{todo.who}</span>
+          <span style={{ fontWeight: 500 }}>{todo.who?.[0]||"미배정"}</span>
           {todo.due && (
             <>
               <span style={{ color: "#cbd5e1" }}>·</span>

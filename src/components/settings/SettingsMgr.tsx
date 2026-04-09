@@ -202,7 +202,7 @@ export function SettingsMgr({
 
   const tryDel = (v: string) => {
     const cnt = tab === "members"
-      ? todos.filter((t: any) => t.who === v).length
+      ? todos.filter((t: any) => (t.who||[]).includes(v)).length
       : tab === "pris"
       ? todos.filter((t: any) => t.pri === v).length
       : todos.filter((t: any) => t.st === v).length;
@@ -472,7 +472,7 @@ export function SettingsMgr({
     {(tab==="members"||tab==="pris"||tab==="stats")&&<div style={{display:"flex",flexDirection:"column",flex:1,minHeight:0}}>
       <div style={{flex:1,overflowY:"auto",marginBottom:14}}>
         {items.map((v, idx) => {
-          const cnt = tab==="members" ? todos.filter((t:any)=>t.who===v).length
+          const cnt = tab==="members" ? todos.filter((t:any)=>(t.who||[]).includes(v)).length
             : tab==="pris" ? todos.filter((t:any)=>t.pri===v).length
             : todos.filter((t:any)=>t.st===v).length;
           const isMember = tab === "members";

@@ -531,7 +531,7 @@ function SidebarEditExpanded({ t, visibleProj, visibleMembers, pris, priC, priBg
       {/* 선택 칩 — 아이콘 버튼과 별도 행으로 분리 (등록 UI와 동일) */}
       {(() => {
         const selProj = t.pid ? visibleProj.find((pr: any) => pr.id === t.pid) : null;
-        return (dueDateStr || t.pri !== "보통" || t.who || selProj) && (
+        return (dueDateStr || t.pri !== "보통" || (t.who?.length > 0) || selProj) && (
           <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 4, marginTop: 4, marginBottom: 2 }}>
             {dueDateStr && (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, padding: "2px 8px", borderRadius: 99, background: isOd ? "#fef2f2" : "#e8f0fe", color: isOd ? "#e53e3e" : "#1a73e8", fontWeight: 500 }}>
@@ -547,9 +547,9 @@ function SidebarEditExpanded({ t, visibleProj, visibleMembers, pris, priC, priBg
                 <span onMouseDown={e => { e.preventDefault(); e.stopPropagation(); updTodo(t.id, { pid: 0 }); }} style={{ fontSize: 14, cursor: "pointer", lineHeight: 1, marginLeft: 2, color: "#80868b" }}>×</span>
               </span>
             )}
-            {t.who && (
+            {t.who?.length > 0 && (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, padding: "2px 8px", borderRadius: 99, background: "#e8f0fe", color: "#1a73e8", fontWeight: 500 }}>
-                {t.who}
+                {(t.who||[]).join(", ")}
               </span>
             )}
             {t.pri && t.pri !== "보통" && (
@@ -613,12 +613,12 @@ function SidebarEditExpanded({ t, visibleProj, visibleMembers, pris, priC, priBg
       {picker === "who" && (
         <div style={{ background: "#fafbfc", border: "1px solid #e2e8f0", borderRadius: 8, marginTop: 4, maxHeight: 140, overflowY: "auto" as const }}>
           {visibleMembers.map(m => (
-            <div key={m} onClick={() => { updTodo(t.id, { who: m }); setPicker(null); }}
-              style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", cursor: "pointer", fontSize: 12, background: m === t.who ? "#e8f0fe" : "transparent", color: m === t.who ? "#1a73e8" : "#334155", fontWeight: m === t.who ? 600 : 400 }}
-              onMouseEnter={e => { if (m !== t.who) (e.currentTarget as HTMLElement).style.background = "#f1f3f4"; }}
-              onMouseLeave={e => { if (m !== t.who) (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
+            <div key={m} onClick={() => { updTodo(t.id, { who: [m] }); setPicker(null); }}
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", cursor: "pointer", fontSize: 12, background: (t.who||[]).includes(m) ? "#e8f0fe" : "transparent", color: (t.who||[]).includes(m) ? "#1a73e8" : "#334155", fontWeight: (t.who||[]).includes(m) ? 600 : 400 }}
+              onMouseEnter={e => { if (!(t.who||[]).includes(m)) (e.currentTarget as HTMLElement).style.background = "#f1f3f4"; }}
+              onMouseLeave={e => { if (!(t.who||[]).includes(m)) (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
               {m}
-              {m === t.who && <CheckIcon style={{ width: 12, height: 12, marginLeft: "auto", color: "#1a73e8" }} />}
+              {(t.who||[]).includes(m) && <CheckIcon style={{ width: 12, height: 12, marginLeft: "auto", color: "#1a73e8" }} />}
             </div>
           ))}
         </div>
@@ -814,7 +814,7 @@ export function CalendarView(props: CalendarViewProps) {
                   onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.filter="none";}}
                   style={{...evStyle(p,t.repeat),whiteSpace:"nowrap" as const,overflow:"hidden",textOverflow:"ellipsis",display:"flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:4,cursor:"grab",opacity:isThisDragging?(t._instance?0.28:0.4):(t._instance?0.7:1),transition:"opacity .15s, filter .12s",...(t._instance?{borderLeft:"2px dashed "+p.color}:{}),maxWidth:"100%"}}>
                   <span style={{overflow:"hidden",textOverflow:"ellipsis",minWidth:0,flex:1,display:"inline-flex",alignItems:"center",gap:2}}>{t.repeat&&t.repeat!=="없음"&&<><ArrowPathIcon style={ICON_SM}/>{" "}</>}{t.task}</span>
-                  {t.who&&<span style={{opacity:.7,fontSize:10,flexShrink:0}}> · {t.who}</span>}
+                  {t.who?.length>0&&<span style={{opacity:.7,fontSize:10,flexShrink:0}}> · {(t.who||[])[0]}</span>}
                 </div>);})}
           </div>);})()}
         </div>
@@ -847,7 +847,7 @@ export function CalendarView(props: CalendarViewProps) {
                     style={{...evStyle(p,t.repeat),display:"flex",alignItems:"center",gap:4,padding:"2px 8px",marginBottom:2,whiteSpace:"nowrap" as const,cursor:"grab",opacity:isThisDragging?(t._instance?0.28:0.4):(t._instance?0.7:1),transition:"opacity .15s, filter .12s",...(t._instance?{borderLeft:"2px dashed "+p.color}:{}),maxWidth:"100%",overflow:"hidden"}}>
                     <span style={{fontSize:8,fontWeight:700,flexShrink:0,opacity:.9}}>{tl}</span>
                     <span style={{overflow:"hidden",textOverflow:"ellipsis",minWidth:0,flex:1,display:"inline-flex",alignItems:"center",gap:2}}>{t.repeat&&t.repeat!=="없음"&&<ArrowPathIcon style={ICON_SM}/>}{t.task}</span>
-                    {t.who&&<span style={{opacity:.7,fontSize:8,flexShrink:0}}> · {t.who}</span>}
+                    {t.who?.length>0&&<span style={{opacity:.7,fontSize:8,flexShrink:0}}> · {(t.who||[])[0]}</span>}
                   </div>);})}
               </div>
             </div>;})}
@@ -904,7 +904,7 @@ export function CalendarView(props: CalendarViewProps) {
                   onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.filter="none";}}
                   style={{...evStyle(p,t.repeat),marginBottom:1,cursor:"grab",opacity:isThisDragging?(t._instance?0.28:0.4):(t._instance?0.7:1),transition:"opacity .15s, filter .12s",...(t._instance?{borderLeft:"2px dashed "+p.color}:{})}}>
                   <div style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,display:"flex",alignItems:"center",gap:2}}>{t.repeat&&t.repeat!=="없음"&&<ArrowPathIcon style={ICON_SM}/>}{t.task}</div>
-                  {t.who&&<div style={{fontSize:8,opacity:.75,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,display:"flex",alignItems:"center",gap:2}}><UserIcon style={ICON_SM}/> {t.who}</div>}
+                  {t.who?.length>0&&<div style={{fontSize:8,opacity:.75,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,display:"flex",alignItems:"center",gap:2}}><UserIcon style={ICON_SM}/> {(t.who||[])[0]}</div>}
                 </div>);})}
             </div>;})}
         </div>
@@ -941,7 +941,7 @@ export function CalendarView(props: CalendarViewProps) {
                       onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.filter="none";}}
                       style={{...evStyle(p,t.repeat),marginBottom:1,cursor:"grab",opacity:isThisDragging?(t._instance?0.28:0.4):(t._instance?0.7:1),transition:"opacity .15s, filter .12s",...(t._instance?{borderLeft:"2px dashed "+p.color}:{})}}>
                       <div style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}><span style={{fontSize:8,fontWeight:700,opacity:.9}}>{tl} </span>{t.task}</div>
-                      {t.who&&<div style={{fontSize:7,opacity:.75,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,display:"flex",alignItems:"center",gap:1}}><UserIcon style={{width:8,height:8,flexShrink:0}}/> {t.who}</div>}
+                      {t.who?.length>0&&<div style={{fontSize:7,opacity:.75,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,display:"flex",alignItems:"center",gap:1}}><UserIcon style={{width:8,height:8,flexShrink:0}}/> {(t.who||[])[0]}</div>}
                     </div>);})}
                 </div>;})}
             </div>;})}
@@ -996,7 +996,7 @@ export function CalendarView(props: CalendarViewProps) {
                   onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.filter="none";}}
                   style={{...evStyle(p,t.repeat),marginBottom:1,cursor:"grab",opacity:isThisDragging?(t._instance?0.28:0.4):(t._instance?0.7:1),transition:"opacity .15s, filter .12s",...(t._instance?{borderLeft:"2px dashed "+p.color}:{})}}>
                   <div style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,display:"flex",alignItems:"center",gap:2}}>{t.repeat&&t.repeat!=="없음"&&<ArrowPathIcon style={ICON_SM}/>}{t.task}</div>
-                  {t.who&&<div style={{fontSize:8,opacity:.75,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,display:"flex",alignItems:"center",gap:2}}><UserIcon style={ICON_SM}/> {t.who}</div>}
+                  {t.who?.length>0&&<div style={{fontSize:8,opacity:.75,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,display:"flex",alignItems:"center",gap:2}}><UserIcon style={ICON_SM}/> {(t.who||[])[0]}</div>}
                 </div>);})}
             </div>;})}
         </div>
@@ -1033,7 +1033,7 @@ export function CalendarView(props: CalendarViewProps) {
                       onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.filter="none";}}
                       style={{...evStyle(p,t.repeat),marginBottom:1,cursor:"grab",opacity:isThisDragging?(t._instance?0.28:0.4):(t._instance?0.7:1),transition:"opacity .15s, filter .12s",...(t._instance?{borderLeft:"2px dashed "+p.color}:{})}}>
                       <div style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}><span style={{fontSize:8,fontWeight:700,opacity:.9}}>{tl} </span>{t.task}</div>
-                      {t.who&&<div style={{fontSize:7,opacity:.75,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,display:"flex",alignItems:"center",gap:1}}><UserIcon style={{width:8,height:8,flexShrink:0}}/> {t.who}</div>}
+                      {t.who?.length>0&&<div style={{fontSize:7,opacity:.75,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const,display:"flex",alignItems:"center",gap:1}}><UserIcon style={{width:8,height:8,flexShrink:0}}/> {(t.who||[])[0]}</div>}
                     </div>);})}
                   </div>;})}
             </div>;})}
@@ -1070,7 +1070,7 @@ export function CalendarView(props: CalendarViewProps) {
                     {t.task}{od&&<span style={{color:"#dc2626",display:"inline-flex"}}><ExclamationTriangleIcon style={ICON_SM}/></span>}<RepeatBadge repeat={t.repeat}/>
                   </div>
                   <div style={{fontSize:10,color:"#94a3b8",marginTop:2,display:"flex",gap:8}}>
-                    <span>{p.name}</span><span>{t.who}</span><span style={S.badge(priBg[t.pri],priC[t.pri])}>{t.pri}</span><span style={S.badge(stBg[t.st],stC[t.st])}>{t.st}</span>
+                    <span>{p.name}</span><span>{(t.who||[])[0]||"미배정"}</span><span style={S.badge(priBg[t.pri],priC[t.pri])}>{t.pri}</span><span style={S.badge(stBg[t.st],stC[t.st])}>{t.st}</span>
                   </div>
                 </div>
               </div>})}
@@ -1082,7 +1082,7 @@ export function CalendarView(props: CalendarViewProps) {
 
     {/* ── 우측 사이드바: 나의 할일 ── */}
     {calSidebarOpen&&(()=>{
-      const myAll=todos.filter(t=>t.who===currentUser&&!t._instance);
+      const myAll=todos.filter(t=>(t.who||[]).includes(currentUser!)&&!t._instance);
       const active=myAll.filter(t=>t.st!=="완료"&&!pendingComplete.has(t.id));
       const animating=myAll.filter(t=>pendingComplete.has(t.id));
       const done=myAll.filter(t=>t.st==="완료");
@@ -1487,7 +1487,7 @@ export function CalendarView(props: CalendarViewProps) {
             </div>
             <div style={{fontSize:11,color:"#64748b",display:"flex",flexDirection:"column" as const,gap:3}}>
               <div style={{display:"flex",alignItems:"center",gap:6}}><span style={{width:8,height:8,borderRadius:"50%",background:p.color,display:"inline-block",flexShrink:0}}/><span style={{color:p.color,fontWeight:600}}>{p.name}</span></div>
-              <div style={{display:"flex",alignItems:"center",gap:3}}><UserIcon style={ICON_SM}/> {t.who||"미배정"}</div>
+              <div style={{display:"flex",alignItems:"center",gap:3}}><UserIcon style={ICON_SM}/> {t.who?.[0]||"미배정"}</div>
               {t.due&&<div style={{display:"flex",alignItems:"center",gap:3}}><CalendarIcon style={ICON_SM}/> {t.due}</div>}
             </div>
             <div style={{marginTop:8,display:"flex",gap:4,flexWrap:"wrap" as const}}>
@@ -1500,11 +1500,11 @@ export function CalendarView(props: CalendarViewProps) {
         </div>
         <div style={{padding:"8px 14px 12px",borderTop:"1px solid #f1f5f9",display:"flex",gap:6}}>
           {/* 수정: canEdit 권한 체크 */}
-          {canEdit(t.who)&&<button onClick={()=>{setEditMod(isInst?{...t,due:t._originDue}:t);setCalEvPop(null);}} style={{flex:1,padding:"6px 10px",borderRadius:6,border:"1px solid #e2e8f0",background:"#fff",cursor:"pointer",fontSize:12,color:"#475569",fontWeight:500,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:3}}><PencilSquareIcon style={ICON_SM}/> {isInst?"원본 수정":"수정"}</button>}
+          {canEdit(t.who?.[0])&&<button onClick={()=>{setEditMod(isInst?{...t,due:t._originDue}:t);setCalEvPop(null);}} style={{flex:1,padding:"6px 10px",borderRadius:6,border:"1px solid #e2e8f0",background:"#fff",cursor:"pointer",fontSize:12,color:"#475569",fontWeight:500,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:3}}><PencilSquareIcon style={ICON_SM}/> {isInst?"원본 수정":"수정"}</button>}
           {/* 완료: canEdit 권한 체크 */}
-          {t.st!=="완료"&&!isInst&&canEdit(t.who)&&<button onClick={()=>{updTodo(t.id,{st:"완료",done:todayStr});setCalEvPop(null);flash("완료 처리되었습니다");}} style={{flex:1,padding:"6px 10px",borderRadius:6,border:"1px solid #bbf7d0",background:"#f0fdf4",cursor:"pointer",fontSize:12,color:"#16a34a",fontWeight:600,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:3}}><CheckIcon style={{width:12,height:12}}/> 완료</button>}
+          {t.st!=="완료"&&!isInst&&canEdit(t.who?.[0])&&<button onClick={()=>{updTodo(t.id,{st:"완료",done:todayStr});setCalEvPop(null);flash("완료 처리되었습니다");}} style={{flex:1,padding:"6px 10px",borderRadius:6,border:"1px solid #bbf7d0",background:"#f0fdf4",cursor:"pointer",fontSize:12,color:"#16a34a",fontWeight:600,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:3}}><CheckIcon style={{width:12,height:12}}/> 완료</button>}
           {/* 삭제: canDelete 권한 체크 */}
-          {!isInst&&canDelete(t.who)&&<button onClick={()=>{if(confirm(`"${t.task}" 업무를 삭제하시겠습니까?`)){delTodo(t.id);setCalEvPop(null);}}} style={{padding:"6px 10px",borderRadius:6,border:"1px solid #fca5a5",background:"#fff5f5",cursor:"pointer",fontSize:12,color:"#dc2626",display:"inline-flex",alignItems:"center"}}><TrashIcon style={ICON_SM}/></button>}
+          {!isInst&&canDelete(t.who?.[0])&&<button onClick={()=>{if(confirm(`"${t.task}" 업무를 삭제하시겠습니까?`)){delTodo(t.id);setCalEvPop(null);}}} style={{padding:"6px 10px",borderRadius:6,border:"1px solid #fca5a5",background:"#fff5f5",cursor:"pointer",fontSize:12,color:"#dc2626",display:"inline-flex",alignItems:"center"}}><TrashIcon style={ICON_SM}/></button>}
         </div>
       </div>
     );})()}
@@ -1604,7 +1604,7 @@ export function CalendarView(props: CalendarViewProps) {
             onMouseLeave={e=>(e.currentTarget as HTMLDivElement).style.background=`${p.color}10`}>
             <div style={{fontSize:12,fontWeight:600,color:"#0f172a",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>{t.task}</div>
             <div style={{fontSize:10,color:"#94a3b8",display:"flex",gap:6,marginTop:2}}>
-              <span>{t.who||"미배정"}</span>
+              <span>{t.who?.[0]||"미배정"}</span>
               <span style={S.badge(stBg[t.st],stC[t.st])}>{t.st}</span>
             </div>
           </div>

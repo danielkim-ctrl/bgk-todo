@@ -165,7 +165,7 @@ export default function App() {
   // 로그인 직후 지연/오늘 마감 업무가 있으면 오늘의 할 일 팝업 자동 표시
   useEffect(() => {
     if (!currentUser || todayPopupDismissed.current) return;
-    const my = todos.filter(t => t.who === currentUser);
+    const my = todos.filter(t => (t.who||[]).includes(currentUser!));
     const hasOverdue = my.some(t => t.due?.split(" ")[0] < todayStr && t.st !== "완료" && t.due);
     const hasTodayDue = my.some(t => t.due?.split(" ")[0] === todayStr && t.st !== "완료");
     if (hasOverdue || hasTodayDue) setTodayPopup(true);
@@ -486,7 +486,7 @@ export default function App() {
           <div style={{display:"flex",alignItems:"center",gap:6}}>
             {/* 지연 업무 배지 — 마감 초과 + 미완료 건수 표시, 클릭 시 오늘의 할 일 팝업 */}
             {(()=>{
-              const cnt = todos.filter(t => t.who === currentUser && t.due && t.due.split(" ")[0] < todayStr && t.st !== "완료").length;
+              const cnt = todos.filter(t => (t.who||[]).includes(currentUser!) && t.due && t.due.split(" ")[0] < todayStr && t.st !== "완료").length;
               return cnt > 0 ? <button style={{...S.hBtn, position:"relative" as const}} onClick={()=>setTodayPopup(true)} title="지연 업무">
                 <ExclamationTriangleIcon style={ICON_SM}/> 지연
                 <span style={{position:"absolute" as const,top:-4,right:-4,background:"#ef4444",color:"#fff",borderRadius:99,fontSize:10,fontWeight:800,padding:"1px 5px",lineHeight:1.4}}>{cnt}</span>
@@ -714,7 +714,7 @@ export default function App() {
             ];
           })
         }</div>)}
-        {pb("who",<UserIcon style={ICON_SM}/>,"담당자",<div style={ps}>{ph("담당자 선택")}{visibleMembers.map(m=>pi(m,()=>{setTodos((prev:any)=>prev.map((t:any)=>selectedIds.has(t.id)?{...t,who:m}:t));flash(`${selectedIds.size}건 담당자 → "${m}"`);closeAll();clrSel();}))}</div>)}
+        {pb("who",<UserIcon style={ICON_SM}/>,"담당자",<div style={ps}>{ph("담당자 선택")}{visibleMembers.map(m=>pi(m,()=>{setTodos((prev:any)=>prev.map((t:any)=>selectedIds.has(t.id)?{...t,who:[m]}:t));flash(`${selectedIds.size}건 담당자 → "${m}"`);closeAll();clrSel();}))}</div>)}
         {pb("pri",<BoltIcon style={ICON_SM}/>,"우선순위",<div style={ps}>{ph("우선순위 선택")}{pris.map(v=>pi(v,()=>{setTodos((prev:any)=>prev.map((t:any)=>selectedIds.has(t.id)?{...t,pri:v}:t));flash(`${selectedIds.size}건 우선순위 → "${v}"`);closeAll();clrSel();}))}</div>)}
         {pb("st",<CheckCircleIcon style={ICON_SM}/>,"상태",<div style={ps}>{ph("상태 선택")}{stats.map(v=>pi(v,()=>{setTodos((prev:any)=>prev.map((t:any)=>selectedIds.has(t.id)?{...t,st:v,done:v==="완료"?todayStr:null}:t));flash(`${selectedIds.size}건 상태 → "${v}"`);closeAll();clrSel();}))}</div>)}
         {pb("due",<CalendarIcon style={ICON_SM}/>,"마감기한",<div style={{...ps,minWidth:200,padding:"10px 12px",overflow:"visible"}} onClick={e=>e.stopPropagation()}>
@@ -747,14 +747,14 @@ export default function App() {
           />
           <div style={{display:"flex",gap:8,marginTop:16,paddingTop:12,borderTop:"1px solid #e2e8f0"}}>
             {/* 삭제: admin이거나 본인 업무+delete.own 권한 */}
-            {editMod?.id&&(can("todo.delete.all")||(isOwner(editMod.who)&&can("todo.delete.own")))&&<button style={{...S.bd,marginRight:"auto"}} onClick={()=>{if(confirm(`"${editMod.task}" 업무를 삭제하시겠습니까?`)){const id=parseInt(editMod.id);setEditMod(null);delTodo(id)}}}><TrashIcon style={ICON_SM}/> 삭제</button>}
+            {editMod?.id&&(can("todo.delete.all")||((editMod.who||[]).includes(currentUser!)&&can("todo.delete.own")))&&<button style={{...S.bd,marginRight:"auto"}} onClick={()=>{if(confirm(`"${editMod.task}" 업무를 삭제하시겠습니까?`)){const id=parseInt(editMod.id);setEditMod(null);delTodo(id)}}}><TrashIcon style={ICON_SM}/> 삭제</button>}
             {/* 복제 — 모바일에서는 우클릭 불가하므로 수정 모달에 버튼 제공 */}
             {editMod?.id&&<button style={S.bs} onClick={()=>{
-              addTodo({pid:editMod.pid||0,task:`[복사] ${editMod.task}`,who:editMod.who||"",due:"",pri:editMod.pri||"보통",st:"대기",det:editMod.det||"",repeat:editMod.repeat||"없음"});
+              addTodo({pid:editMod.pid||0,task:`[복사] ${editMod.task}`,who:editMod.who||[],due:"",pri:editMod.pri||"보통",st:"대기",det:editMod.det||"",repeat:editMod.repeat||"없음"});
               setEditMod(null);flash("업무가 복제되었습니다");
             }}>복제</button>}
             <button style={S.bs} onClick={()=>setEditMod(null)}>취소</button>
-            {(editMod?.id?(can("todo.edit.all")||(isOwner(editMod.who)&&can("todo.edit.own"))):can("todo.create"))
+            {(editMod?.id?(can("todo.edit.all")||((editMod.who||[]).includes(currentUser!)&&can("todo.edit.own"))):can("todo.create"))
               ?<button style={S.bp} onClick={()=>saveMod(editMod)}>저장</button>
               :<button style={{...S.bp,opacity:.4,cursor:"default"}} disabled title="수정 권한이 없습니다">저장</button>}
           </div>
@@ -762,9 +762,9 @@ export default function App() {
       </BottomSheet>
     ) : (
       <Modal open={!!editMod} onClose={()=>setEditMod(null)} title={editMod?.id?"업무 수정":"새 업무"} onCtrlEnter={()=>{if(editMod)saveMod(editMod);}} footer={<>
-        {editMod?.id&&(can("todo.delete.all")||(isOwner(editMod.who)&&can("todo.delete.own")))&&<button style={{...S.bd,marginRight:"auto"}} onClick={()=>{if(confirm(`"${editMod.task}" 업무를 삭제하시겠습니까?`)){const id=parseInt(editMod.id);setEditMod(null);delTodo(id)}}}><TrashIcon style={ICON_SM}/> 삭제</button>}
+        {editMod?.id&&(can("todo.delete.all")||((editMod.who||[]).includes(currentUser!)&&can("todo.delete.own")))&&<button style={{...S.bd,marginRight:"auto"}} onClick={()=>{if(confirm(`"${editMod.task}" 업무를 삭제하시겠습니까?`)){const id=parseInt(editMod.id);setEditMod(null);delTodo(id)}}}><TrashIcon style={ICON_SM}/> 삭제</button>}
         <button style={S.bs} onClick={()=>setEditMod(null)}>취소</button>
-        {(editMod?.id?(can("todo.edit.all")||(isOwner(editMod?.who)&&can("todo.edit.own"))):can("todo.create"))?<button style={S.bp} onClick={()=>saveMod(editMod)}>저장</button>:<button style={{...S.bp,opacity:.4,cursor:"default"}} disabled title="수정 권한이 없습니다">저장</button>}
+        {(editMod?.id?(can("todo.edit.all")||((editMod?.who||[]).includes(currentUser!)&&can("todo.edit.own"))):can("todo.create"))?<button style={S.bp} onClick={()=>saveMod(editMod)}>저장</button>:<button style={{...S.bp,opacity:.4,cursor:"default"}} disabled title="수정 권한이 없습니다">저장</button>}
       </>}>
         {editMod&&<EditForm f={editMod} onChange={setEditMod} proj={visibleProj} members={visibleMembers} pris={pris} stats={stats}
           currentUser={currentUser} gPr={gPr}
@@ -847,7 +847,7 @@ export default function App() {
               <div key={`${entry.id}-${entry.deletedAt}-${i}`} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 0",borderBottom:"1px solid #f1f5f9"}}>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontWeight:600,fontSize:13,color:"#334155",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}>{entry.task}</div>
-                  <div style={{fontSize:11,color:"#94a3b8",marginTop:3}}>{entry.who} · {entry.deletedAt} 삭제</div>
+                  <div style={{fontSize:11,color:"#94a3b8",marginTop:3}}>{Array.isArray(entry.who)?entry.who.join(", "):entry.who} · {entry.deletedAt} 삭제</div>
                 </div>
                 <button onClick={()=>restoreTodo(entry)}
                   style={{padding:"5px 14px",borderRadius:6,border:"1px solid #2563eb",background:"#eff6ff",color:"#2563eb",fontSize:12,fontWeight:600,cursor:"pointer",flexShrink:0}}>
@@ -921,7 +921,7 @@ export default function App() {
 
     {/* ── 오늘의 할 일 팝업 ── 로그인 직후 자동 표시 / 헤더 지연 배지 클릭으로 수동 열기 */}
     {todayPopup && (() => {
-      const my = todos.filter(t => t.who === currentUser && t.st !== "완료");
+      const my = todos.filter(t => (t.who||[]).includes(currentUser!) && t.st !== "완료");
       const overdue = my.filter(t => t.due && t.due.split(" ")[0] < todayStr);
       const todayDue = my.filter(t => t.due?.split(" ")[0] === todayStr);
       // 이번 주: 내일~7일 후

@@ -87,7 +87,7 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
   const stBgs = stBg;
 
   const memberData=members.map(n=>{
-    const mt=todos.filter(t=>t.who===n);
+    const mt=todos.filter(t=>(t.who||[]).includes(n));
     const byProj=aProj.map(p=>({proj:p,cnt:mt.filter(t=>t.pid===p.id).length})).filter(x=>x.cnt>0);
     const bySt: Record<string,number>={대기:mt.filter(t=>t.st==="대기").length,진행중:mt.filter(t=>t.st==="진행중").length,검토:mt.filter(t=>t.st==="검토").length,완료:mt.filter(t=>t.st==="완료").length};
     const hasDelayed=mt.some(t=>isOD(t.due,t.st));
@@ -96,7 +96,7 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
 
   const projData=aProj.map(p=>{
     const pt=todos.filter(t=>t.pid===p.id);
-    const byMember=members.map(n=>({name:n,cnt:pt.filter(t=>t.who===n).length})).filter(x=>x.cnt>0);
+    const byMember=members.map(n=>({name:n,cnt:pt.filter(t=>(t.who||[]).includes(n)).length})).filter(x=>x.cnt>0);
     const bySt: Record<string,number>={대기:pt.filter(t=>t.st==="대기").length,진행중:pt.filter(t=>t.st==="진행중").length,검토:pt.filter(t=>t.st==="검토").length,완료:pt.filter(t=>t.st==="완료").length};
     const delayed=pt.filter(t=>isOD(t.due,t.st)).length;
     return {proj:p,total:pt.length,done:bySt["완료"],bySt,byMember,delayed};
@@ -112,7 +112,7 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
   // 날짜 범위 + 인원 필터를 적용한 todo 목록
   // cre 또는 done 필드가 있어야 활동 로그에 표시 가능 — 둘 다 없으면 제외
   const dailyTodos = todos.filter(t => {
-    if (dayWho !== "전체" && t.who !== dayWho) return false;
+    if (dayWho !== "전체" && !(t.who||[]).includes(dayWho)) return false;
     if (!t.cre && !t.done) return false;
     const inCre  = !cutoff || (t.cre  && t.cre  >= cutoff);
     const inDone = !cutoff || (t.done && t.done >= cutoff);
@@ -121,7 +121,7 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
 
   // 같은 필터를 삭제 로그에도 적용
   const dailyDeleted = deletedLog.filter(d => {
-    if (dayWho !== "전체" && d.who !== dayWho) return false;
+    if (dayWho !== "전체" && !(d.who||[]).includes(dayWho)) return false;
     return !cutoff || d.deletedAt >= cutoff;
   });
 
@@ -142,17 +142,17 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
     const label = date === todayStr ? `${date} (오늘)` : date;
     const whoSet = new Set<string>();
     dailyTodos.forEach(t => {
-      if (t.cre?.slice(0,10)  === date) whoSet.add(t.who);
-      if (t.done?.slice(0,10) === date) whoSet.add(t.who);
+      if (t.cre?.slice(0,10)  === date) (t.who||[]).forEach((w: string) => whoSet.add(w));
+      if (t.done?.slice(0,10) === date) (t.who||[]).forEach((w: string) => whoSet.add(w));
     });
     dailyDeleted.forEach(d => {
-      if (d.deletedAt.slice(0,10) === date) whoSet.add(d.who);
+      if (d.deletedAt.slice(0,10) === date) (d.who||[]).forEach(w => whoSet.add(w));
     });
     const perMember = [...whoSet].map(name => ({
       name,
-      added:     dailyTodos.filter(t => t.who === name && t.cre?.slice(0,10)  === date),
-      completed: dailyTodos.filter(t => t.who === name && t.done?.slice(0,10) === date),
-      deleted:   dailyDeleted.filter(d => d.who === name && d.deletedAt.slice(0,10) === date),
+      added:     dailyTodos.filter(t => (t.who||[]).includes(name) && t.cre?.slice(0,10)  === date),
+      completed: dailyTodos.filter(t => (t.who||[]).includes(name) && t.done?.slice(0,10) === date),
+      deleted:   dailyDeleted.filter(d => (d.who||[]).includes(name) && d.deletedAt.slice(0,10) === date),
     }));
     const totalAdded     = perMember.reduce((s,m) => s + m.added.length,     0);
     const totalCompleted = perMember.reduce((s,m) => s + m.completed.length,  0);
@@ -224,7 +224,7 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
         <span style={{flex:1,fontSize:12,color:"#1a2332",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" as const}}
           title={t.task}>{t.task}</span>
         {/* 담당자 */}
-        {showWho && <span style={{fontSize:11,color:"#64748b",whiteSpace:"nowrap" as const,flexShrink:0}}>{t.who}</span>}
+        {showWho && <span style={{fontSize:11,color:"#64748b",whiteSpace:"nowrap" as const,flexShrink:0}}>{(t.who||[])[0]||""}</span>}
         {/* 프로젝트 칩 */}
         {proj.id !== 0 && <span style={{fontSize:10,padding:"2px 7px",borderRadius:99,
           background:proj.color+"18",color:proj.color,fontWeight:600,flexShrink:0,
@@ -242,7 +242,7 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
   };
 
   // ── 내 업무 현황 위젯 ──────────────────────────────────────────
-  const myTodos = currentUser ? todos.filter((t: any) => t.who === currentUser) : [];
+  const myTodos = currentUser ? todos.filter((t: any) => (t.who||[]).includes(currentUser)) : [];
   const myActive = myTodos.filter((t: any) => t.st !== "완료");
   const myDone = myTodos.filter((t: any) => t.st === "완료");
   const myOverdue = myActive.filter((t: any) => t.due?.split(" ")[0] && t.due.split(" ")[0] < todayIso);
@@ -356,8 +356,8 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
                 <span style={{fontSize:11,fontWeight:700,color:"#dc2626"}}>지연 업무 — 즉시 확인 필요</span>
                 <span style={{fontSize:10,color:"#dc2626",marginLeft:"auto"}}>{overdueItems.length}건</span>
               </div>
-              {members.filter(n=>overdueItems.some(t=>t.who===n)).map(name=>{
-                const items=overdueItems.filter(t=>t.who===name);
+              {members.filter(n=>overdueItems.some(t=>(t.who||[]).includes(n))).map(name=>{
+                const items=overdueItems.filter(t=>(t.who||[]).includes(name));
                 return <div key={name} style={{marginBottom:6}}>
                   <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3}}>
                     <MemberAvatar name={name} size={18}/><span style={{fontSize:10,fontWeight:700,color:"#1a2332"}}>{name}</span>
@@ -374,8 +374,8 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
                 <span style={{fontSize:11,fontWeight:700,color:"#d97706"}}>오늘 마감</span>
                 <span style={{fontSize:10,color:"#d97706",marginLeft:"auto"}}>{todayItems.length}건</span>
               </div>
-              {members.filter(n=>todayItems.some(t=>t.who===n)).map(name=>{
-                const items=todayItems.filter(t=>t.who===name);
+              {members.filter(n=>todayItems.some(t=>(t.who||[]).includes(n))).map(name=>{
+                const items=todayItems.filter(t=>(t.who||[]).includes(name));
                 return <div key={name} style={{marginBottom:6}}>
                   <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3}}>
                     <MemberAvatar name={name} size={18}/><span style={{fontSize:10,fontWeight:700,color:"#1a2332"}}>{name}</span>
@@ -392,8 +392,8 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
                 <span style={{fontSize:11,fontWeight:700,color:"#2563eb"}}>내일 마감</span>
                 <span style={{fontSize:10,color:"#2563eb",marginLeft:"auto"}}>{tomorrowItems.length}건</span>
               </div>
-              {members.filter(n=>tomorrowItems.some(t=>t.who===n)).map(name=>{
-                const items=tomorrowItems.filter(t=>t.who===name);
+              {members.filter(n=>tomorrowItems.some(t=>(t.who||[]).includes(n))).map(name=>{
+                const items=tomorrowItems.filter(t=>(t.who||[]).includes(name));
                 return <div key={name} style={{marginBottom:6}}>
                   <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3}}>
                     <MemberAvatar name={name} size={18}/><span style={{fontSize:10,fontWeight:700,color:"#1a2332"}}>{name}</span>
@@ -449,9 +449,9 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
             const isExp = expandedMember === m.name;
             // 담당자의 완료되지 않은 업무 — 우선순위순(긴급→높음→보통→낮음), 마감일순으로 정렬
             const priOrder: Record<string,number> = {긴급:0,높음:1,보통:2,낮음:3};
-            const mTodos = todos.filter(t=>t.who===m.name && t.st!=="완료")
+            const mTodos = todos.filter(t=>(t.who||[]).includes(m.name) && t.st!=="완료")
               .sort((a,b)=>(priOrder[a.pri]??9)-(priOrder[b.pri]??9) || (a.due||"").localeCompare(b.due||""));
-            const mDone = todos.filter(t=>t.who===m.name && t.st==="완료");
+            const mDone = todos.filter(t=>(t.who||[]).includes(m.name) && t.st==="완료");
             return (
               <div key={m.name} style={{border:`1.5px solid ${isExp?"#2563eb33":"#e2e8f0"}`,borderRadius:10,
                 background:"#fafafa",overflow:"hidden",transition:"box-shadow .15s, border-color .15s",
@@ -652,7 +652,7 @@ export function Dashboard({todos,projects,members,priC,priBg,stC,stBg,gPr,delete
                   const TaskRow=({t,type}: {t: any,type:"add"|"done"|"del"})=>{
                     const proj = type==="del" ? gPr((t as any).pid) : gPr(t.pid);
                     const hasRepeat = t.repeat && t.repeat !== "없음";
-                    const creator = type!=="del" ? (t.logs?.find((l: {action:string;who:string})=>l.action==="create")?.who||t.who) : null;
+                    const creator = type!=="del" ? (t.logs?.find((l: {action:string;who:string})=>l.action==="create")?.who||(t.who||[])[0]||"") : null;
                     const isDone = type==="done";
                     const isDel = type==="del";
                     // 활동 시간 추출 — logs에서 create/complete 액션의 at, 삭제는 deletedAt

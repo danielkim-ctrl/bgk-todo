@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { RichEditor } from "../editor/RichEditor";
 import { Project, ActivityLog, Attachment } from "../../types";
 import { DocumentTextIcon, ArrowPathIcon, PaperClipIcon, LinkIcon, XMarkIcon, PlusIcon, ICON_SM } from "../ui/Icons";
+import { avColor, avColor2, avInitials } from "../../utils/avatarUtils";
 import { RepeatPicker } from "../ui/RepeatPicker";
 
 // ── 로그 패널 ──────────────────────────────────────────────────────────────────
@@ -303,6 +304,7 @@ export function EditForm({ f, onChange, proj, members, pris, stats, currentUser,
   onAddComment?: (text: string) => void;
 }) {
   const [tab, setTab] = useState<"form" | "log">("form");
+  const whoDropState = useState(false); // 담당자 드롭다운 열림 상태
   const u = (k: string, v: any) => onChange({ ...f, [k]: v });
   const logs: ActivityLog[] = f.logs || [];
   const logCount = logs.length;
@@ -357,11 +359,46 @@ export function EditForm({ f, onChange, proj, members, pris, stats, currentUser,
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <div style={{ marginBottom: 12 }}>
-            <label style={{ fontSize: 11, fontWeight: 600, color: "#334155", display: "block", marginBottom: 4 }}>담당자 *</label>
-            <select value={f.who || ""} onChange={e => u("who", e.target.value)} style={{ width: "100%", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: 13, fontFamily: "inherit" }}>
-              <option value="">선택</option>
-              {members.map(m => <option key={m}>{m}</option>)}
-            </select>
+            <label style={{ fontSize: 11, fontWeight: 600, color: "#334155", display: "block", marginBottom: 4 }}>담당자 * <span style={{fontWeight:400,color:"#94a3b8",fontSize:10}}>최대 2명</span></label>
+            {/* 복수 담당자 선택 UI — 칩 + 드롭다운 */}
+            {(()=>{
+              const curWho: string[] = f.who || [];
+              const [whoOpen, setWhoOpen] = whoDropState;
+              const toggleWho = (name: string) => {
+                const idx = curWho.indexOf(name);
+                if (idx >= 0) { if (curWho.length <= 1) return; u("who", curWho.filter(w => w !== name)); }
+                else if (curWho.length >= 2) { u("who", [curWho[0], name]); }
+                else { u("who", [...curWho, name]); }
+              };
+              return <div style={{position:"relative"}}>
+                {/* 선택된 담당자 칩 + 드롭다운 트리거 */}
+                <div onClick={() => setWhoOpen(!whoOpen)} style={{display:"flex",flexWrap:"wrap" as const,gap:4,padding:"6px 10px",border:`1.5px solid ${whoOpen?"#93c5fd":"#e2e8f0"}`,borderRadius:7,cursor:"pointer",minHeight:38,alignItems:"center",background:"#fff",transition:"border-color .15s"}}>
+                  {curWho.length === 0 && <span style={{fontSize:13,color:"#94a3b8"}}>선택</span>}
+                  {curWho.map((w,i) => (
+                    <span key={w} style={{display:"inline-flex",alignItems:"center",gap:3,padding:"2px 7px 2px 3px",background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:99,fontSize:11,fontWeight:500,color:"#2563eb"}}>
+                      <span style={{width:16,height:16,borderRadius:"50%",background:`linear-gradient(135deg,${avColor(w)},${avColor2(w)})`,color:"#fff",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:7,fontWeight:700,flexShrink:0}}>{avInitials(w)}</span>
+                      {w}{i===0&&<span style={{fontSize:8,color:"#93c5fd",fontWeight:700,marginLeft:1}}>주</span>}
+                      <span onClick={e=>{e.stopPropagation();if(curWho.length>1)toggleWho(w);}} style={{cursor:"pointer",fontSize:12,color:"#93c5fd",lineHeight:1}} onMouseEnter={e=>{(e.target as HTMLElement).style.color="#dc2626"}} onMouseLeave={e=>{(e.target as HTMLElement).style.color="#93c5fd"}}>×</span>
+                    </span>
+                  ))}
+                  <span style={{marginLeft:"auto",fontSize:10,color:"#94a3b8"}}>{curWho.length}/2</span>
+                </div>
+                {/* 드롭다운 멤버 목록 */}
+                {whoOpen && <div style={{position:"absolute",top:"100%",left:0,right:0,zIndex:10,marginTop:4,background:"#fff",borderRadius:8,boxShadow:"0 4px 16px rgba(0,0,0,.12)",border:"1px solid #e2e8f0",maxHeight:200,overflowY:"auto",padding:4}}>
+                  {members.map(m => {
+                    const sel = curWho.includes(m);
+                    return <div key={m} onClick={() => toggleWho(m)} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",borderRadius:6,cursor:"pointer",fontSize:13,background:sel?"#eff6ff":"transparent",fontWeight:sel?600:400,transition:"background .1s"}}
+                      onMouseEnter={e=>{if(!sel)(e.currentTarget as HTMLElement).style.background="#f8fafc"}}
+                      onMouseLeave={e=>{if(!sel)(e.currentTarget as HTMLElement).style.background="transparent"}}>
+                      <span style={{width:16,height:16,borderRadius:4,border:`1.5px solid ${sel?"#2563eb":"#cbd5e1"}`,background:sel?"#2563eb":"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#fff",flexShrink:0,transition:"all .15s"}}>{sel?"✓":""}</span>
+                      <span style={{width:20,height:20,borderRadius:"50%",background:`linear-gradient(135deg,${avColor(m)},${avColor2(m)})`,color:"#fff",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:8,fontWeight:700,flexShrink:0}}>{avInitials(m)}</span>
+                      {m}
+                      {curWho.indexOf(m)===0&&<span style={{fontSize:9,color:"#2563eb",fontWeight:700,marginLeft:"auto"}}>주</span>}
+                    </div>;
+                  })}
+                </div>}
+              </div>;
+            })()}
           </div>
           <div style={{ marginBottom: 12 }}>
             <label style={{ fontSize: 11, fontWeight: 600, color: "#334155", display: "block", marginBottom: 4 }}>마감기한 *</label>

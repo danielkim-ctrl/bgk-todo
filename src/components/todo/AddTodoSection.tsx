@@ -137,7 +137,7 @@ export function AddTodoSection({
   const [tplBaseDate, setTplBaseDate] = useState(new Date().toISOString().slice(0,10));
   const [tplBulkWho, setTplBulkWho] = useState("");
   // 적용 미리보기 — AI 결과와 동일한 편집 가능 행 목록
-  const [tplApplyItems, setTplApplyItems] = useState<(TemplateItem & {_chk:boolean;who:string;due:string;project:string})[]>([]);
+  const [tplApplyItems, setTplApplyItems] = useState<(TemplateItem & {_chk:boolean;who:string[];due:string;project:string})[]>([]);
   // 카테고리 목록 추출
   const tplCategories = [...new Set(templates.map(t=>t.category).filter(Boolean))] as string[];
   // 검색 + 팀 + 카테고리 필터링 + 정렬
@@ -175,9 +175,10 @@ export function AddTodoSection({
   // AI 결과 행 반복 팝오버 — 직접 입력 행의 repPop과 동일한 패턴으로 별도 관리
   const [aiRepPop, setAiRepPop] = useState<{idx: number; rect: DOMRect}|null>(null);
   const aiRepPopRef = useRef<HTMLDivElement>(null);
-  const applyBulk = (field: string, value: string) => { setAiParsed((p: any[]) => p.map((t: any) => t._chk ? {...t, [field]: value} : t)); setBulkOpen(null); };
+  // who 필드는 string[] 타입이므로 배열로 감싸서 저장
+  const applyBulk = (field: string, value: string) => { setAiParsed((p: any[]) => p.map((t: any) => t._chk ? {...t, [field]: field==="who"?[value]:value} : t)); setBulkOpen(null); };
   // 템플릿 일괄배정 — AI의 applyBulk와 동일한 패턴
-  const applyTplBulk = (field: string, value: string) => { setTplApplyItems(p => p.map(t => t._chk ? {...t, [field]: value} : t)); setTplBulkOpen(null); };
+  const applyTplBulk = (field: string, value: string) => { setTplApplyItems(p => p.map(t => t._chk ? {...t, [field]: field==="who"?[value]:value} : t)); setTplBulkOpen(null); };
   // 일괄배정 드롭다운 바깥 클릭 시 닫기 — 열리는 mousedown과 충돌하지 않도록 다음 프레임에서 리스너 등록
   useEffect(() => {
     if (!bulkOpen) return;
@@ -249,7 +250,7 @@ export function AddTodoSection({
       // 같은 탭 클릭 → 접기/펼치기
       if (collapsed) {
         setCollapsed(false);
-        if (tab === "manual") setNewRows((r: NewRow[]) => r.length ? r : [{ pid: "", task: "", who: currentUser || "", due: "", pri: "보통", det: "", repeat: "없음" }]);
+        if (tab === "manual") setNewRows((r: NewRow[]) => r.length ? r : [{ pid: "", task: "", who: currentUser ? [currentUser] : [], due: "", pri: "보통", det: "", repeat: "없음" }]);
       } else {
         setCollapsed(true);
       }
@@ -258,7 +259,7 @@ export function AddTodoSection({
       setAddTab(tab);
       setCollapsed(false);
       if (tab === "manual") {
-        setNewRows((r: NewRow[]) => r.length ? r : [{ pid: "", task: "", who: currentUser || "", due: "", pri: "보통", det: "", repeat: "없음" }]);
+        setNewRows((r: NewRow[]) => r.length ? r : [{ pid: "", task: "", who: currentUser ? [currentUser] : [], due: "", pri: "보통", det: "", repeat: "없음" }]);
       }
     }
   };
@@ -321,7 +322,7 @@ export function AddTodoSection({
         d.setDate(d.getDate() + item.offsetDays);
         due = d.toISOString().slice(0, 10);
       }
-      return { ...item, _chk: true, who: "", due, project: aProj.find(p => p.id === item.pid)?.name || "" };
+      return { ...item, _chk: true, who: [] as string[], due, project: aProj.find(p => p.id === item.pid)?.name || "" };
     }));
   };
 
@@ -350,7 +351,7 @@ export function AddTodoSection({
       return {
         pid: mp ? mp.id : (item.pid || 0),
         task: item.task,
-        who: item.who || tplBulkWho || currentUser || "미배정",
+        who: item.who || [tplBulkWho || currentUser || "미배정"].filter(Boolean),
         due: item.due || "",
         pri: item.pri || "보통",
         st: "대기",
@@ -569,7 +570,7 @@ export function AddTodoSection({
                     {r.det&&stripHtml(r.det)?stripHtml(r.det).slice(0,20)+(stripHtml(r.det).length>20?"…":""):<span style={{color:"#bfcfe8"}}>상세내용...</span>}
                   </div>
                 </td>
-                <td style={{padding:"4px 6px"}}><select value={r.who} onChange={e=>{const n=[...newRows];n[i].who=e.target.value;setNewRows(n)}} style={{...cellInput,fontSize:10}}><option value="">담당자</option>{members.map(m=><option key={m}>{m}</option>)}</select></td>
+                <td style={{padding:"4px 6px"}}><select value={(r.who||[])[0]||""} onChange={e=>{const n=[...newRows];n[i].who=e.target.value?[e.target.value]:[];setNewRows(n)}} style={{...cellInput,fontSize:10}}><option value="">담당자</option>{members.map(m=><option key={m}>{m}</option>)}</select></td>
                 <td style={{padding:"4px 6px"}}><div onClick={e=>{const rect=e.currentTarget.getBoundingClientRect();setNrDatePop({id:i,rect,value:r.due||""});}} style={{...cellInput,cursor:"pointer",color:r.due?"#334155":"#94a3b8",whiteSpace:"nowrap",display:"flex",alignItems:"center",padding:"0 6px"}}>{r.due?fD(r.due):"날짜 선택"}</div></td>
                 <td style={{padding:"4px 6px"}}><select value={r.pri} onChange={e=>{const n=[...newRows];n[i].pri=e.target.value;setNewRows(n)}} style={{...cellInput,fontSize:10}}>{pris.map(p=><option key={p}>{p}</option>)}</select></td>
                 {/* 반복 셀 — 클릭 시 RepeatPicker 팝오버 열기 */}
@@ -1133,7 +1134,7 @@ export function AddTodoSection({
                         {projOptions}
                       </select>
                       {/* 담당자 */}
-                      <select value={t.who||""} onChange={e=>{const n=[...tplApplyItems];n[i]={...n[i],who:e.target.value};setTplApplyItems(n);}}
+                      <select value={(t.who||[])[0]||""} onChange={e=>{const n=[...tplApplyItems];n[i]={...n[i],who:e.target.value?[e.target.value]:[]};setTplApplyItems(n);}}
                         style={{...aiSelBase,borderColor:"#e2e8f0",background:"#f1f5f9",color:"#475569"}}>
                         <option value="">미배정</option>
                         {members.map(m=><option key={m}>{m}</option>)}

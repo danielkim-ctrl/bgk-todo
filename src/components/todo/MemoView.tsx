@@ -390,15 +390,15 @@ function MemoCard({
           {/* 담당자 — 리스트뷰와 동일하게 avColor/avColor2/avInitials 사용 */}
           <div style={{ position: "relative", marginLeft: "auto" }}>
             <div onClick={e => toggle("who", e)} style={{ display: "flex", alignItems: "center", gap: 3, cursor: "pointer" }}>
-              <span style={{ width: 16, height: 16, borderRadius: "50%", background: mAvBg(t.who||""), color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 7, fontWeight: 700, flexShrink: 0, letterSpacing: "-0.5px" }}>
-                {avInitials(t.who || "?")}
+              <span style={{ width: 16, height: 16, borderRadius: "50%", background: mAvBg(t.who?.[0]||""), color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 7, fontWeight: 700, flexShrink: 0, letterSpacing: "-0.5px" }}>
+                {avInitials(t.who?.[0] || "?")}
               </span>
-              <span style={{ fontSize: 10, color: "#475569" }}>{t.who || "미배정"} ▾</span>
+              <span style={{ fontSize: 10, color: "#475569" }}>{t.who?.[0] || "미배정"} ▾</span>
             </div>
             {isOpen("who") && (
               <div style={{ ...dropStyle, bottom: "calc(100% + 4px)", top: "auto", left: "auto", right: 0 }} onClick={e => e.stopPropagation()}>
                 {members.map(m => (
-                  <div key={m} style={dropItem(t.who === m)} onClick={() => { updTodo(t.id, { who: m }); setOpenDrop(null); }}>
+                  <div key={m} style={dropItem((t.who||[]).includes(m))} onClick={() => { updTodo(t.id, { who: [m] }); setOpenDrop(null); }}>
                     <span style={{ width: 14, height: 14, borderRadius: "50%", background: mAvBg(m), color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 7, fontWeight: 700, flexShrink: 0, letterSpacing: "-0.5px" }}>{avInitials(m)}</span>
                     {m}
                   </div>
@@ -423,8 +423,8 @@ function MemoCard({
       {/* 완료 시 하단 바 */}
       {isDone && (
         <div style={{ padding: "4px 8px 6px", display: "flex", alignItems: "center", gap: 4, borderTop: "1px solid #e2e8f0", background: "#f1f5f9" }}>
-          <span style={{ width: 14, height: 14, borderRadius: "50%", background: mAvBg(t.who||""), color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 6, fontWeight: 700, letterSpacing: "-0.5px" }}>{avInitials(t.who || "?")}</span>
-          <span style={{ fontSize: 10, color: "#94a3b8" }}>{t.who}</span>
+          <span style={{ width: 14, height: 14, borderRadius: "50%", background: mAvBg(t.who?.[0]||""), color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 6, fontWeight: 700, letterSpacing: "-0.5px" }}>{avInitials(t.who?.[0] || "?")}</span>
+          <span style={{ fontSize: 10, color: "#94a3b8" }}>{t.who?.[0] || "미배정"}</span>
           <button onClick={() => toggleFav(t.id)} title={isFav(t.id) ? "즐겨찾기 해제" : "즐겨찾기"}
             style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, padding: "2px 4px", color: isFav(t.id) ? "#f59e0b" : "#94a3b8", lineHeight: 1, marginLeft: "auto" }}>
             {isFav(t.id) ? <StarIcon style={{width:13,height:13}}/> : <StarOutlineIcon style={{width:13,height:13}}/>}

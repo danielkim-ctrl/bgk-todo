@@ -36,7 +36,7 @@ export function KanbanMobile({
   const items = todos.filter(t =>
     t.st === activeTab &&
     (!kbF.length || kbF.includes(String(t.pid))) &&
-    (!kbFWho.length || kbFWho.includes(t.who))
+    (!kbFWho.length || (t.who||[]).some((w: string) => kbFWho.includes(w)))
   );
 
   return (
@@ -55,7 +55,7 @@ export function KanbanMobile({
           const count = todos.filter(t =>
             t.st === st &&
             (!kbF.length || kbF.includes(String(t.pid))) &&
-            (!kbFWho.length || kbFWho.includes(t.who))
+            (!kbFWho.length || (t.who||[]).some((w: string) => kbFWho.includes(w)))
           ).length;
           const isActive = activeTab === st;
 
@@ -195,7 +195,7 @@ function KanbanCard({
 
       {/* 하단: 담당자 · 마감 · D-day */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#64748b" }}>
-        <span style={{ fontWeight: 500 }}>{todo.who}</span>
+        <span style={{ fontWeight: 500 }}>{todo.who?.[0]||""}</span>
         {todo.due && (
           <>
             <span style={{ color: "#cbd5e1" }}>·</span>

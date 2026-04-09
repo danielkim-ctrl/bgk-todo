@@ -132,7 +132,7 @@ export function Sidebar({
   // 전체 보기 시: 업무 담당자 + 설정 멤버 합산
   const rawMembers = selectedTeamId
     ? members
-    : todos.map((t: any) => t.who).concat(members);
+    : todos.flatMap((t: any) => t.who || []).concat(members);
   // 정규화 후 중복 제거 — 원본 이름(첫 등장 기준) 유지
   const normMap = new Map<string, string>();
   rawMembers.forEach((m: string) => { if (m) { const n = normName(m); if (!normMap.has(n)) normMap.set(n, m); } });
@@ -210,7 +210,7 @@ export function Sidebar({
       whoItems.push({ v: `__team_who_${team.id}`, l: team.name, n: teamMembers.length, c: team.color, teamHeader: { id: `who_${team.id}`, name: team.name, color: team.color, total: teamMembers.length, collapsed } });
       if (!collapsed) {
         teamMembers.forEach(m => {
-          whoItems.push({ v: m, l: m, n: todos.filter((t: any) => t.who === m && t.st !== "완료").length });
+          whoItems.push({ v: m, l: m, n: todos.filter((t: any) => (t.who||[]).includes(m) && t.st !== "완료").length });
           assignedMembers.add(m);
         });
       } else {
@@ -223,13 +223,13 @@ export function Sidebar({
       whoItems.push({ v: "__team_who_unassigned", l: "미배정", n: unassignedMembers.length, c: "#94a3b8", teamHeader: { id: "who___unassigned", name: "미배정", color: "#94a3b8", total: unassignedMembers.length, collapsed } });
       if (!collapsed) {
         unassignedMembers.forEach(m => {
-          whoItems.push({ v: m, l: m, n: todos.filter((t: any) => t.who === m && t.st !== "완료").length });
+          whoItems.push({ v: m, l: m, n: todos.filter((t: any) => (t.who||[]).includes(m) && t.st !== "완료").length });
         });
       }
     }
   } else {
     visibleMembers.forEach(m => {
-      whoItems.push({ v: m, l: m, n: todos.filter((t: any) => t.who === m && t.st !== "완료").length });
+      whoItems.push({ v: m, l: m, n: todos.filter((t: any) => (t.who||[]).includes(m) && t.st !== "완료").length });
     });
   }
 

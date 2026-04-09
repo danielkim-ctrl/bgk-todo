@@ -275,11 +275,13 @@ export function useTodoApp() {
     const seen = new Set<number>();
     let maxId = 0;
     return todos.map(t => {
-      // 담당자 이름 정규화 — 제로 폭 문자·유니코드 차이 해소
-      const nWho = t.who ? normName(t.who) : t.who;
+      // 기존 string → string[] 자동 마이그레이션 + 배열 내 각 이름 정규화
+      const rawWho = typeof t.who === "string" ? [t.who].filter(Boolean) : (Array.isArray(t.who) ? t.who : []);
+      const nWho = rawWho.map((w: string) => normName(w)).filter(Boolean);
+      const whoChanged = JSON.stringify(nWho) !== JSON.stringify(t.who);
       const base = VALID_ST.includes(t.st)
-        ? (nWho !== t.who ? { ...t, who: nWho } : t)
-        : { ...t, st: "대기", ...(nWho !== t.who ? { who: nWho } : {}) };
+        ? (whoChanged ? { ...t, who: nWho } : t)
+        : { ...t, st: "대기", ...(whoChanged ? { who: nWho } : {}) };
       if (base.id > maxId) maxId = base.id;
       if (seen.has(base.id)) {
         const newId = ++maxId;
@@ -412,36 +414,14 @@ export function useTodoApp() {
         try { localStorage.setItem("todo-v5", JSON.stringify(d)); } catch (e) { }
         if (!hasLocal) setLoaded(true);
         fsBootstrapped.current = true;
-        // Firestore 원본 데이터에 중복이 있으면 정규화된 데이터를 Firestore에 직접 덮어써서 영구 정리
-        const rawMembers = (d.members as string[] || []).filter((m: string) => m && m !== "미배정");
-        const cleanMembers = [...new Set(rawMembers.map((m: string) => normName(m)))];
-        const hasMemberDupes = rawMembers.length !== cleanMembers.length;
-        const rawTodoWhos = (d.todos || []).map((t: any) => t.who).filter(Boolean);
-        const cleanTodoWhos = rawTodoWhos.map((w: string) => normName(w));
-        const hasTodoDupes = rawTodoWhos.some((w: string, i: number) => w !== cleanTodoWhos[i]);
-        const hasTeamDupes = (d.teams || []).some((t: any) => {
-          if (!t.members?.length) return false;
-          const names = t.members.map((m: any) => normName(m.name));
-          return new Set(names).size !== names.length || t.members.some((m: any) => m.name !== normName(m.name));
-        });
-        if (hasMemberDupes || hasTeamDupes || hasTodoDupes) {
-          console.warn("[FIX] Firestore 데이터 정규화 필요 감지 — 직접 덮어쓰기 수행",
-            { members: rawMembers.length - cleanMembers.length, teamDupes: hasTeamDupes, todoDupes: hasTodoDupes });
-          // 정규화된 데이터를 Firestore에 직접 저장 (save useEffect는 fromSnapshot 때문에 스킵되므로 직접 호출)
-          const cleanData = { ...d,
-            members: cleanMembers,
-            todos: (d.todos || []).map((t: any) => t.who ? { ...t, who: normName(t.who) } : t),
-            teams: (d.teams || []).map((t: any) => {
-              if (!t.members?.length) return t;
-              const seen = new Set<string>();
-              return { ...t, members: t.members.map((m: any) => ({ ...m, name: normName(m.name) })).filter((m: any) => { if (seen.has(m.name)) return false; seen.add(m.name); return true; }) };
-            }),
-            _updatedAt: Date.now(), _clientId: clientId.current,
-          };
-          setDoc(FS_DOC, cleanData).then(() => {
-            console.warn("[FIX] Firestore 정규화 완료");
-            try { localStorage.setItem("todo-v5", JSON.stringify(cleanData)); } catch (e) { }
-          }).catch(e => console.error("[FIX] Firestore 정규화 저장 실패:", e));
+        // Firestore 원본 데이터 정규화는 applyData에서 이미 처리됨
+        // 정규화된 state가 save useEffect를 통해 자동으로 Firestore에 저장되도록 fromSnapshot 해제
+        // 단, 레거시 who:string → who:string[] 마이그레이션이 필요한 경우에만
+        const needsMigration = (d.todos || []).some((t: any) => typeof t.who === "string");
+        if (needsMigration) {
+          console.warn("[FIX] who string→string[] 마이그레이션 필요 — 자동 저장 트리거");
+          // fromSnapshot을 즉시 false로 — 다음 save useEffect에서 정규화된 state가 Firestore에 저장됨
+          fromSnapshot.current = false;
         }
         return;
       }
@@ -539,7 +519,7 @@ export function useTodoApp() {
           return {
             pid,
             task: t.task || "",
-            who: t.assignee || "미배정",
+            who: t.assignee ? [t.assignee] : ["미배정"],
             due: t.due || "",
             pri: t.priority || "보통",
             st: "대기",
@@ -713,11 +693,13 @@ export function useTodoApp() {
   // viewTodos(팀 필터 적용 후)를 기반으로 검색/필터 적용
   const filtered = useMemo(() => viewTodos.filter(t => {
     const q = search.toLowerCase();
-    return (!q || t.task.toLowerCase().includes(q) || t.who.toLowerCase().includes(q) || gPr(t.pid).name.toLowerCase().includes(q))
+    // 검색: who 배열 내 아무 이름이라도 검색어 포함 시 매칭
+    return (!q || t.task.toLowerCase().includes(q) || t.who.some((w: string) => w.toLowerCase().includes(q)) || gPr(t.pid).name.toLowerCase().includes(q))
       && (filters.proj.length === 0 || filters.proj.some(v => v === "__none__" ? gPr(t.pid).id === 0 : String(t.pid) === v))
       && (filters.st.length === 0 || filters.st.some(v => v === "__none__" ? !t.st : v === "__overdue__" ? isOD(t.due, t.st) : t.st === v))
       && (filters.pri.length === 0 || filters.pri.some(v => v === "__none__" ? !t.pri : t.pri === v))
-      && (filters.who.length === 0 || filters.who.some(v => v === "__none__" ? !t.who : t.who === v))
+      // 담당자 필터: "미배정"은 who 배열 비어 있을 때, 그 외는 who 배열에 해당 이름 포함 시 매칭
+      && (filters.who.length === 0 || filters.who.some(v => v === "__none__" ? t.who.length === 0 : t.who.includes(v)))
       && (filters.repeat.length === 0 || filters.repeat.includes(t.repeat))
       && (!filters.fav || isFav(t.id));
   }), [viewTodos, search, filters, projects, currentUser, userFavs]);
@@ -737,8 +719,9 @@ export function useTodoApp() {
       const orderMap: Record<string, number> = {};
       customOrder.forEach((v, i) => { orderMap[v] = i; });
       // pid는 프로젝트 이름으로 매칭 (ColumnFilterDropdown이 이름 기준 순서를 전달)
-      const keyA = col === "pid" ? (gPr(a.pid).name || "미배정") : col === "who" ? (a.who || "") : col === "pri" ? (a.pri || "") : col === "st" ? (a.st || "") : "";
-      const keyB = col === "pid" ? (gPr(b.pid).name || "미배정") : col === "who" ? (b.who || "") : col === "pri" ? (b.pri || "") : col === "st" ? (b.st || "") : "";
+      // who 배열에서 주 담당자([0]) 기준으로 정렬
+      const keyA = col === "pid" ? (gPr(a.pid).name || "미배정") : col === "who" ? (a.who[0] || "") : col === "pri" ? (a.pri || "") : col === "st" ? (a.st || "") : "";
+      const keyB = col === "pid" ? (gPr(b.pid).name || "미배정") : col === "who" ? (b.who[0] || "") : col === "pri" ? (b.pri || "") : col === "st" ? (b.st || "") : "";
       const ia = orderMap[keyA] ?? 999;
       const ib = orderMap[keyB] ?? 999;
       return dir === "asc" ? ia - ib : ib - ia;
@@ -750,7 +733,7 @@ export function useTodoApp() {
     else if (col === "pid") { va = gPr(a.pid).name; vb = gPr(b.pid).name; }
     else if (col === "task") { va = a.task; vb = b.task; }
     else if (col === "det") { va = stripHtml(a.det || ""); vb = stripHtml(b.det || ""); }
-    else if (col === "who") { va = a.who || ""; vb = b.who || ""; }
+    else if (col === "who") { va = a.who[0] || ""; vb = b.who[0] || ""; }
     else if (col === "due") { va = a.due || "9999"; vb = b.due || "9999"; }
     else if (col === "pri") { va = priOrder[a.pri] ?? 9; vb = priOrder[b.pri] ?? 9; }
     else if (col === "st") { va = stOrder[a.st] ?? 9; vb = stOrder[b.st] ?? 9; }
@@ -991,7 +974,7 @@ export function useTodoApp() {
           id: startId + i,
           pid,
           task: (t.task as string) || "",
-          who: (t.who as string) || currentUser || "미배정",
+          who: Array.isArray(t.who) && t.who.length > 0 ? t.who as string[] : [currentUser || "미배정"],
           due: (t.due as string) || "",
           pri: (t.pri as string) || "보통",
           st: (t.st as string) || "대기",
@@ -1040,15 +1023,19 @@ export function useTodoApp() {
   const cal = useCalendar({ todos: viewTodos });
 
   const saveMod = (f: any) => {
-    if (!f.task || !f.who) { alert("업무내용과 담당자는 필수 항목입니다."); return; }
+    // who가 배열이므로 비어 있는지 확인 (빈 배열 또는 falsy 처리)
+    if (!f.task || !f.who || (Array.isArray(f.who) && f.who.length === 0)) { alert("업무내용과 담당자는 필수 항목입니다."); return; }
     if (f.id) { updTodo(parseInt(f.id), { pid: parseInt(f.pid), task: f.task, who: f.who, due: f.due, pri: f.pri, st: f.st, det: f.det, repeat: f.repeat || "없음" }); flash("변경사항이 저장되었습니다"); }
     else { addTodo({ pid: parseInt(f.pid), task: f.task, who: f.who, due: f.due, pri: f.pri, st: f.st, det: f.det, repeat: f.repeat || "없음" }); flash("업무가 등록되었습니다"); }
     setEditMod(null);
   };
-  const addNR = () => setNewRows(r => [...r, { pid: "", task: "", who: currentUser || "", due: "", pri: "보통", det: "", repeat: "없음" }]);
-  const isNREmpty = (r: NewRow) => !r.task && !r.pid && !r.who && !r.due && !r.det;
-  const saveOneNR = (i: number) => { const r = newRows[i]; if (!r.task?.trim()) { flash("업무내용을 입력해주세요", "err"); return; } addTodo({ pid: r.pid ? parseInt(r.pid) : 0, task: r.task.trim(), who: r.who || currentUser || "미배정", due: r.due || "", pri: r.pri || "보통", st: "대기", det: r.det || "", repeat: r.repeat || "없음" }); setNewRows(p => p.filter((_, j) => j !== i)); flash("업무가 등록되었습니다"); };
-  const saveNRs = () => { if (savingNRs.current) return; const empty = newRows.filter(r => !r.task?.trim()); if (empty.length) { flash(`업무내용이 비어 있는 항목이 ${empty.length}건 있습니다`, "err"); return; } const v = newRows.filter(r => r.task?.trim()); if (!v.length) { setNewRows([]); return; } savingNRs.current = true; v.forEach(r => addTodo({ pid: r.pid ? parseInt(r.pid) : 0, task: r.task.trim(), who: r.who || currentUser || "미배정", due: r.due || "", pri: r.pri || "보통", st: "대기", det: r.det || "", repeat: r.repeat || "없음" })); setNewRows([]); flash(`${v.length}건이 등록되었습니다`); setTimeout(() => { savingNRs.current = false; }, 300); };
+  // 새 행 추가 시 현재 사용자를 주 담당자 배열로 초기화
+  const addNR = () => setNewRows(r => [...r, { pid: "", task: "", who: currentUser ? [currentUser] : [], due: "", pri: "보통", det: "", repeat: "없음" }]);
+  const isNREmpty = (r: NewRow) => !r.task && !r.pid && r.who.length === 0 && !r.due && !r.det;
+  // 개별 행 저장 — who 배열이 비어 있으면 현재 사용자를 주 담당자로 배정
+  const saveOneNR = (i: number) => { const r = newRows[i]; if (!r.task?.trim()) { flash("업무내용을 입력해주세요", "err"); return; } addTodo({ pid: r.pid ? parseInt(r.pid) : 0, task: r.task.trim(), who: r.who.length ? r.who : [currentUser || "미배정"], due: r.due || "", pri: r.pri || "보통", st: "대기", det: r.det || "", repeat: r.repeat || "없음" }); setNewRows(p => p.filter((_, j) => j !== i)); flash("업무가 등록되었습니다"); };
+  // 일괄 저장 — who 배열이 비어 있으면 현재 사용자를 주 담당자로 배정
+  const saveNRs = () => { if (savingNRs.current) return; const empty = newRows.filter(r => !r.task?.trim()); if (empty.length) { flash(`업무내용이 비어 있는 항목이 ${empty.length}건 있습니다`, "err"); return; } const v = newRows.filter(r => r.task?.trim()); if (!v.length) { setNewRows([]); return; } savingNRs.current = true; v.forEach(r => addTodo({ pid: r.pid ? parseInt(r.pid) : 0, task: r.task.trim(), who: r.who.length ? r.who : [currentUser || "미배정"], due: r.due || "", pri: r.pri || "보통", st: "대기", det: r.det || "", repeat: r.repeat || "없음" })); setNewRows([]); flash(`${v.length}건이 등록되었습니다`); setTimeout(() => { savingNRs.current = false; }, 300); };
 
 
   const addChip = () => {
