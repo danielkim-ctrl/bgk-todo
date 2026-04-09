@@ -126,11 +126,17 @@ export function Sidebar({
   // 숨겨진 항목 제외
   const visibleAProj = aProj.filter(p => !hiddenProjects.includes(p.id));
   const hiddenProjList = aProj.filter(p => hiddenProjects.includes(p.id));
-  // 팀 선택 시: 팀 소속 멤버(members prop)만 표시 — 다른 팀 멤버가 해당 팀 프로젝트 업무를 갖고 있어도 필터에 미표시
-  // 전체 보기 시: 업무 담당자 + 설정 멤버 합산 (기존 동작)
-  const allMembers = selectedTeamId
-    ? [...new Set(members)]
-    : [...new Set(todos.map((t: any) => t.who).concat(members))];
+  // 이름 정규화 — 제로 폭 문자·유니코드·공백 차이를 제거하여 동일 이름 중복 방지
+  const normName = (s: string) => s.replace(/[\u200B\u200C\u200D\uFEFF\u00AD\u200E\u200F\u2060\u2028\u2029]/g, "").trim().normalize("NFC");
+  // 팀 선택 시: 팀 소속 멤버(members prop)만 표시
+  // 전체 보기 시: 업무 담당자 + 설정 멤버 합산
+  const rawMembers = selectedTeamId
+    ? members
+    : todos.map((t: any) => t.who).concat(members);
+  // 정규화 후 중복 제거 — 원본 이름(첫 등장 기준) 유지
+  const normMap = new Map<string, string>();
+  rawMembers.forEach((m: string) => { if (m) { const n = normName(m); if (!normMap.has(n)) normMap.set(n, m); } });
+  const allMembers = [...normMap.values()];
   const visibleMembers = allMembers.filter(m => !hiddenMembers.includes(m));
   const hiddenMemberList = allMembers.filter(m => hiddenMembers.includes(m));
 
@@ -196,7 +202,7 @@ export function Sidebar({
   if (useTeamGroup) {
     const assignedMembers = new Set<string>();
     teams.forEach(team => {
-      const teamMembers = visibleMembers.filter(m => team.members.some(tm => tm.name === m));
+      const teamMembers = visibleMembers.filter(m => team.members.some(tm => normName(tm.name) === normName(m)));
       if (teamMembers.length === 0) return;
       const collapsed = !!teamCollapsed[`who_${team.id}`];
       whoItems.push({ v: `__team_who_${team.id}`, l: team.name, n: teamMembers.length, c: team.color, teamHeader: { id: `who_${team.id}`, name: team.name, color: team.color, total: teamMembers.length, collapsed } });

@@ -271,10 +271,12 @@ export default function App() {
     });
   };
   // 팀 필터 적용: 선택된 팀 멤버 / 전체 보기 시 소속 팀 전체 멤버
+  // 이름 비교 시 정규화 적용 — 유니코드·제로 폭 문자 차이 무시
+  const _nn = (s: string) => s.replace(/[\u200B\u200C\u200D\uFEFF\u00AD\u200E\u200F\u2060\u2028\u2029]/g, "").trim().normalize("NFC");
   const teamMembers = selectedTeamId
-    ? members.filter(m => teams.some(t => t.id === selectedTeamId && t.members.some(tm => tm.name === m)))
+    ? members.filter(m => teams.some(t => t.id === selectedTeamId && t.members.some(tm => _nn(tm.name) === _nn(m))))
     : canViewOtherTeams ? members
-    : members.filter(m => teams.some(t => myTeamIds.includes(t.id) && t.members.some(tm => tm.name === m)));
+    : members.filter(m => teams.some(t => myTeamIds.includes(t.id) && t.members.some(tm => _nn(tm.name) === _nn(m))));
   const visibleMembers = teamMembers.filter(m => !hiddenMembers.includes(m));
   const sidebarExpand = (id: number|null) => {
     // 다른 항목으로 전환 전 현재 세부정보 자동저장 (DOM에서 직접 읽기)

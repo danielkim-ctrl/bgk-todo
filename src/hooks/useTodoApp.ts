@@ -268,14 +268,17 @@ export function useTodoApp() {
   }, []);
 
   const VALID_ST = ["대기", "진행중", "검토", "완료"];
+  // 이름 정규화 — 유니코드 NFC + 제로 폭 문자 제거 + trim (동명이인 중복 방지)
+  const normName = (s: string) => s.replace(/[\u200B\u200C\u200D\uFEFF\u00AD\u200E\u200F\u2060\u2028\u2029]/g, "").trim().normalize("NFC");
   const normalizeTodos = (todos: any[]) => {
     const seen = new Set<number>();
     let maxId = 0;
     return todos.map(t => {
-      // 담당자 이름 유니코드 정규화 — NFC vs NFD 한글 차이 해소
+      // 담당자 이름 정규화 — 제로 폭 문자·유니코드 차이 해소
+      const nWho = t.who ? normName(t.who) : t.who;
       const base = VALID_ST.includes(t.st)
-        ? (t.who !== t.who?.normalize?.("NFC") ? { ...t, who: t.who.trim().normalize("NFC") } : t)
-        : { ...t, st: "대기", ...(t.who !== t.who?.normalize?.("NFC") ? { who: t.who.trim().normalize("NFC") } : {}) };
+        ? (nWho !== t.who ? { ...t, who: nWho } : t)
+        : { ...t, st: "대기", ...(nWho !== t.who ? { who: nWho } : {}) };
       if (base.id > maxId) maxId = base.id;
       if (seen.has(base.id)) {
         const newId = ++maxId;
@@ -328,19 +331,10 @@ export function useTodoApp() {
     if (d.stBg) setStBg(merge ? (prev: any) => ({ ...prev, ...d.stBg }) : d.stBg);
     if (d.memberColors) setMemberColors(merge ? (prev: any) => ({ ...prev, ...d.memberColors }) : d.memberColors);
     if (d.members?.length) {
-      // 중복·공백·유니코드 정규화 — Firestore 데이터 정합성 보정 (NFC vs NFD 한글 차이 해소)
+      // 이름 정규화(normName) + 중복 제거 — 제로 폭 문자·유니코드·공백 차이 해소
       const raw = (d.members as string[]).filter((m: string) => m && m !== "미배정");
-      // [DEBUG] 정영운 중복 원인 분석 — 배포 후 콘솔에서 확인
-      const dupes = raw.filter((m: string) => m.includes("정영운") || m.normalize("NFC").includes("정영운"));
-      if (dupes.length > 1) {
-        console.warn("[DEBUG] 정영운 중복 발견:", dupes.length, "건");
-        dupes.forEach((m, i) => {
-          const codes = [...m].map(c => c.charCodeAt(0).toString(16).padStart(4, "0"));
-          console.warn(`  [${i}] "${m}" length=${m.length} codes=[${codes.join(",")}] normalized="${m.normalize("NFC")}" normLen=${m.normalize("NFC").length}`);
-        });
-      }
-      const rm = [...new Set(raw.map((m: string) => m.trim().normalize("NFC")))];
-      if (merge) { setMembers(prev => { const rs = new Set(rm); return [...rm, ...prev.filter((x: string) => !rs.has(x.normalize("NFC")))]; }); }
+      const rm = [...new Set(raw.map((m: string) => normName(m)))];
+      if (merge) { setMembers(prev => { const rs = new Set(rm); return [...rm, ...prev.filter((x: string) => !rs.has(normName(x)))]; }); }
       else setMembers(rm);
     }
     // 팀·역할·권한·PIN 데이터 복원
@@ -350,13 +344,13 @@ export function useTodoApp() {
     if (d.memberPins && Object.keys(d.memberPins).length > 0) {
       setMemberPins(d.memberPins);
     }
-    // 팀 데이터 복원 — members 이름 유니코드 정규화 + 중복 제거 (NFC vs NFD 한글 차이 해소)
+    // 팀 데이터 복원 — 이름 정규화(normName) + 중복 제거
     if (d.teams) {
       const cleaned = (d.teams as Team[]).map(t => {
         if (!t.members?.length) return t;
         const seen = new Set<string>();
         const deduped = t.members
-          .map(m => ({ ...m, name: m.name.trim().normalize("NFC") }))
+          .map(m => ({ ...m, name: normName(m.name) }))
           .filter(m => {
             if (seen.has(m.name)) return false;
             seen.add(m.name);
