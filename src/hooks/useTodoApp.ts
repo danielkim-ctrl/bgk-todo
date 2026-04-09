@@ -269,7 +269,7 @@ export function useTodoApp() {
 
   const VALID_ST = ["대기", "진행중", "검토", "완료"];
   // 이름 정규화 — 유니코드 NFC + 제로 폭 문자 제거 + trim (동명이인 중복 방지)
-  const normName = (s: string) => s.replace(/[\u200B\u200C\u200D\uFEFF\u00AD\u200E\u200F\u2060\u2028\u2029]/g, "").trim().normalize("NFC");
+  const normName = (s: string | undefined | null) => (s || "").replace(/[\u200B\u200C\u200D\uFEFF\u00AD\u200E\u200F\u2060\u2028\u2029]/g, "").trim().normalize("NFC");
   const normalizeTodos = (todos: any[]) => {
     const seen = new Set<number>();
     let maxId = 0;
