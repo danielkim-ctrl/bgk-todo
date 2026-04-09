@@ -272,7 +272,7 @@ export default function App() {
   };
   // 팀 필터 적용: 선택된 팀 멤버 / 전체 보기 시 소속 팀 전체 멤버
   // 이름 비교 시 정규화 적용 — 유니코드·제로 폭 문자 차이 무시
-  const _nn = (s: string | undefined | null) => (s || "").normalize("NFC").replace(/[^\p{L}\p{N}\s]/gu, "").replace(/\s+/g, " ").trim();
+  const _nn = (s: string | undefined | null) => (s || "").normalize("NFC").replace(/[^\p{L}\p{N}]/gu, "");
   const teamMembers = selectedTeamId
     ? members.filter(m => teams.some(t => t.id === selectedTeamId && t.members.some(tm => _nn(tm.name) === _nn(m))))
     : canViewOtherTeams ? members

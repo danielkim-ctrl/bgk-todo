@@ -268,8 +268,9 @@ export function useTodoApp() {
   }, []);
 
   const VALID_ST = ["대기", "진행중", "검토", "완료"];
-  // 이름 정규화 — 한글·영문·숫자·공백만 남기고 나머지 모든 보이지 않는 문자 제거 + NFC
-  const normName = (s: string | undefined | null) => (s || "").normalize("NFC").replace(/[^\p{L}\p{N}\s]/gu, "").replace(/\s+/g, " ").trim();
+  // 이름 정규화 — 한글·영문·숫자만 남기고 공백 포함 모든 비문자 제거 + NFC
+  // 한국어 이름에 공백이 없으므로 공백도 제거하여 "정영운" vs "정 영운" 중복 방지
+  const normName = (s: string | undefined | null) => (s || "").normalize("NFC").replace(/[^\p{L}\p{N}]/gu, "");
   const normalizeTodos = (todos: any[]) => {
     const seen = new Set<number>();
     let maxId = 0;

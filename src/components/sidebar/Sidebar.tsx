@@ -127,7 +127,7 @@ export function Sidebar({
   const visibleAProj = aProj.filter(p => !hiddenProjects.includes(p.id));
   const hiddenProjList = aProj.filter(p => hiddenProjects.includes(p.id));
   // 이름 정규화 — 제로 폭 문자·유니코드·공백 차이를 제거하여 동일 이름 중복 방지
-  const normName = (s: string | undefined | null) => (s || "").normalize("NFC").replace(/[^\p{L}\p{N}\s]/gu, "").replace(/\s+/g, " ").trim();
+  const normName = (s: string | undefined | null) => (s || "").normalize("NFC").replace(/[^\p{L}\p{N}]/gu, "");
   // 팀 선택 시: 팀 소속 멤버(members prop)만 표시
   // 전체 보기 시: 업무 담당자 + 설정 멤버 합산
   const rawMembers = selectedTeamId
