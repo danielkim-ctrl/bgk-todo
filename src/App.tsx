@@ -392,7 +392,11 @@ export default function App() {
   };
 
   // A1: 완료 체크 시 취소선 애니메이션 후 완료 섹션으로 이동
+  // 타인 업무 완료 처리는 todo.edit.all 권한 필요 (canEdit로 통합)
   const handleSideComplete = (id: number, isDone: boolean) => {
+    const target = todos.find(t => t.id === id);
+    // 타인 업무 완료 처리는 edit.all 권한 필요 — canEdit 로직과 동일
+    if (target && !can("todo.edit.all") && !target.who.includes(currentUser!)) { flash("완료 처리 권한이 없습니다", "err"); return; }
     if (!isDone) {
       // 이미 진행 중인 타이머가 있으면 취소 (빠른 연속 클릭 방지)
       const existing = completeTimers.current.get(id);
@@ -944,8 +948,8 @@ export default function App() {
         const pLabel = parent ? `${parent.name} › ${p.name}` : p.name;
         return <div key={t.id} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 0"}}>
           {/* 원형 체크 */}
-          <div style={{width:18,height:18,borderRadius:"50%",border:`2px solid ${color}`,flexShrink:0,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}
-            onClick={()=>{updTodo(t.id,{st:"완료"});flash("완료 처리되었습니다");}}
+          <div style={{width:18,height:18,borderRadius:"50%",border:`2px solid ${color}`,flexShrink:0,cursor:can("todo.edit.all")||t.who.includes(currentUser!)?"pointer":"not-allowed",display:"flex",alignItems:"center",justifyContent:"center",opacity:can("todo.edit.all")||t.who.includes(currentUser!)?1:.4}}
+            onClick={()=>{if(!can("todo.edit.all")&&!t.who.includes(currentUser!)){flash("완료 처리 권한이 없습니다","err");return;}updTodo(t.id,{st:"완료"});flash("완료 처리되었습니다");}}
           />
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontSize:13,fontWeight:500,color:color==="#dc2626"?"#dc2626":"#1a2332",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.task}</div>

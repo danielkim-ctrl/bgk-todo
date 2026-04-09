@@ -528,11 +528,16 @@ export function ListView(props: ListViewProps) {
           }
         }
       };
+      // DropPanel과 동일한 위치 계산 — 줌 보정 + 아래/위 공간 판단 + 화면 경계 보정
       const zoom = parseFloat(getComputedStyle(document.documentElement).zoom as string) || 1;
-      const panelTop = ar ? ar.bottom / zoom + 4 : 0;
-      const panelLeft = ar ? ar.left / zoom : 0;
+      const panelW = 200; const panelH = 280;
+      const r = ar ? { top: ar.top/zoom, left: ar.left/zoom, bottom: ar.bottom/zoom, right: ar.right/zoom } : { top:0, left:0, bottom:0, right:0 };
+      const vh = window.innerHeight / zoom; const vw = window.innerWidth / zoom;
+      const spaceBelow = vh - r.bottom;
+      const panelTop = spaceBelow >= panelH + 4 ? r.bottom + 1 : r.top - panelH - 1;
+      const panelLeft = r.left;
       return <td style={S.tdc}>{children}{createPortal(
-        <div style={{position:"fixed",top:panelTop,left:panelLeft,zIndex:9999,background:"#fff",borderRadius:8,boxShadow:"0 4px 16px rgba(0,0,0,.12)",border:"1px solid #e2e8f0",padding:0,minWidth:180,maxHeight:280,display:"flex",flexDirection:"column" as const,fontFamily:"'Pretendard',system-ui,sans-serif"}}
+        <div style={{position:"fixed",top:Math.max(4,Math.min(panelTop,vh-panelH-4)),left:Math.max(4,Math.min(panelLeft,vw-panelW-4)),zIndex:9999,background:"#fff",borderRadius:8,boxShadow:"0 4px 16px rgba(0,0,0,.12)",border:"1px solid #e2e8f0",padding:0,width:panelW,maxHeight:panelH,display:"flex",flexDirection:"column" as const,fontFamily:"'Pretendard',system-ui,sans-serif"}}
           onMouseDown={e => e.stopPropagation()}>
           {/* 선택된 담당자 칩 */}
           <div style={{display:"flex",flexWrap:"wrap" as const,gap:4,padding:"8px 10px",borderBottom:"1px solid #f1f5f9",alignItems:"center",minHeight:36}}>
