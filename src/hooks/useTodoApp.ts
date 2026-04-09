@@ -329,7 +329,17 @@ export function useTodoApp() {
     if (d.memberColors) setMemberColors(merge ? (prev: any) => ({ ...prev, ...d.memberColors }) : d.memberColors);
     if (d.members?.length) {
       // 중복·공백·유니코드 정규화 — Firestore 데이터 정합성 보정 (NFC vs NFD 한글 차이 해소)
-      const rm = [...new Set((d.members as string[]).filter((m: string) => m && m !== "미배정").map((m: string) => m.trim().normalize("NFC")))];
+      const raw = (d.members as string[]).filter((m: string) => m && m !== "미배정");
+      // [DEBUG] 정영운 중복 원인 분석 — 배포 후 콘솔에서 확인
+      const dupes = raw.filter((m: string) => m.includes("정영운") || m.normalize("NFC").includes("정영운"));
+      if (dupes.length > 1) {
+        console.warn("[DEBUG] 정영운 중복 발견:", dupes.length, "건");
+        dupes.forEach((m, i) => {
+          const codes = [...m].map(c => c.charCodeAt(0).toString(16).padStart(4, "0"));
+          console.warn(`  [${i}] "${m}" length=${m.length} codes=[${codes.join(",")}] normalized="${m.normalize("NFC")}" normLen=${m.normalize("NFC").length}`);
+        });
+      }
+      const rm = [...new Set(raw.map((m: string) => m.trim().normalize("NFC")))];
       if (merge) { setMembers(prev => { const rs = new Set(rm); return [...rm, ...prev.filter((x: string) => !rs.has(x.normalize("NFC")))]; }); }
       else setMembers(rm);
     }
