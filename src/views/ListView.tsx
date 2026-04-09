@@ -606,7 +606,7 @@ export function ListView(props: ListViewProps) {
         onComplete={(id) => {
           // 완료 처리: 현재 상태가 완료면 이전 상태(대기)로, 아니면 완료로 전환
           const todo = sorted.find((t: any) => t.id === id);
-          if (todo) updTodo(id, { st: todo.st === "완료" ? (stats[0] || "대기") : "완료" });
+          if (todo) { if (!permCanEdit(todo.who[0])) { flash("완료 처리 권한이 없습니다","err"); return; } updTodo(id, { st: todo.st === "완료" ? (stats[0] || "대기") : "완료" }); }
         }}
         onDelete={(id) => {
           if (confirm("이 업무를 삭제하시겠습니까?")) delTodo(id);
@@ -1002,7 +1002,7 @@ export function ListView(props: ListViewProps) {
                       style={{background:"none",border:"none",cursor:"pointer",fontSize:14,padding:"0 2px",lineHeight:1,color:isFav(t.id)?"#f59e0b":"#d1d5db",transition:"color .15s",flexShrink:0}}
                       onMouseEnter={e=>{if(!isFav(t.id))(e.currentTarget as HTMLButtonElement).style.color="#fbbf24";}}
                       onMouseLeave={e=>{if(!isFav(t.id))(e.currentTarget as HTMLButtonElement).style.color="#d1d5db";}}>{isFav(t.id)?<StarIcon style={ICON_SM}/>:<StarOutlineIcon style={ICON_SM}/>}</button>
-                    <button onClick={e=>{e.stopPropagation();updTodo(t.id,{st:"완료"});flash("업무가 완료 처리되었습니다");}}
+                    <button onClick={e=>{e.stopPropagation();if(!permCanEdit(t.who[0])){flash("완료 처리 권한이 없습니다","err");return;}updTodo(t.id,{st:"완료"});flash("업무가 완료 처리되었습니다");}}
                       style={{width:17,height:17,borderRadius:"50%",border:"2px solid #94a3b8",background:"#fff",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",padding:0,transition:"all .15s"}}
                       onMouseEnter={e=>{e.currentTarget.style.borderColor="#16a34a";e.currentTarget.style.background="#f0fdf4";(e.currentTarget.querySelector("svg") as unknown as HTMLElement).style.opacity="1";}}
                       onMouseLeave={e=>{e.currentTarget.style.borderColor="#94a3b8";e.currentTarget.style.background="#fff";(e.currentTarget.querySelector("svg") as unknown as HTMLElement).style.opacity="0";}}>
@@ -1115,7 +1115,7 @@ export function ListView(props: ListViewProps) {
                 </div>;})()}</td>
                 <td style={S.tdc}>
                   <div style={{display:"flex",alignItems:"center",gap:12}}>
-                    <button onClick={e=>{e.stopPropagation();updTodo(t.id,{st:"대기"});flash("완료가 취소되었습니다");}}
+                    <button onClick={e=>{e.stopPropagation();if(!permCanEdit(t.who[0])){flash("완료 취소 권한이 없습니다","err");return;}updTodo(t.id,{st:"대기"});flash("완료가 취소되었습니다");}}
                       style={{width:17,height:17,borderRadius:"50%",border:"2px solid #16a34a",background:"#16a34a",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",padding:0}}
                       title="완료 취소">
                       <svg width="9" height="7" viewBox="0 0 9 7" fill="none"><path d="M1 3.5L3.5 6L8 1" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
