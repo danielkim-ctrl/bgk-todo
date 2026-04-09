@@ -411,19 +411,36 @@ export function useTodoApp() {
         try { localStorage.setItem("todo-v5", JSON.stringify(d)); } catch (e) { }
         if (!hasLocal) setLoaded(true);
         fsBootstrapped.current = true;
-        // Firestore 원본 데이터에 중복이 있으면 정규화된 데이터로 덮어써서 영구 정리
+        // Firestore 원본 데이터에 중복이 있으면 정규화된 데이터를 Firestore에 직접 덮어써서 영구 정리
         const rawMembers = (d.members as string[] || []).filter((m: string) => m && m !== "미배정");
         const cleanMembers = [...new Set(rawMembers.map((m: string) => normName(m)))];
         const hasMemberDupes = rawMembers.length !== cleanMembers.length;
+        const rawTodoWhos = (d.todos || []).map((t: any) => t.who).filter(Boolean);
+        const cleanTodoWhos = rawTodoWhos.map((w: string) => normName(w));
+        const hasTodoDupes = rawTodoWhos.some((w: string, i: number) => w !== cleanTodoWhos[i]);
         const hasTeamDupes = (d.teams || []).some((t: any) => {
           if (!t.members?.length) return false;
           const names = t.members.map((m: any) => normName(m.name));
-          return new Set(names).size !== names.length;
+          return new Set(names).size !== names.length || t.members.some((m: any) => m.name !== normName(m.name));
         });
-        if (hasMemberDupes || hasTeamDupes) {
-          console.warn("[FIX] Firestore 데이터 중복 감지 — 정규화된 데이터로 덮어쓰기 수행");
-          // fromSnapshot을 해제하여 다음 save useEffect에서 정규화된 state가 Firestore에 저장되게 함
-          setTimeout(() => { fromSnapshot.current = false; }, 100);
+        if (hasMemberDupes || hasTeamDupes || hasTodoDupes) {
+          console.warn("[FIX] Firestore 데이터 정규화 필요 감지 — 직접 덮어쓰기 수행",
+            { members: rawMembers.length - cleanMembers.length, teamDupes: hasTeamDupes, todoDupes: hasTodoDupes });
+          // 정규화된 데이터를 Firestore에 직접 저장 (save useEffect는 fromSnapshot 때문에 스킵되므로 직접 호출)
+          const cleanData = { ...d,
+            members: cleanMembers,
+            todos: (d.todos || []).map((t: any) => t.who ? { ...t, who: normName(t.who) } : t),
+            teams: (d.teams || []).map((t: any) => {
+              if (!t.members?.length) return t;
+              const seen = new Set<string>();
+              return { ...t, members: t.members.map((m: any) => ({ ...m, name: normName(m.name) })).filter((m: any) => { if (seen.has(m.name)) return false; seen.add(m.name); return true; }) };
+            }),
+            _updatedAt: Date.now(), _clientId: clientId.current,
+          };
+          setDoc(FS_DOC, cleanData).then(() => {
+            console.warn("[FIX] Firestore 정규화 완료");
+            try { localStorage.setItem("todo-v5", JSON.stringify(cleanData)); } catch (e) { }
+          }).catch(e => console.error("[FIX] Firestore 정규화 저장 실패:", e));
         }
         return;
       }
