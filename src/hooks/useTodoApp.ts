@@ -611,8 +611,13 @@ export function useTodoApp() {
       who: currentUser || "시스템",
       action: "create",
     };
-    // 업무 생성 시 현재 선택된 팀의 teamId를 자동 배정
-    const newTodo = { ...t, id, cre: td(), done: t.st === "완료" ? td() : null, repeat: t.repeat || "없음", teamId: t.teamId || selectedTeamId || undefined, logs: [createLog] };
+    // 팀 배정 우선순위: 명시적 teamId → 프로젝트 기반 팀 → selectedTeamId → 현재 사용자 소속 첫 번째 팀
+    // selectedTeamId가 null(전체 보기)이어도 팀 멤버 업무가 viewTodos 필터에서 누락되지 않도록 보장
+    const projTeamMapForAdd: Record<number, string> = {};
+    teams.forEach(tm => tm.projectIds.forEach(pid => { projTeamMapForAdd[pid] = tm.id; }));
+    const myTidsForAdd = teams.filter(tm => tm.members.some(m => m.name === currentUser)).map(tm => tm.id);
+    const resolvedTeamId = t.teamId || projTeamMapForAdd[t.pid] || selectedTeamId || myTidsForAdd[0] || undefined;
+    const newTodo = { ...t, id, cre: td(), done: t.st === "완료" ? td() : null, repeat: t.repeat || "없음", teamId: resolvedTeamId, logs: [createLog] };
     setTodosWithHistory((p: Todo[]) => [...p, newTodo]);
     return id;
   };
@@ -1001,20 +1006,39 @@ export function useTodoApp() {
     setMemberPins(pins);
   }, [loaded, members, memberPins]);
 
-  // 자동 마이그레이션 — 팀에 프로젝트가 연결되어 있고 미배정 todo가 있으면 자동 배정
-  // 로드 완료 후 1회만 실행
+  // 자동 마이그레이션 — teamId 없는 todo를 프로젝트 기반 or 담당자 기반으로 자동 배정
+  // 로드 완료 후 1회만 실행 (기존 누락분 복구 포함)
   const autoAssignDone = useRef(false);
   useEffect(() => {
     if (!loaded || autoAssignDone.current) return;
     if (!teams.length) return;
+    // teamId 없는 업무가 없으면 조기 종료
+    if (!todos.some(t => !t.teamId)) { autoAssignDone.current = true; return; }
+    autoAssignDone.current = true;
+    // 프로젝트 → 팀 매핑
     const projTeamMap: Record<number, string> = {};
     teams.forEach(t => t.projectIds.forEach(pid => { projTeamMap[pid] = t.id; }));
-    const unassigned = todos.filter(t => !t.teamId && projTeamMap[t.pid]);
-    if (unassigned.length === 0) { autoAssignDone.current = true; return; }
-    autoAssignDone.current = true;
+    // 담당자 이름(정규화) → 소속 팀 목록 매핑
+    const memberTeamMap: Record<string, string[]> = {};
+    teams.forEach(t => t.members.forEach(m => {
+      const nm = normName(m.name);
+      if (!memberTeamMap[nm]) memberTeamMap[nm] = [];
+      memberTeamMap[nm].push(t.id);
+    }));
     setTodos((prev: Todo[]) => prev.map(t => {
-      const tid = projTeamMap[t.pid];
-      if (tid && !t.teamId) return { ...t, teamId: tid };
+      if (t.teamId) return t;
+      // 1순위: 프로젝트 기반 팀 배정
+      const projTid = projTeamMap[t.pid];
+      if (projTid) return { ...t, teamId: projTid };
+      // 2순위: 담당자 전원이 단일 팀에 속하면 해당 팀으로 배정
+      if (t.who?.length > 0) {
+        let candidates: string[] | null = null;
+        for (const w of t.who) {
+          const wTeams = memberTeamMap[normName(w)] || [];
+          candidates = candidates === null ? [...wTeams] : candidates.filter(id => wTeams.includes(id));
+        }
+        if (candidates && candidates.length === 1) return { ...t, teamId: candidates[0] };
+      }
       return t;
     }));
   }, [loaded, teams, todos]);
