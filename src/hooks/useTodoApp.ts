@@ -692,7 +692,12 @@ export function useTodoApp() {
     const myTids = teams.filter(t => t.members.some(m => m.name === currentUser)).map(t => t.id);
     const isAdmin = (currentUser && memberRoles[currentUser] === "admin") || !myTids.length;
     if (isAdmin) return todos;
-    return todos.filter(t => t.teamId && myTids.includes(t.teamId));
+    // teamId 있는 업무는 소속 팀 여부로 판단,
+    // teamId 없는 업무는 현재 사용자가 담당자이면 표시 (직접 입력 등 팀 배정 누락 방어)
+    return todos.filter(t => {
+      if (t.teamId) return myTids.includes(t.teamId);
+      return t.who?.includes(currentUser || "");
+    });
   }, [todos, selectedTeamId, teams, currentUser, memberRoles]);
 
   // viewTodos(팀 필터 적용 후)를 기반으로 검색/필터 적용
