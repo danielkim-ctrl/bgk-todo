@@ -82,8 +82,19 @@ export function useTodoApp() {
   });
 
   // 스냅샷을 앱 상태에 복원하는 함수
-  const restoreSnapshot = (snap: AppSnapshot) => {
-    setTodos(snap.todos);
+  // owner를 넘기면 해당 사용자의 todos만 스냅샷으로 교체 — 타 사용자 todos는 현재 상태 유지
+  const restoreSnapshot = (snap: AppSnapshot, owner?: string) => {
+    if (owner) {
+      // 현재 사용자(owner)가 생성한 todos만 스냅샷 버전으로 교체
+      // 타 사용자가 만든 todos(logs[0].who !== owner)는 현재 상태를 유지하여 데이터 손실 방지
+      setTodos((current: Todo[]) => {
+        const othersTodos = current.filter((t: Todo) => (t.logs?.[0]?.who || "") !== owner);
+        const myTodosAtSnapshot = snap.todos.filter((t: Todo) => (t.logs?.[0]?.who || "") === owner);
+        return [...othersTodos, ...myTodosAtSnapshot];
+      });
+    } else {
+      setTodos(snap.todos);
+    }
     setProjects(snap.projects);
     setMembers(snap.members);
     setPris(snap.pris);
@@ -154,7 +165,7 @@ export function useTodoApp() {
     redoSnap.owner = me;
     redoRef.current = [...redoRef.current.slice(-49), redoSnap];
     guard();
-    restoreSnapshot(snap);
+    restoreSnapshot(snap, me);
     flash("이전 상태로 복원되었습니다");
   };
 
@@ -171,7 +182,7 @@ export function useTodoApp() {
     histSnap.owner = me;
     historyRef.current = [...historyRef.current.slice(-49), histSnap];
     guard();
-    restoreSnapshot(snap);
+    restoreSnapshot(snap, me);
     flash("작업이 다시 실행되었습니다");
   };
 
