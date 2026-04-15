@@ -686,17 +686,26 @@ export function useTodoApp() {
 
   // 팀 필터 적용된 todo 목록 — 모든 뷰에서 표시용으로 사용
   // null(전체 보기): 관리자=전체, 일반=소속 팀 전체 / 팀 선택: 해당 팀만
+  // 공통 방어 로직: teamId 없는 업무는 현재 사용자가 담당자이면 항상 표시
+  // (직접 입력 등으로 팀 배정이 누락된 경우에도 본인 업무가 사라지지 않도록)
   const viewTodos = useMemo(() => {
-    if (selectedTeamId) return todos.filter(t => t.teamId === selectedTeamId);
-    // 전체 보기 — 소속 팀 업무 합산 (관리자는 미배정 포함 전부)
     const myTids = teams.filter(t => t.members.some(m => m.name === currentUser)).map(t => t.id);
+    const isMyTask = (t: Todo) => !t.teamId && (t.who as string[])?.includes(currentUser || "");
+    if (selectedTeamId) {
+      const isInSelectedTeam = myTids.includes(selectedTeamId);
+      return todos.filter(t => {
+        if (t.teamId) return t.teamId === selectedTeamId;
+        // teamId 없는 업무: 현재 사용자가 선택된 팀 소속이고 담당자이면 표시
+        return isInSelectedTeam && isMyTask(t);
+      });
+    }
+    // 전체 보기 — 소속 팀 업무 합산 (관리자는 미배정 포함 전부)
     const isAdmin = (currentUser && memberRoles[currentUser] === "admin") || !myTids.length;
     if (isAdmin) return todos;
-    // teamId 있는 업무는 소속 팀 여부로 판단,
-    // teamId 없는 업무는 현재 사용자가 담당자이면 표시 (직접 입력 등 팀 배정 누락 방어)
     return todos.filter(t => {
       if (t.teamId) return myTids.includes(t.teamId);
-      return t.who?.includes(currentUser || "");
+      // teamId 없는 업무: 현재 사용자가 담당자이면 표시
+      return isMyTask(t);
     });
   }, [todos, selectedTeamId, teams, currentUser, memberRoles]);
 
