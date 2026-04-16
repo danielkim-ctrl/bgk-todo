@@ -418,10 +418,20 @@ export function useTodoApp() {
       }
       const d = snap.data();
       if (!fsBootstrapped.current) {
-        // 첫 Firestore 응답 — 항상 Firestore 데이터를 적용 (localStorage는 빠른 로딩용 캐시일 뿐)
+        const localAt = lastKnownUpdatedAt.current;  // localStorage의 _updatedAt
+        const remoteAt = d._updatedAt || 0;
+        // localStorage가 Firestore보다 최신이면 localStorage 유지 + Firestore에 밀어넣기
+        // (새로고침 직전 저장된 미전송 변경사항 보호 — beforeunload 백업과 쌍으로 동작)
+        if (localAt > remoteAt) {
+          fsBootstrapped.current = true;
+          if (!hasLocal) setLoaded(true);
+          // fromSnapshot 설정 없이 return → save useEffect가 localStorage 데이터를 Firestore에 저장
+          return;
+        }
+        // 첫 Firestore 응답 — Firestore가 최신이면 그대로 적용
         fromSnapshot.current = true;
         applyData(d);
-        lastKnownUpdatedAt.current = d._updatedAt || 0;
+        lastKnownUpdatedAt.current = remoteAt;
         try { localStorage.setItem("todo-v5", JSON.stringify(d)); } catch (e) { }
         if (!hasLocal) setLoaded(true);
         fsBootstrapped.current = true;
@@ -452,6 +462,19 @@ export function useTodoApp() {
     });
     return () => unsub();
   }, []);
+
+  // 새로고침/탭 닫기 직전 localStorage에 즉시 백업
+  // — 400ms 디바운스 저장이 실행되기 전에 페이지를 나가면 변경사항이 날아가는 문제 방지
+  // — 부트스트랩 시 localAt > remoteAt 조건과 쌍으로 동작하여 미전송 변경사항 복구
+  useEffect(() => {
+    const handleUnload = () => {
+      const now = Date.now();
+      const data = { todos, projects, nId, pNId, pris, stats, priC, priBg, stC, stBg, members, memberColors, memberRoles, memberPins, globalPermissions, teams, teamNId, templates, tplNId, sharedApiKey: sharedApiKeyRef.current, userSettings, _clientId: clientId.current, _updatedAt: now };
+      try { localStorage.setItem("todo-v5", JSON.stringify(data)); } catch (e) { }
+    };
+    window.addEventListener("beforeunload", handleUnload);
+    return () => window.removeEventListener("beforeunload", handleUnload);
+  }, [todos, projects, nId, pNId, pris, stats, priC, priBg, stC, stBg, members, memberColors, memberRoles, memberPins, globalPermissions, teams, teamNId, templates, tplNId, userSettings]);
 
   // 유저 전환 시 CRUD 상태 초기화 (설정 저장/복원은 useUserSettings에서 담당)
   useEffect(() => {
