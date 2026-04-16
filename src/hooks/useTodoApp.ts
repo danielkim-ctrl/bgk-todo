@@ -436,12 +436,17 @@ export function useTodoApp() {
         }
         return;
       }
-      // 이후 스냅샷 — 같은 클라이언트가 보낸 것이거나 더 오래된 데이터면 무시
+      // 이후 스냅샷 — 같은 클라이언트가 보낸 것이면 무시 (내가 저장한 것이 돌아온 것)
       if (d._clientId === clientId.current) return;
       const incomingAt = d._updatedAt || 0;
-      if (incomingAt < lastKnownUpdatedAt.current) return;
+      // 타임스탬프 비교를 제거: 다른 클라이언트의 업데이트는 항상 적용해야 함.
+      // 기존 "incomingAt < lastKnownUpdatedAt" 체크가 문제의 원인:
+      // 관리자가 자주 저장하면 lastKnownUpdatedAt이 높아지고,
+      // 타 멤버가 저장한 업무(타임스탬프가 관리자보다 낮을 수 있음)를 스킵해버림.
+      // → 관리자 브라우저에 stale 상태가 남아 다음 저장 시 타 멤버 업무를 덮어쓰는 버그.
+      // Firestore onSnapshot은 항상 현재 최신 상태를 전달하므로 stale 걱정 없음.
       fromSnapshot.current = true;
-      lastKnownUpdatedAt.current = incomingAt;
+      lastKnownUpdatedAt.current = Math.max(lastKnownUpdatedAt.current, incomingAt);
       applyData(d, true); // merge: 로컬 추가분 보존
       try { localStorage.setItem("todo-v5", JSON.stringify(d)); } catch (e) { }
     });
