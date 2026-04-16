@@ -66,7 +66,7 @@ export default function App() {
     aProj, gPr, filtered, sorted, sortIcon,
     visibleTodoIds, allVisibleSelected, someVisibleSelected,
     ftodosExpanded, calRangeDs, todayStr, calDays,
-    undo, redo, flash, forceFirestoreSync, updTodo, addTodo, delTodo, reorderTodo,
+    undo, redo, flash, forceFirestoreSync, updTodo, completeTodo, addTodo, delTodo, reorderTodo,
     toggleSort, togF, handleCheck, toggleSelectAll,
     calDate, setCalDate, calToday, calNav, calTitle, weekDates, customDates, agendaItems, evStyle,
     saveMod, addNR, isNREmpty, saveOneNR, saveNRs,
@@ -404,10 +404,9 @@ export default function App() {
       setPendingComplete(s => new Set([...s, id]));
       // 타이머를 Map에 저장해 언마운트 시 cleanup 가능하게 함
       const timer = setTimeout(() => {
-        updTodo(id, {st: "완료"});
+        completeTodo(id);
         setPendingComplete(s => { const n = new Set(s); n.delete(id); return n; });
         completeTimers.current.delete(id);
-        flash("완료 처리되었습니다");
       }, 600);
       completeTimers.current.set(id, timer);
     } else {
@@ -587,7 +586,7 @@ export default function App() {
         selectedIds={selectedIds} allVisibleSelected={allVisibleSelected}
         someVisibleSelected={someVisibleSelected}
         handleCheck={handleCheck} toggleSelectAll={toggleSelectAll} selAll={selAll}
-        toggleFav={toggleFav} addTodo={addTodo} updTodo={updTodo} flash={flash} delTodo={delTodo} reorderTodo={reorderTodo}
+        toggleFav={toggleFav} addTodo={addTodo} updTodo={updTodo} completeTodo={completeTodo} flash={flash} delTodo={delTodo} reorderTodo={reorderTodo}
         setEditMod={setEditMod}
         editCell={editCell} setEditCell={setEditCell}
         datePop={datePop} setDatePop={setDatePop}
@@ -612,7 +611,7 @@ export default function App() {
         calF={calF} setCalF={setCalF} calFWho={calFWho} setCalFWho={setCalFWho}
         visibleProj={visibleProj} members={teamMembers} visibleMembers={visibleMembers}
         gPr={gPr} pris={pris} priC={priC} priBg={priBg} stC={stC} stBg={stBg} memberColors={memberColors}
-        todos={todos} updTodo={updTodo} addTodo={addTodo} delTodo={delTodo}
+        todos={todos} updTodo={updTodo} completeTodo={completeTodo} addTodo={addTodo} delTodo={delTodo}
         flash={flash} setEditMod={setEditMod} currentUser={currentUser}
         calEvPop={calEvPop} setCalEvPop={setCalEvPop}
         calQA={calQA} setCalQA={setCalQA}
@@ -688,7 +687,7 @@ export default function App() {
         <div style={{display:"flex",alignItems:"center",justifyContent:"center",width:22,height:22,borderRadius:"50%",background:"#2563eb",color:"#fff",fontSize:11,fontWeight:800,marginRight:6,flexShrink:0}}>{selectedIds.size}</div>
         {([
           {label:"복제",icon:<ClipboardDocumentIcon style={ICON_SM}/>,fn:()=>{const base=Math.max(...todos.map((t:any)=>t.id),0);let i=1;const copies=todos.filter((t:any)=>selectedIds.has(t.id)).map((t:any)=>({...t,id:base+i++,task:t.task+" (복사)",cre:todayStr,done:null}));setTodos((p:any)=>[...p,...copies]);setNId((n:number)=>n+copies.length);clrSel();flash(`${copies.length}건이 복제되었습니다`);}},
-          {label:"완료",icon:<CheckIcon style={ICON_SM}/>,fn:()=>{selectedIds.forEach(id=>updTodo(id,{st:"완료",done:todayStr}));flash(`${selectedIds.size}건이 완료 처리되었습니다`);clrSel();}},
+          {label:"완료",icon:<CheckIcon style={ICON_SM}/>,fn:()=>{selectedIds.forEach(id=>completeTodo(id));flash(`${selectedIds.size}건이 완료 처리되었습니다`);clrSel();}},
           {label:"즐겨찾기",icon:<StarOutlineIcon style={ICON_SM}/>,fn:()=>{selectedIds.forEach(id=>toggleFav(id));flash(`${selectedIds.size}건의 즐겨찾기가 변경되었습니다`);clrSel();}},
           {label:"삭제",icon:<TrashIcon style={ICON_SM}/>,fn:()=>{if(!confirm(`선택한 ${selectedIds.size}건을 삭제하시겠습니까?`))return;setTodos((p:any)=>p.filter((t:any)=>!selectedIds.has(t.id)));flash(`${selectedIds.size}건이 삭제되었습니다`,"err");clrSel();},danger:true},
         ] as {label:string,icon:React.ReactNode,fn:()=>void,danger?:boolean}[]).map(({label,icon,fn,danger})=>
@@ -949,7 +948,7 @@ export default function App() {
         return <div key={t.id} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 0"}}>
           {/* 원형 체크 */}
           <div style={{width:18,height:18,borderRadius:"50%",border:`2px solid ${color}`,flexShrink:0,cursor:can("todo.edit.all")||t.who.includes(currentUser!)?"pointer":"not-allowed",display:"flex",alignItems:"center",justifyContent:"center",opacity:can("todo.edit.all")||t.who.includes(currentUser!)?1:.4}}
-            onClick={()=>{if(!can("todo.edit.all")&&!t.who.includes(currentUser!)){flash("완료 처리 권한이 없습니다","err");return;}updTodo(t.id,{st:"완료"});flash("완료 처리되었습니다");}}
+            onClick={()=>{if(!can("todo.edit.all")&&!t.who.includes(currentUser!)){flash("완료 처리 권한이 없습니다","err");return;}completeTodo(t.id);}}
           />
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontSize:13,fontWeight:500,color:color==="#dc2626"?"#dc2626":"#1a2332",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.task}</div>

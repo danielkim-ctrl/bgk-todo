@@ -39,6 +39,54 @@ export const fDow = (d: string) => { if(!d) return ""; const dt=new Date(d.split
 export const dateStr = (y: number, m: number, d: number) => `${y}-${fmt2(m+1)}-${fmt2(d)}`;
 export const stripHtml = (h: string) => h ? h.replace(/<[^>]*>/g,"").replace(/&nbsp;/g," ").trim() : "";
 
+// 반복 업무의 현재 due를 기준으로 다음 마감기한을 계산한다
+// due가 없으면 오늘을 기준으로 계산
+export function getNextDue(due: string, repeat: any): string | null {
+  if (!repeat || repeat === "없음") return null;
+
+  // 기준일: due가 있으면 due, 없으면 오늘
+  const base = due ? due.split(" ")[0] : td();
+  const cur = new Date(base);
+  if (isNaN(cur.getTime())) return null;
+
+  let interval = 1;
+  let unit: "일" | "주" | "월" | null = null;
+
+  if (typeof repeat === "string") {
+    if (repeat === "매일") unit = "일";
+    else if (repeat === "매주") unit = "주";
+    else if (repeat === "매월") unit = "월";
+  } else if (typeof repeat === "object") {
+    interval = repeat.interval || 1;
+    unit = repeat.unit || null;
+  }
+
+  if (!unit) return null;
+
+  if (unit === "일") cur.setDate(cur.getDate() + interval);
+  else if (unit === "주") cur.setDate(cur.getDate() + 7 * interval);
+  else if (unit === "월") {
+    // 말일 처리: 이번 달 31일 → 다음 달에 31일 없으면 말일로
+    const targetMonth = cur.getMonth() + interval;
+    const targetYear = cur.getFullYear() + Math.floor(targetMonth / 12);
+    const normalizedMonth = targetMonth % 12;
+    const lastDay = new Date(targetYear, normalizedMonth + 1, 0).getDate();
+    cur.setFullYear(targetYear);
+    cur.setMonth(normalizedMonth);
+    cur.setDate(Math.min(cur.getDate(), lastDay));
+  }
+
+  return `${cur.getFullYear()}-${fmt2(cur.getMonth() + 1)}-${fmt2(cur.getDate())}`;
+}
+
+// 반복 설정 표시용 문자열 변환 (유틸 공통 함수)
+export function fmtRepeatLabel(repeat: any): string {
+  if (!repeat || repeat === "없음") return "없음";
+  if (typeof repeat === "string") return repeat;
+  if (repeat.interval === 1) return `매${repeat.unit}`;
+  return `${repeat.interval}${repeat.unit}마다`;
+}
+
 // 반복 업무를 캘린더 범위 내에서 개별 인스턴스로 전개하는 함수
 // ─────────────────────────────────────────────────────────────────────────────
 // repeat 필드는 두 가지 형식을 모두 지원:

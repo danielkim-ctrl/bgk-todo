@@ -5,7 +5,7 @@ import {
   INIT_MEMBERS, INIT_PRI, INIT_ST, INIT_PRI_C, INIT_PRI_BG, INIT_ST_C, INIT_ST_BG,
   initTodos, initProj
 } from "../constants";
-import { td, gP, stripHtml, isOD } from "../utils";
+import { td, gP, stripHtml, isOD, getNextDue, fmtRepeatLabel } from "../utils";
 import { Filters, NewRow, AiParsed, DatePopState, NotePopupState, Project, Todo, DeletedTodo, SavedFilter, ActivityLog, Team, TeamMember, TeamRole, TodoTemplate, TemplateItem } from "../types";
 import { useAI } from "./useAI";
 import { useCalendar } from "./useCalendar";
@@ -625,6 +625,33 @@ export function useTodoApp() {
 
   const updTodo = (id: number, u: any) => setTodosWithHistory((p: Todo[]) => p.map(t => {
     if (t.id !== id) return t;
+
+    // 반복 업무를 완료 처리할 때는 일반 완료가 아닌 롤오버로 처리
+    // — due를 다음 주기로 이동하고 st를 "대기"로 리셋 (레코드는 삭제되지 않음)
+    const isRepeatTodo = t.repeat && t.repeat !== "없음";
+    const isCompletingRepeat = u.st === "완료" && t.st !== "완료" && isRepeatTodo;
+    if (isCompletingRepeat) {
+      // 롤오버 처리: st를 대기로 유지하고 due를 다음 주기로 이동
+      const nextDue = getNextDue(t.due, t.repeat);
+      if (nextDue) {
+        const rolloverLog: ActivityLog = {
+          id: mkLogId(),
+          at: new Date().toISOString(),
+          who: currentUser || "시스템",
+          action: "repeat_rollover",
+          prevDue: t.due ? t.due.split(" ")[0] : "",
+          changes: [{ field: "마감기한", from: t.due || "", to: nextDue }],
+        };
+        return {
+          ...t,
+          st: "대기",
+          due: nextDue,
+          done: null,
+          logs: [...(t.logs || []), rolloverLog],
+        };
+      }
+    }
+
     const n: any = { ...t, ...u };
     if (u.st === "완료" && t.st !== "완료") n.done = td();
     else if (u.st && u.st !== "완료") n.done = null;
@@ -664,6 +691,25 @@ export function useTodoApp() {
     }
     return n;
   }));
+
+  // 완료 처리 통합 함수 — 반복 업무는 롤오버, 일반 업무는 완료 처리
+  // 모든 뷰의 완료 버튼은 이 함수를 통해 호출해야 함
+  const completeTodo = (id: number) => {
+    const t = todos.find(todo => todo.id === id);
+    if (!t) return;
+
+    const isRepeat = t.repeat && t.repeat !== "없음";
+    if (isRepeat) {
+      const nextDue = getNextDue(t.due, t.repeat);
+      updTodo(id, { st: "완료" }); // updTodo 내부에서 롤오버로 자동 처리
+      const nextLabel = nextDue
+        ? nextDue.slice(5).replace("-", "/") + `(${["일","월","화","수","목","금","토"][new Date(nextDue).getDay()]})`
+        : null;
+      flash(nextLabel ? `완료! 다음 일정: ${nextLabel}` : "완료 처리되었습니다");
+    } else {
+      updTodo(id, { st: "완료" });
+    }
+  };
 
   const addTodo = (t: any) => {
     const id = nIdRef.current++; setNId(nIdRef.current);
@@ -1242,7 +1288,7 @@ export function useTodoApp() {
     todayStr,
     // handlers
     deletedLog, restoreTodo,
-    undo, redo, flash, forceFirestoreSync, updTodo, addTodo, delTodo, reorderTodo,
+    undo, redo, flash, forceFirestoreSync, updTodo, completeTodo, addTodo, delTodo, reorderTodo,
     toggleSort, togF, handleCheck, toggleSelectAll,
     saveMod, addNR, isNREmpty, saveOneNR, saveNRs,
     addChip,

@@ -48,6 +48,7 @@ interface CalendarViewProps {
   memberColors: Record<string,string>;
   todos: any[];
   updTodo: (id: number, updates: any) => void;
+  completeTodo: (id: number) => void;
   addTodo: (todo: any) => void;
   delTodo: (id: number) => void;
   flash: (msg: string, type?: string) => void;
@@ -664,7 +665,7 @@ export function CalendarView(props: CalendarViewProps) {
     todayStr, customDays, setCustomDays, weekDates, customDates, agendaItems,
     ftodosExpanded, evStyle, calF, setCalF, calFWho, setCalFWho,
     visibleProj, members, visibleMembers, gPr, pris, priC, priBg, stC, stBg, memberColors,
-    todos, updTodo, addTodo, delTodo, flash, setEditMod, currentUser,
+    todos, updTodo, completeTodo, addTodo, delTodo, flash, setEditMod, currentUser,
     calEvPop, setCalEvPop, calQA, setCalQA, calQATitle, setCalQATitle,
     calQADue, setCalQADue, calQAPid, setCalQAPid, calQAWho, setCalQAWho,
     calQAPri, setCalQAPri, calQAPicker, setCalQAPicker,
@@ -1502,7 +1503,7 @@ export function CalendarView(props: CalendarViewProps) {
           {/* 수정: canEdit 권한 체크 */}
           {canEdit(t.who?.[0])&&<button onClick={()=>{setEditMod(isInst?{...t,due:t._originDue}:t);setCalEvPop(null);}} style={{flex:1,padding:"6px 10px",borderRadius:6,border:"1px solid #e2e8f0",background:"#fff",cursor:"pointer",fontSize:12,color:"#475569",fontWeight:500,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:3}}><PencilSquareIcon style={ICON_SM}/> {isInst?"원본 수정":"수정"}</button>}
           {/* 완료: canEdit 권한 체크 */}
-          {t.st!=="완료"&&!isInst&&canEdit(t.who?.[0])&&<button onClick={()=>{updTodo(t.id,{st:"완료",done:todayStr});setCalEvPop(null);flash("완료 처리되었습니다");}} style={{flex:1,padding:"6px 10px",borderRadius:6,border:"1px solid #bbf7d0",background:"#f0fdf4",cursor:"pointer",fontSize:12,color:"#16a34a",fontWeight:600,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:3}}><CheckIcon style={{width:12,height:12}}/> 완료</button>}
+          {t.st!=="완료"&&!isInst&&canEdit(t.who?.[0])&&<button onClick={()=>{completeTodo(t.id);setCalEvPop(null);}} style={{flex:1,padding:"6px 10px",borderRadius:6,border:"1px solid #bbf7d0",background:"#f0fdf4",cursor:"pointer",fontSize:12,color:"#16a34a",fontWeight:600,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:3}}><CheckIcon style={{width:12,height:12}}/> 완료</button>}
           {/* 삭제: canDelete 권한 체크 */}
           {!isInst&&canDelete(t.who?.[0])&&<button onClick={()=>{if(confirm(`"${t.task}" 업무를 삭제하시겠습니까?`)){delTodo(t.id);setCalEvPop(null);}}} style={{padding:"6px 10px",borderRadius:6,border:"1px solid #fca5a5",background:"#fff5f5",cursor:"pointer",fontSize:12,color:"#dc2626",display:"inline-flex",alignItems:"center"}}><TrashIcon style={ICON_SM}/></button>}
         </div>

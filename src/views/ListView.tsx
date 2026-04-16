@@ -185,6 +185,7 @@ interface ListViewProps {
   toggleFav: (id: number) => void;
   addTodo: (todo: any) => void;
   updTodo: (id: number, updates: any) => void;
+  completeTodo: (id: number) => void;
   flash: (msg: string, type?: string) => void;
   delTodo: (id: number) => void;
   reorderTodo: (dragId: number, beforeId: number | null) => void;
@@ -239,7 +240,7 @@ export function ListView(props: ListViewProps) {
     customSortOrders, setCustomSortOrders,
     activeSortFields, setActiveSortFields,
     selectedIds, allVisibleSelected, someVisibleSelected, handleCheck, toggleSelectAll, selAll,
-    toggleFav, addTodo, updTodo, flash, delTodo, reorderTodo, setEditMod,
+    toggleFav, addTodo, updTodo, completeTodo, flash, delTodo, reorderTodo, setEditMod,
     editCell, setEditCell, datePop, setDatePop,
     hoverRow, setHoverRow, hoverRowRect, setHoverRowRect, hoverLeaveTimer,
     addSecRef, tblDivRef,
@@ -606,7 +607,7 @@ export function ListView(props: ListViewProps) {
         onComplete={(id) => {
           // 완료 처리: 현재 상태가 완료면 이전 상태(대기)로, 아니면 완료로 전환
           const todo = sorted.find((t: any) => t.id === id);
-          if (todo) { if (!permCanEdit(todo.who[0])) { flash("완료 처리 권한이 없습니다","err"); return; } updTodo(id, { st: todo.st === "완료" ? (stats[0] || "대기") : "완료" }); }
+          if (todo) { if (!permCanEdit(todo.who[0])) { flash("완료 처리 권한이 없습니다","err"); return; } if (todo.st === "완료") { updTodo(id, { st: stats[0] || "대기" }); } else { completeTodo(id); } }
         }}
         onDelete={(id) => {
           if (confirm("이 업무를 삭제하시겠습니까?")) delTodo(id);
@@ -912,7 +913,7 @@ export function ListView(props: ListViewProps) {
     </div>{/* sticky div 끝 */}
 
 
-{todoView==="memo"&&<MemoView sorted={sorted} showDone={showDone} setShowDone={setShowDone} gPr={gPr} aProj={visibleProj} members={visibleMembers} pris={pris} stats={stats} priC={priC} priBg={priBg} stC={stC} stBg={stBg} updTodo={updTodo} addTodo={addTodo} currentUser={currentUser} delTodo={delTodo} isFav={isFav} toggleFav={toggleFav} flash={flash} setDatePop={setDatePop} cols={memoCols} memberColors={memberColors}/>}
+{todoView==="memo"&&<MemoView sorted={sorted} showDone={showDone} setShowDone={setShowDone} gPr={gPr} aProj={visibleProj} members={visibleMembers} pris={pris} stats={stats} priC={priC} priBg={priBg} stC={stC} stBg={stBg} updTodo={updTodo} completeTodo={completeTodo} addTodo={addTodo} currentUser={currentUser} delTodo={delTodo} isFav={isFav} toggleFav={toggleFav} flash={flash} setDatePop={setDatePop} cols={memoCols} memberColors={memberColors}/>}
     {todoView==="list"&&sorted.length===0&&(()=>{
       // 필터/검색이 적용된 경우와 아닌 경우를 구분해 다른 안내 메시지와 CTA를 표시
       const hasFilter = filters.proj.length||filters.who.length||filters.pri.length||filters.st.length||filters.repeat.length||filters.fav||search;
@@ -1002,7 +1003,7 @@ export function ListView(props: ListViewProps) {
                       style={{background:"none",border:"none",cursor:"pointer",fontSize:14,padding:"0 2px",lineHeight:1,color:isFav(t.id)?"#f59e0b":"#d1d5db",transition:"color .15s",flexShrink:0}}
                       onMouseEnter={e=>{if(!isFav(t.id))(e.currentTarget as HTMLButtonElement).style.color="#fbbf24";}}
                       onMouseLeave={e=>{if(!isFav(t.id))(e.currentTarget as HTMLButtonElement).style.color="#d1d5db";}}>{isFav(t.id)?<StarIcon style={ICON_SM}/>:<StarOutlineIcon style={ICON_SM}/>}</button>
-                    <button onClick={e=>{e.stopPropagation();if(!permCanEdit(t.who[0])){flash("완료 처리 권한이 없습니다","err");return;}updTodo(t.id,{st:"완료"});flash("업무가 완료 처리되었습니다");}}
+                    <button onClick={e=>{e.stopPropagation();if(!permCanEdit(t.who[0])){flash("완료 처리 권한이 없습니다","err");return;}completeTodo(t.id);}}
                       style={{width:17,height:17,borderRadius:"50%",border:"2px solid #94a3b8",background:"#fff",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",padding:0,transition:"all .15s"}}
                       onMouseEnter={e=>{e.currentTarget.style.borderColor="#16a34a";e.currentTarget.style.background="#f0fdf4";(e.currentTarget.querySelector("svg") as unknown as HTMLElement).style.opacity="1";}}
                       onMouseLeave={e=>{e.currentTarget.style.borderColor="#94a3b8";e.currentTarget.style.background="#fff";(e.currentTarget.querySelector("svg") as unknown as HTMLElement).style.opacity="0";}}>

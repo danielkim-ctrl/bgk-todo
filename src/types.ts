@@ -11,9 +11,10 @@ export interface ActivityLog {
   id: string;        // 고유 ID (타임스탬프+랜덤)
   at: string;        // ISO 타임스탬프
   who: string;       // 작성자 이름
-  action: "create" | "update" | "complete" | "reopen" | "comment";
+  action: "create" | "update" | "complete" | "reopen" | "comment" | "repeat_rollover";
   changes?: { field: string; from: string; to: string }[]; // 변경된 필드 목록
   comment?: string;  // 메모 본문
+  prevDue?: string;  // 반복 완료 시 이전 마감기한 (롤오버 이력 추적용)
 }
 
 export interface Todo {

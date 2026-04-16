@@ -19,6 +19,7 @@ interface MemoViewProps {
   stC: Record<string, string>;
   stBg: Record<string, string>;
   updTodo: (id: number, patch: Partial<Todo>) => void;
+  completeTodo: (id: number) => void;
   addTodo: (t: any) => void;
   currentUser: string;
   cols?: number;
@@ -68,7 +69,7 @@ function PlaceholderCard() {
 function MemoCard({
   t, gPr, aProj, members, pris, stats,
   priC, priBg, stC, stBg,
-  updTodo, delTodo, isFav, toggleFav, flash,
+  updTodo, completeTodo, delTodo, isFav, toggleFav, flash,
   setDatePop, memberColors = {},
   openDrop, setOpenDrop,
   isDragging,
@@ -88,6 +89,7 @@ function MemoCard({
   stC: Record<string, string>;
   stBg: Record<string, string>;
   updTodo: (id: number, patch: Partial<Todo>) => void;
+  completeTodo: (id: number) => void;
   delTodo: (id: number) => void;
   isFav: (id: number) => boolean;
   toggleFav: (id: number) => void;
@@ -413,7 +415,7 @@ function MemoCard({
             style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, padding: "2px 4px", color: isFav(t.id) ? "#f59e0b" : "#94a3b8", lineHeight: 1 }}>
             {isFav(t.id) ? <StarIcon style={{width:13,height:13}}/> : <StarOutlineIcon style={{width:13,height:13}}/>}
           </button>
-          <button onClick={() => { updTodo(t.id, { st: "완료" }); flash("완료 처리되었습니다"); }} title="완료"
+          <button onClick={() => { completeTodo(t.id); }} title="완료"
             style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, padding: "2px 4px", color: "#16a34a", lineHeight: 1, display: "inline-flex", alignItems: "center" }}><CheckIcon style={{width:12,height:12}}/></button>
           <button onClick={() => { if (confirm("삭제하시겠습니까?")) { delTodo(t.id); flash("업무가 삭제되었습니다", "err"); } }} title="삭제"
             style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, padding: "2px 4px", color: "#dc2626", lineHeight: 1, display: "inline-flex", alignItems: "center" }}><XMarkIcon style={{width:12,height:12}}/></button>
@@ -707,7 +709,7 @@ export function MemoView({
   sorted, showDone, setShowDone,
   gPr, aProj, members, pris, stats,
   priC, priBg, stC, stBg,
-  updTodo, addTodo, currentUser, cols = 3, delTodo, isFav, toggleFav, flash, setDatePop, memberColors = {},
+  updTodo, completeTodo, addTodo, currentUser, cols = 3, delTodo, isFav, toggleFav, flash, setDatePop, memberColors = {},
 }: MemoViewProps) {
   const [openDrop, setOpenDrop] = useState<DropType>(null);
   const active = sorted.filter(t => t.st !== "완료");
@@ -800,7 +802,7 @@ export function MemoView({
     document.body.style.cursor = "";
   };
 
-  const cardProps = { gPr, aProj, members, pris, stats, priC, priBg, stC, stBg, updTodo, delTodo, isFav, toggleFav, flash, setDatePop, openDrop, setOpenDrop, memberColors };
+  const cardProps = { gPr, aProj, members, pris, stats, priC, priBg, stC, stBg, updTodo, completeTodo, delTodo, isFav, toggleFav, flash, setDatePop, openDrop, setOpenDrop, memberColors };
 
   return (
     <div onClick={() => setOpenDrop(null)}>
