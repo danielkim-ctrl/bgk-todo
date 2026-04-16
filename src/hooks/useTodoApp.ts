@@ -310,9 +310,20 @@ export function useTodoApp() {
       const fixed = normalizeTodos(d.todos);
       if (merge) {
         setTodos(prev => {
+          const prevMap = new Map(prev.map(t => [t.id, t]));
           const remoteIds = new Set(fixed.map((t: any) => t.id));
+          // 로컬에만 있는 업무 보존 (미저장 새 업무 등)
           const localOnly = prev.filter(t => !remoteIds.has(t.id));
-          return normalizeTodos([...fixed, ...localOnly]);
+          // 양쪽에 모두 있는 업무: 로그 타임스탬프 기준으로 더 최신 버전 유지
+          // — 타 멤버가 구버전 데이터로 저장해도 내가 완료처리한 업무가 되돌아가지 않도록 보호
+          const merged = fixed.map((remote: any) => {
+            const local = prevMap.get(remote.id);
+            if (!local) return remote;
+            const localLastAt = local.logs?.[local.logs.length - 1]?.at || local.cre || "";
+            const remoteLastAt = remote.logs?.[remote.logs.length - 1]?.at || remote.cre || "";
+            return localLastAt >= remoteLastAt ? local : remote;
+          });
+          return normalizeTodos([...merged, ...localOnly]);
         });
       } else {
         setTodos(fixed);
@@ -321,13 +332,18 @@ export function useTodoApp() {
       if (maxId >= nIdRef.current) { nIdRef.current = maxId + 1; setNId(maxId + 1); }
     }
     if (d.projects?.length) {
+      // 원격 데이터의 중복 프로젝트 제거 — Firestore에 중복 항목이 있을 경우 첫 번째만 유지
+      const dedupedRemoteProjects = d.projects.filter((p: any, i: number, arr: any[]) =>
+        arr.findIndex((x: any) => x.id === p.id) === i);
       if (merge) {
         setProjects(prev => {
-          const remoteIds = new Set(d.projects.map((p: any) => p.id));
+          const remoteIds = new Set(dedupedRemoteProjects.map((p: any) => p.id));
           const localOnly = prev.filter((p: any) => !remoteIds.has(p.id));
-          return [...d.projects, ...localOnly];
+          // 병합 후에도 중복이 없도록 한 번 더 필터링
+          const merged = [...dedupedRemoteProjects, ...localOnly];
+          return merged.filter((p: any, i: number, arr: any[]) => arr.findIndex((x: any) => x.id === p.id) === i);
         });
-      } else { setProjects(d.projects); }
+      } else { setProjects(dedupedRemoteProjects); }
     }
     if (d.nId && d.nId > nIdRef.current) { setNId(d.nId); nIdRef.current = d.nId; }
     if (d.pNId) setPNId(d.pNId);
@@ -361,17 +377,25 @@ export function useTodoApp() {
     }
     // 팀 데이터 복원 — 이름 정규화(normName) + 중복 제거
     if (d.teams) {
+      // 팀 멤버 중복 제거 + 동일 projectId가 여러 팀에 중복 배정된 경우 첫 번째 팀에만 유지
+      const seenProjIds = new Set<number>();
       const cleaned = (d.teams as Team[]).map(t => {
-        if (!t.members?.length) return t;
-        const seen = new Set<string>();
-        const deduped = t.members
+        // 멤버 중복 제거
+        const seenMembers = new Set<string>();
+        const dedupedMembers = (t.members || [])
           .map(m => ({ ...m, name: normName(m.name) }))
           .filter(m => {
-            if (seen.has(m.name)) return false;
-            seen.add(m.name);
+            if (seenMembers.has(m.name)) return false;
+            seenMembers.add(m.name);
             return true;
           });
-        return deduped.length === t.members.length ? t : { ...t, members: deduped };
+        // projectIds 중복 제거 — 이미 다른 팀에 배정된 프로젝트는 제외
+        const dedupedProjIds = (t.projectIds || []).filter(pid => {
+          if (seenProjIds.has(pid)) return false;
+          seenProjIds.add(pid);
+          return true;
+        });
+        return { ...t, members: dedupedMembers, projectIds: dedupedProjIds };
       });
       setTeams(cleaned);
     }
@@ -905,10 +929,12 @@ export function useTodoApp() {
   };
   // 팀에 프로젝트 연결/해제
   const addTeamProject = (teamId: string, pid: number) => {
-    // 복수 팀 운영 허용 — 해당 팀에만 추가 (다른 팀에서 제거하지 않음)
+    // 프로젝트는 단일 팀 소속 — 다른 팀에 이미 배정된 경우 먼저 제거 후 새 팀에 추가
+    // (동일 프로젝트가 여러 팀 필터에 중복 노출되는 버그 방지)
     setTeams(p => p.map(t => {
       if (t.id === teamId) return { ...t, projectIds: [...new Set([...t.projectIds, pid])] };
-      return t;
+      // 다른 팀에서 해당 프로젝트 제거
+      return { ...t, projectIds: t.projectIds.filter(id => id !== pid) };
     }));
   };
   const removeTeamProject = (teamId: string, pid: number) => {
@@ -1095,6 +1121,27 @@ export function useTodoApp() {
       return t;
     }));
   }, [loaded, teams, todos]);
+
+  // 기존 데이터 정리 — 동일 프로젝트가 여러 팀의 projectIds에 중복 등록된 경우 자동 제거
+  // 로드 완료 후 1회만 실행 (과거 데이터 마이그레이션)
+  const projDedupeD = useRef(false);
+  useEffect(() => {
+    if (!loaded || projDedupeD.current) return;
+    if (!teams.length) return;
+    projDedupeD.current = true;
+    // 동일 PID가 여러 팀에 있으면 첫 번째 팀에만 남기고 나머지에서 제거
+    const seen = new Set<number>();
+    let changed = false;
+    const cleaned = teams.map(t => {
+      const deduped = t.projectIds.filter(pid => {
+        if (seen.has(pid)) { changed = true; return false; }
+        seen.add(pid);
+        return true;
+      });
+      return deduped.length !== t.projectIds.length ? { ...t, projectIds: deduped } : t;
+    });
+    if (changed) setTeams(cleaned);
+  }, [loaded, teams]);
 
   // ── useCalendar: 캘린더 상태·로직 분리 — 팀 필터 적용된 todos 전달 ──────
   const cal = useCalendar({ todos: viewTodos });
