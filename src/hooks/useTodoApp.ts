@@ -19,13 +19,12 @@ export function useTodoApp() {
   const clientId = useRef(Math.random().toString(36).slice(2));
   const pendingWrite = useRef(false);
   const writeVersion = useRef(0);
-  const fromSnapshot = useRef(false);
   const FS_DOC = useMemo(() => doc(db, "todos_db", "team"), []);
   const detHoverTimerRef = useRef<any>(null);
   const noteLeaveTimerRef = useRef<any>(null);
   const savingNRs = useRef(false);
-  const lastKnownUpdatedAt = useRef(0);
-  const fsBootstrapped = useRef(false);
+  // 삭제 등 즉각 반영이 필요한 작업 후 디바운스 없이 즉시 저장하기 위한 플래그
+  const immediateFlush = useRef(false);
 
   // ── 사용자 설정 (useUserSettings로 분리) ────────────────────────────────────
   const userSets = useUserSettings();
@@ -419,86 +418,39 @@ export function useTodoApp() {
   };
 
   useEffect(() => {
-    let hasLocal = false;
-    try {
-      const raw = localStorage.getItem("todo-v5");
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        applyData(parsed);
-        lastKnownUpdatedAt.current = parsed._updatedAt || 0;
-        hasLocal = true;
-      }
-    } catch (e) { }
-    if (hasLocal) setLoaded(true);
-
+    let bootstrapped = false;
+    // Firebase 오프라인 캐시(IndexedDB) 덕분에 첫 onSnapshot이 캐시에서 즉시 옴
+    // — localStorage 읽기/beforeunload 백업 불필요
     const unsub = onSnapshot(FS_DOC, (snap) => {
       if (!snap.exists()) {
-        if (!fsBootstrapped.current) {
-          if (!hasLocal) { setTodos(initTodos as any); setProjects(initProj); }
-          fsBootstrapped.current = true;
-          if (!hasLocal) setLoaded(true);
+        if (!bootstrapped) {
+          setTodos(initTodos as any);
+          setProjects(initProj);
+          bootstrapped = true;
+          setLoaded(true);
         }
         return;
       }
       const d = snap.data();
-      if (!fsBootstrapped.current) {
-        const localAt = lastKnownUpdatedAt.current;  // localStorage의 _updatedAt
-        const remoteAt = d._updatedAt || 0;
-        // localStorage가 Firestore보다 최신이면 localStorage 유지 + Firestore에 밀어넣기
-        // (새로고침 직전 저장된 미전송 변경사항 보호 — beforeunload 백업과 쌍으로 동작)
-        if (localAt > remoteAt) {
-          fsBootstrapped.current = true;
-          if (!hasLocal) setLoaded(true);
-          // fromSnapshot 설정 없이 return → save useEffect가 localStorage 데이터를 Firestore에 저장
-          return;
-        }
-        // 첫 Firestore 응답 — Firestore가 최신이면 그대로 적용
-        fromSnapshot.current = true;
+      if (!bootstrapped) {
+        // 첫 스냅샷 (캐시 또는 서버) — 그대로 적용 후 로드 완료
         applyData(d);
-        lastKnownUpdatedAt.current = remoteAt;
-        try { localStorage.setItem("todo-v5", JSON.stringify(d)); } catch (e) { }
-        if (!hasLocal) setLoaded(true);
-        fsBootstrapped.current = true;
-        // Firestore 원본 데이터 정규화는 applyData에서 이미 처리됨
-        // 정규화된 state가 save useEffect를 통해 자동으로 Firestore에 저장되도록 fromSnapshot 해제
-        // 단, 레거시 who:string → who:string[] 마이그레이션이 필요한 경우에만
+        bootstrapped = true;
+        setLoaded(true);
+        // who: string → string[] 레거시 마이그레이션이 필요한 경우 자동 저장 트리거
         const needsMigration = (d.todos || []).some((t: any) => typeof t.who === "string");
         if (needsMigration) {
           console.warn("[FIX] who string→string[] 마이그레이션 필요 — 자동 저장 트리거");
-          // fromSnapshot을 즉시 false로 — 다음 save useEffect에서 정규화된 state가 Firestore에 저장됨
-          fromSnapshot.current = false;
         }
         return;
       }
-      // 이후 스냅샷 — 같은 클라이언트가 보낸 것이면 무시 (내가 저장한 것이 돌아온 것)
+      // 이후 스냅샷 — 내가 저장한 것이 돌아온 것이면 무시 (무한 루프 방지)
       if (d._clientId === clientId.current) return;
-      const incomingAt = d._updatedAt || 0;
-      // [1차 수정] 타임스탬프 비교 제거: 다른 클라이언트 업데이트는 항상 적용
-      //   기존 "incomingAt < lastKnownUpdatedAt" 체크가 관리자 브라우저에서
-      //   타 멤버의 상태 변경을 스킵하는 버그를 유발했음.
-      // [2차 수정] fromSnapshot = true 설정 제거:
-      //   외부 merge 수신 후 로컬 미저장 업무(예: 뷰어가 방금 추가한 업무)가
-      //   있을 경우, fromSnapshot 플래그가 그 저장을 스킵해버리는 버그.
-      //   무한 루프 방지는 위의 clientId 체크가 이미 담당하므로 fromSnapshot 불필요.
-      lastKnownUpdatedAt.current = Math.max(lastKnownUpdatedAt.current, incomingAt);
-      applyData(d, true); // merge: 로컬 추가분 보존 후 Firestore 저장까지 이어짐
-      try { localStorage.setItem("todo-v5", JSON.stringify(d)); } catch (e) { }
+      // 다른 클라이언트의 변경 — 로컬 미저장 업무 보존하며 merge 적용
+      applyData(d, true);
     });
     return () => unsub();
   }, []);
-
-  // 새로고침/탭 닫기 직전 localStorage에 즉시 백업
-  // — 400ms 디바운스 저장이 실행되기 전에 페이지를 나가면 변경사항이 날아가는 문제 방지
-  // — 부트스트랩 시 localAt > remoteAt 조건과 쌍으로 동작하여 미전송 변경사항 복구
-  useEffect(() => {
-    const handleUnload = () => {
-      const now = Date.now();
-      const data = { todos, projects, nId, pNId, pris, stats, priC, priBg, stC, stBg, members, memberColors, memberRoles, memberPins, globalPermissions, teams, teamNId, templates, tplNId, sharedApiKey: sharedApiKeyRef.current, userSettings, _clientId: clientId.current, _updatedAt: now };
-      try { localStorage.setItem("todo-v5", JSON.stringify(data)); } catch (e) { }
-    };
-    window.addEventListener("beforeunload", handleUnload);
-    return () => window.removeEventListener("beforeunload", handleUnload);
-  }, [todos, projects, nId, pNId, pris, stats, priC, priBg, stC, stBg, members, memberColors, memberRoles, memberPins, globalPermissions, teams, teamNId, templates, tplNId, userSettings]);
 
   // 유저 전환 시 CRUD 상태 초기화 (설정 저장/복원은 useUserSettings에서 담당)
   useEffect(() => {
@@ -511,21 +463,19 @@ export function useTodoApp() {
   const skipFirst = useRef(false);
   useEffect(() => {
     if (!loaded) return;
-    // Firestore 첫 동기화 완료 전에는 저장 차단 — localStorage 구버전 데이터로 Firestore 덮어쓰기 방지
-    if (!fsBootstrapped.current) return;
     if (!skipFirst.current) { skipFirst.current = true; return; }
-    if (fromSnapshot.current) { fromSnapshot.current = false; return; }
+    // 삭제 등 즉각 반영이 필요한 작업은 디바운스 없이 즉시 저장
+    const delay = immediateFlush.current ? 0 : 400;
+    immediateFlush.current = false;
     const t = setTimeout(() => {
       pendingWrite.current = true;
       const ver = ++writeVersion.current;
       const now = Date.now();
-      lastKnownUpdatedAt.current = now;
       const data = { todos, projects, nId, pNId, pris, stats, priC, priBg, stC, stBg, members, memberColors, memberRoles, memberPins, globalPermissions, teams, teamNId, templates, tplNId, sharedApiKey: sharedApiKeyRef.current, userSettings, _clientId: clientId.current, _updatedAt: now };
-      try { localStorage.setItem("todo-v5", JSON.stringify(data)); } catch (e) { }
       setDoc(FS_DOC, data)
         .catch(() => flash("저장 실패 — 네트워크를 확인하세요", "err"))
         .finally(() => { if (writeVersion.current === ver) pendingWrite.current = false; });
-    }, 400);
+    }, delay);
     return () => clearTimeout(t);
   }, [todos, projects, nId, pNId, members, pris, stats, priC, priBg, stC, stBg, memberColors, memberRoles, memberPins, globalPermissions, teams, teamNId, templates, tplNId, userSettings, loaded]);
 
@@ -541,8 +491,6 @@ export function useTodoApp() {
       if (!snap.exists()) { flash("Firestore에 저장된 데이터가 없습니다", "err"); return; }
       const d = snap.data();
       applyData(d);
-      lastKnownUpdatedAt.current = d._updatedAt || 0;
-      try { localStorage.setItem("todo-v5", JSON.stringify(d)); } catch (e) { }
       flash("Firestore 데이터로 복원되었습니다");
     } catch (e: any) { flash(`복원 실패: ${e.message}`, "err"); }
   };
@@ -747,7 +695,8 @@ export function useTodoApp() {
         return next;
       });
     }
-    // 히스토리 포함 삭제 — undo로 복원 가능
+    // 히스토리 포함 삭제 — undo로 복원 가능, 삭제는 즉시 Firestore에 반영
+    immediateFlush.current = true;
     setTodosWithHistory((p: Todo[]) => p.filter(t => t.id !== id));
     flash("업무가 삭제되었습니다", "err");
   };
