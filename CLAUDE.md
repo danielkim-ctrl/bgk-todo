@@ -21,7 +21,9 @@ src/
  │   ├── useCalendar.ts       # 캘린더 로직
  │   └── useUserSettings.ts   # 사용자별 설정
  ├── services/aiService.ts    # Anthropic API 호출
- ├── auth/PermissionContext.tsx
+ ├── auth/
+ │   ├── AuthContext.tsx       # 인증 컨텍스트 (Google 로그인)
+ │   └── PermissionContext.tsx # 권한 관리
  ├── types.ts                 # 모든 타입 정의
  ├── constants.ts             # 상수
  ├── styles.ts                # 인라인 스타일 S 객체
@@ -60,16 +62,20 @@ src/
 
 - 응답 시작 시 사용 Skill 명시: `[Skill: planning 사용]` 또는 `[Skill: 사용 안 함 — Read/Edit 도구로 직접 수행]`
 
-## Skill 참조 (필요 시 호출)
+## Agent 참조 (서브에이전트로 스폰 — 깊은 분석 필요 시)
 
-### 분석·점검
-- **@Skills/UIdesigner.md** — UI 디테일 점검 (폰트, 색상, 간격, hover)
-- **@Skills/UXdesigner.md** — 사용자 흐름·인터랙션 점검
-- **@Skills/QA.md** — 버그·보안·성능·설정연동 점검
-- **@Skills/planning.md** — 기능 기획·우선순위·리스크 분석
-- **@Skills/planning-review.md** — 현재 앱 기획 평가 및 개선 로드맵
+- **@Skills/agents/UIdesigner.md** — UI 디테일 점검 (폰트, 색상, 간격, hover)
+- **@Skills/agents/UXdesigner.md** — 사용자 흐름·인터랙션 점검
+- **@Skills/agents/QA.md** — 버그·보안·성능·설정연동 점검
+- **@Skills/agents/planning.md** — 기능 기획·우선순위·리스크 분석
 
-### 자동화 워크플로우
-- **@Skills/sync-check.md** — 설정-뷰 연동 자동 점검 (색상/멤버/프로젝트 반영 누락 탐지)
-- **@Skills/deploy.md** — 타입 체크 → 커밋 → GitHub 푸시 원스텝
-- **@Skills/feature.md** — 새 기능 개발 워크플로우 (기획→데모→구현→QA→배포)
+## Skill 참조 (`.claude/commands/` — `/명령어`로 직접 호출)
+
+- `/deploy` — 타입 체크 → 커밋 → GitHub 푸시 원스텝
+- `/sync-check` — 설정-뷰 연동 자동 점검 (색상/멤버/프로젝트 반영 누락 탐지)
+- `/feature` — 새 기능 개발 워크플로우 (기획→데모→구현→QA→배포)
+- `/planning-review` — 현재 앱 기획 평가 및 개선 로드맵
+
+## 참조 문서
+
+- **@Skills/docs/mobile-ux-plan.md** — 모바일 반응형 UX 설계 기획안
