@@ -455,12 +455,10 @@ export function useTodoApp() {
     (async () => {
       const { ready } = await ensureSubcollectionReady();
       if (!ready) {
-        console.error("[SYNC] 서브컬렉션 준비 실패 — 초기 상태로 로드");
-        if (!cancelled) {
-          setTodos(initTodos as any);
-          setProjects(initProj);
-          setLoaded(true);
-        }
+        // 마이그레이션 실패 — initTodos로 덮어쓰면 나중에 이 값이 서버에 저장되어
+        // 실제 데이터 유실 가능. loaded=false 유지하여 앱이 로딩 상태에 머물게 함.
+        // 사용자가 새로고침하면 재시도. Firestore 복구되면 정상 로드.
+        console.error("[SYNC] 서브컬렉션 준비 실패 — 로딩 상태 유지 (새로고침하면 재시도)");
         return;
       }
       if (cancelled) return;

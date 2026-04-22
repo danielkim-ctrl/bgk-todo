@@ -61,21 +61,8 @@ export async function migrateFirestoreSubcollections(): Promise<MigrationResult>
     return { ok: false, todosMigrated: 0, templatesMigrated: 0, metaWritten: false, backupPath, errors };
   }
 
-  // 2. meta 문서 생성 — todos와 templates를 제외한 모든 필드
-  try {
-    const meta = { ...data };
-    delete meta.todos;
-    delete meta.templates;
-    delete meta._clientId; // 메타에는 동기화 메타데이터 불필요 (개별 문서가 각자 가짐)
-    await setDoc(doc(db, "todos_db", "team", "meta", "main"), meta);
-    metaWritten = true;
-    console.log("[MIGRATE] meta/main 생성 완료");
-  } catch (e: any) {
-    errors.push(`meta 생성 실패: ${e.message}`);
-    console.error("[MIGRATE] meta 생성 실패:", e);
-  }
-
-  // 3. todos 개별 문서 생성 — Firestore 배치는 500개 제한, 나눠서 처리
+  // 2. todos 개별 문서 생성 먼저 — Firestore 배치는 500개 제한, 나눠서 처리
+  //    meta의 _migratedAt 플래그를 가장 마지막에 기록해서 "완료 여부" 판단 기준으로 사용
   const todos = Array.isArray(data.todos) ? data.todos : [];
   const BATCH = 400;
   for (let i = 0; i < todos.length; i += BATCH) {
@@ -99,7 +86,7 @@ export async function migrateFirestoreSubcollections(): Promise<MigrationResult>
     }
   }
 
-  // 4. templates 개별 문서 생성
+  // 3. templates 개별 문서 생성
   const templates = Array.isArray(data.templates) ? data.templates : [];
   for (let i = 0; i < templates.length; i += BATCH) {
     const chunk = templates.slice(i, i + BATCH);
@@ -120,6 +107,23 @@ export async function migrateFirestoreSubcollections(): Promise<MigrationResult>
       errors.push(`templates 배치 실패 (${i}~${i + chunk.length}): ${e.message}`);
       console.error(`[MIGRATE] templates 배치 실패:`, e);
     }
+  }
+
+  // 4. meta 문서 마지막에 작성 — _migratedAt 플래그로 완료 판정 (부분 실패 감지용)
+  //    items/templates 작성 중 실패 시 meta에 _migratedAt 없어 ensureReady가 재시도 가능.
+  try {
+    const meta = { ...data };
+    delete meta.todos;
+    delete meta.templates;
+    delete meta._clientId;
+    meta._migratedAt = Date.now();
+    meta._updatedAt = Date.now();
+    await setDoc(doc(db, "todos_db", "team", "meta", "main"), meta);
+    metaWritten = true;
+    console.log("[MIGRATE] meta/main 생성 완료 (_migratedAt 플래그 기록)");
+  } catch (e: any) {
+    errors.push(`meta 생성 실패: ${e.message}`);
+    console.error("[MIGRATE] meta 생성 실패:", e);
   }
 
   // 5. 검증 — 서브컬렉션의 문서 수가 원본과 일치하는지 확인
