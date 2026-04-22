@@ -482,6 +482,38 @@ export function useTodoApp() {
     redoRef.current = [];
   }, [currentUser]);
 
+  // 자동 복구 안전망 — 단일 문서의 members/teams가 손상된 상태로 로드되고
+  // meta/main에 더 많은 데이터가 있으면 자동으로 복구 실행 (1회).
+  // 2026-04-22 데이터 손상 사건 대응용 — 다른 사용자의 stale 세션이 덮어쓴 경우에도
+  // 다음 로드에서 자동으로 정상 상태 회복.
+  const autoRecoverDone = useRef(false);
+  useEffect(() => {
+    if (!loaded || autoRecoverDone.current) return;
+    autoRecoverDone.current = true;
+    (async () => {
+      try {
+        const metaSnap = await getDoc(doc(db, "todos_db", "team", "meta", "main"));
+        if (!metaSnap.exists()) return;
+        const meta = metaSnap.data();
+        const metaMembersLen = (meta.members || []).length;
+        const metaTeamsLen = (meta.teams || []).length;
+        // meta가 현재 state보다 멤버나 팀이 훨씬 많으면 복구 필요
+        const needsRecovery = metaMembersLen > members.length + 2 || metaTeamsLen > teams.length;
+        if (!needsRecovery) return;
+        console.warn(`[AUTO-RECOVER] 손상 감지 — meta:${metaMembersLen}명/${metaTeamsLen}팀 vs 현재:${members.length}명/${teams.length}팀 → 복구 실행`);
+        const { recoverFromMeta } = await import("../utils/recoverFromMeta");
+        const result = await recoverFromMeta();
+        if (result.ok) {
+          console.log(`[AUTO-RECOVER] ✅ ${result.message} — onSnapshot이 자동으로 최신 state 반영 예정`);
+        } else {
+          console.error(`[AUTO-RECOVER] 실패: ${result.message}`);
+        }
+      } catch (e) {
+        console.error("[AUTO-RECOVER] 예외:", e);
+      }
+    })();
+  }, [loaded, members.length, teams.length]);
+
 
   const skipFirst = useRef(false);
   useEffect(() => {
