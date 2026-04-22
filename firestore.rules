@@ -2,48 +2,23 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ── 사용자 개인 설정 ────────────────────────────────────────────────────
-    match /users/{uid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
-    }
+    // ⚠️ 사용자 지시로 auth 없이 공개 접근 허용 상태 (2026-04-22)
+    // PIN 로그인이 클라이언트 UI 보안을 담당하고, 인증 세팅은 추후 별도 진행 예정.
+    // URL이 노출되면 누구나 데이터를 읽고 쓸 수 있으니 추후 auth 세팅 필수.
 
-    // ── 팀 전체 공유 todo 데이터 ─────────────────────────────────────────────
-    // 읽기: 인증된 모든 사용자
-    // 쓰기: 인증된 사용자 — 팀 역할(admin/editor) 기반 제한은 클라이언트에서 처리
-    //       Firestore에서는 인증 여부만 확인 (팀 멤버십은 문서 내 teams 배열에서 판단)
+    // ── 팀 전체 공유 todo 데이터 (단일 문서 경로) ───────────────────────────
     match /todos_db/{document} {
-      allow read: if request.auth != null;
-      // 쓰기 시 인증 필수 + 데이터 무결성 검증
-      allow write: if request.auth != null
-        // 삭제가 아닌 경우 필수 필드 존재 확인 (최소한의 무결성)
-        && (request.resource == null || request.resource.data.keys().hasAny(['todos', '_updatedAt']));
+      allow read, write: if true;
     }
 
-    // ── Phase 1 서브컬렉션: 개별 todo / 템플릿 / meta ─────────────────────
-    // 설계 전환 중 — 모든 서브컬렉션 문서는 인증된 사용자에게 read/write 허용
+    // ── 서브컬렉션: items / templates / meta ─────────────────────────────────
     match /todos_db/{document}/{subpath=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if true;
     }
 
-    // ── Phase 1 백업 — 원본 단일 문서 롤백용 ──────────────────────────────
+    // ── 백업 — 원본 단일 문서 롤백용 ─────────────────────────────────────────
     match /todos_db_backup/{document} {
-      allow read, write: if request.auth != null;
-    }
-
-    // ── 팀별 독립 문서 (Phase 2+ 확장용) ──────────────────────────────────────
-    match /teams/{teamId}/{document=**} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
-    }
-
-    // ── 프로젝트 ────────────────────────────────────────────────────────────
-    match /projects/{projectId} {
-      allow read, write: if request.auth != null;
-    }
-
-    // ── 기획 대시보드 ────────────────────────────────────────────────────────
-    match /plan/{document=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if true;
     }
   }
 }
