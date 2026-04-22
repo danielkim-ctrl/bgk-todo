@@ -492,21 +492,31 @@ export function useTodoApp() {
       const expectedServerAt = lastSeenServerAt.current;
       const data = { todos, projects, nId, pNId, pris, stats, priC, priBg, stC, stBg, members, memberColors, memberRoles, memberPins, globalPermissions, teams, teamNId, templates, tplNId, sharedApiKey: sharedApiKeyRef.current, userSettings, _clientId: clientId.current, _updatedAt: now };
       // stale write 차단 — 서버 _updatedAt 확인 후 setDoc
-      // (runTransaction은 서버 왕복 강제로 대용량 문서에서 반복 실패하기에 getDoc+setDoc로 분리)
-      // 실패 시 안전하게 setDoc로 폴백해서 sync가 완전히 끊기지 않도록 함.
+      // getDoc이 네트워크 환경에 따라 실패할 수 있어, 실패 시에도 setDoc으로 폴백(sync 단절 방지).
+      // stale 검증은 best-effort — 서버 값을 못 가져오면 그냥 쓰기 진행.
       (async () => {
+        let staleAborted = false;
         try {
           const cur = await getDoc(FS_DOC);
           const serverAt = (cur.exists() && typeof cur.data()._updatedAt === "number") ? cur.data()._updatedAt : 0;
           if (serverAt > expectedServerAt) {
-            console.warn("[SYNC] 서버가 더 최신이므로 쓰기 스킵 — 최신 데이터로 재동기화됨");
+            staleAborted = true;
+            console.warn("[SYNC] 서버가 더 최신이므로 쓰기 스킵");
             flash("최신 데이터와 동기화 중 — 방금 변경사항이 반영되지 않았을 수 있습니다.", "err");
-            return;
           }
+        } catch (e) {
+          // getDoc 실패(방화벽·오프라인 등) — stale 검증 생략하고 쓰기 진행
+          console.warn("[SYNC] getDoc 실패(stale 검증 생략):", e);
+        }
+        if (staleAborted) {
+          if (writeVersion.current === ver) pendingWrite.current = false;
+          return;
+        }
+        try {
           await setDoc(FS_DOC, data);
           lastSeenServerAt.current = now;
         } catch (e) {
-          console.warn("[SYNC] 저장 실패:", e);
+          console.warn("[SYNC] setDoc 실패:", e);
           flash("저장 실패 — 네트워크를 확인하세요", "err");
         } finally {
           if (writeVersion.current === ver) pendingWrite.current = false;
