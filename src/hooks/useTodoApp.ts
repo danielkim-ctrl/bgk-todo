@@ -10,6 +10,20 @@ import { Filters, NewRow, AiParsed, DatePopState, NotePopupState, Project, Todo,
 import { useAI } from "./useAI";
 import { useCalendar } from "./useCalendar";
 import { useUserSettings } from "./useUserSettings";
+import {
+  ensureSubcollectionReady,
+  subscribeMeta,
+  subscribeTodos,
+  subscribeTemplates,
+  writeTodo as fsWriteTodo,
+  patchTodo as fsPatchTodo,
+  removeTodo as fsRemoveTodo,
+  writeTodosBatch as fsWriteTodosBatch,
+  writeTemplate as fsWriteTemplate,
+  patchTemplate as fsPatchTemplate,
+  removeTemplate as fsRemoveTemplate,
+  writeMeta as fsWriteMeta,
+} from "../utils/firestoreSync";
 
 export function useTodoApp() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -86,6 +100,9 @@ export function useTodoApp() {
 
   // 스냅샷을 앱 상태에 복원하는 함수
   // owner를 넘기면 해당 사용자의 todos만 스냅샷으로 교체 — 타 사용자 todos는 현재 상태 유지
+  // Phase 3 제한: undo/redo는 로컬 state만 복원. 복원된 todos가 Firestore로 전파되지 않음
+  // → 다른 기기는 undo 효과를 볼 수 없음. 후속 업무 편집 시 일반 동기화 경로로 수정됨.
+  // TODO: diff 기반 개별 문서 쓰기로 undo 동기화 구현
   const restoreSnapshot = (snap: AppSnapshot, owner?: string) => {
     if (owner) {
       // 현재 사용자(owner)가 생성한 todos만 스냅샷 버전으로 교체
@@ -423,46 +440,61 @@ export function useTodoApp() {
     if (d.userSettings) setUserSettings(d.userSettings);
   };
 
+  // ── Phase 2-3: 서브컬렉션 기반 실시간 동기화 ────────────────────────────
+  // meta(단일 문서) + items(컬렉션) + templates(컬렉션) 3 채널 구독.
+  // 각 todo가 개별 문서이므로 기기 간 동시 편집이 서로 간섭하지 않음.
+  // 마이그레이션이 아직 안 된 상태면 자동 실행 후 구독 시작.
   useEffect(() => {
-    let bootstrapped = false;
-    // Firebase 오프라인 캐시(IndexedDB) 덕분에 첫 onSnapshot이 캐시에서 즉시 옴
-    // — localStorage 읽기/beforeunload 백업 불필요
-    const unsub = onSnapshot(FS_DOC, (snap) => {
-      if (!snap.exists()) {
-        if (!bootstrapped) {
+    let unsubs: Array<() => void> = [];
+    let cancelled = false;
+    let metaReceived = false;
+    let todosReceived = false;
+    const markLoadedIfReady = () => {
+      if (metaReceived && todosReceived && !cancelled) setLoaded(true);
+    };
+    (async () => {
+      const { ready } = await ensureSubcollectionReady();
+      if (!ready) {
+        console.error("[SYNC] 서브컬렉션 준비 실패 — 초기 상태로 로드");
+        if (!cancelled) {
           setTodos(initTodos as any);
           setProjects(initProj);
-          bootstrapped = true;
           setLoaded(true);
         }
         return;
       }
-      const d = snap.data();
-      if (!bootstrapped) {
-        // 첫 스냅샷 (캐시 또는 서버) — 그대로 적용 후 로드 완료
-        applyData(d);
-        // 적용한 데이터의 타임스탬프를 저장 — 이후 쓰기 stale 검증 기준점
-        if (typeof d._updatedAt === "number") lastSeenServerAt.current = d._updatedAt;
-        bootstrapped = true;
-        setLoaded(true);
-        // who: string → string[] 레거시 마이그레이션이 필요한 경우 자동 저장 트리거
-        const needsMigration = (d.todos || []).some((t: any) => typeof t.who === "string");
-        if (needsMigration) {
-          console.warn("[FIX] who string→string[] 마이그레이션 필요 — 자동 저장 트리거");
+      if (cancelled) return;
+      // meta 구독 — 설정류 전체를 applyData 경로로 적용 (todos·templates 제외)
+      unsubs.push(subscribeMeta((data) => {
+        if (cancelled) return;
+        applyData({ ...data, todos: undefined, templates: undefined });
+        metaReceived = true;
+        markLoadedIfReady();
+      }));
+      // todos 구독 — 컬렉션 전체를 배열로 수신, 정규화 후 state 교체
+      unsubs.push(subscribeTodos((todos) => {
+        if (cancelled) return;
+        const fixed = normalizeTodos(todos);
+        setTodos(fixed);
+        // 다음 nId는 현재 최대 id+1
+        const maxId = fixed.reduce((m: number, t: any) => (t.id > m ? t.id : m), 0);
+        if (maxId >= nIdRef.current) {
+          nIdRef.current = maxId + 1;
+          setNId(maxId + 1);
         }
-        return;
-      }
-      // 이후 스냅샷 — 내가 저장한 것이 돌아온 것이면 무시 (무한 루프 방지)
-      if (d._clientId === clientId.current) return;
-      // 다른 클라이언트의 변경 — 항상 merge 적용하여 기기 간 실시간 동기화 보장
-      // (pendingWrite 가드는 동기화 단절 원인이 되어 제거 — 경쟁 상태는 merge의 timestamp 비교로 처리)
-      applyData(d, true);
-      // 원격 데이터를 실제로 내 state에 적용한 시점에만 lastSeenServerAt 갱신.
-      // (skip한 snapshot의 타임스탬프는 추적하지 않음 — 그래야 내 state가 반영하지 못한
-      //  버전으로 stale 검증이 잘못 통과되어 다른 기기의 최신 데이터를 덮어쓰는 것을 방지)
-      if (typeof d._updatedAt === "number") lastSeenServerAt.current = d._updatedAt;
-    });
-    return () => unsub();
+        todosReceived = true;
+        markLoadedIfReady();
+      }));
+      // templates 구독
+      unsubs.push(subscribeTemplates((tpls) => {
+        if (cancelled) return;
+        setTemplates(tpls);
+      }));
+    })();
+    return () => {
+      cancelled = true;
+      unsubs.forEach((u) => u());
+    };
   }, []);
 
   // 유저 전환 시 CRUD 상태 초기화 (설정 저장/복원은 useUserSettings에서 담당)
@@ -473,35 +505,30 @@ export function useTodoApp() {
   }, [currentUser]);
 
 
+  // ── meta 문서 저장 — 설정류(todos·templates 제외) 변경 시 디바운스 저장 ─────
+  // todos와 templates는 개별 CRUD 함수에서 직접 Firestore에 쓰므로 이 effect에선 제외.
   const skipFirst = useRef(false);
   useEffect(() => {
     if (!loaded) return;
     if (!skipFirst.current) { skipFirst.current = true; return; }
-    // 상태 변경 발생 즉시 pending 플래그 설정 — 디바운스 창 동안 도착한
-    // 원격 snapshot이 로컬 삭제/추가를 되돌리지 않도록 onSnapshot에서 스킵.
-    pendingWrite.current = true;
-    // 삭제 등 즉각 반영이 필요한 작업은 디바운스 없이 즉시 저장
     const delay = immediateFlush.current ? 0 : 400;
     immediateFlush.current = false;
     const t = setTimeout(() => {
-      const ver = ++writeVersion.current;
-      const now = Date.now();
-      const expectedServerAt = lastSeenServerAt.current;
-      const data = { todos, projects, nId, pNId, pris, stats, priC, priBg, stC, stBg, members, memberColors, memberRoles, memberPins, globalPermissions, teams, teamNId, templates, tplNId, sharedApiKey: sharedApiKeyRef.current, userSettings, _clientId: clientId.current, _updatedAt: now };
-      // 단순 setDoc — stale 검증은 제거 (일부 네트워크 환경에서 쓰기 취소로 동기화 단절됨)
-      // 경쟁 상태 방어는 pendingWrite 가드(onSnapshot에서 스킵)로 유지.
-      // expectedServerAt 변수는 미사용이지만 이후 stale 검증 재도입 시 참조용으로 보존.
-      void expectedServerAt;
-      setDoc(FS_DOC, data)
-        .then(() => { lastSeenServerAt.current = now; })
-        .catch((e) => {
-          console.warn("[SYNC] setDoc 실패:", e);
-          flash("저장 실패 — 네트워크를 확인하세요", "err");
-        })
-        .finally(() => { if (writeVersion.current === ver) pendingWrite.current = false; });
+      const meta = {
+        projects, nId, pNId, pris, stats, priC, priBg, stC, stBg,
+        members, memberColors, memberRoles, memberPins, globalPermissions,
+        teams, teamNId, tplNId,
+        sharedApiKey: sharedApiKeyRef.current,
+        userSettings,
+        _clientId: clientId.current,
+      };
+      fsWriteMeta(meta).catch((e) => {
+        console.warn("[SYNC] meta 저장 실패:", e);
+        flash("설정 저장 실패 — 네트워크를 확인하세요", "err");
+      });
     }, delay);
     return () => clearTimeout(t);
-  }, [todos, projects, nId, pNId, members, pris, stats, priC, priBg, stC, stBg, memberColors, memberRoles, memberPins, globalPermissions, teams, teamNId, templates, tplNId, userSettings, loaded]);
+  }, [projects, nId, pNId, members, pris, stats, priC, priBg, stC, stBg, memberColors, memberRoles, memberPins, globalPermissions, teams, teamNId, tplNId, userSettings, loaded]);
 
   // action을 전달하면 토스트에 버튼이 표시됨 (예: AI 등록 후 "실행 취소")
   const flash = (m: string, t = "ok", action?: { label: string; fn: () => void }) => {
@@ -538,36 +565,35 @@ export function useTodoApp() {
       const startId = nIdRef.current;
       nIdRef.current += checked.length;
       setNId(nIdRef.current);
-      setTodosWithHistory((prev: Todo[]) => [
-        ...prev,
-        ...checked.map((t, i) => {
-          const mp = aProj.find(p => t.project && p.name.includes(t.project));
-          const pid = mp ? mp.id : 0;
-          // 팀 배정 우선순위: 프로젝트 기반 매핑 → 현재 선택된 팀 → 미배정
-          const resolvedTeamId = projTeamMap[pid] || selectedTeamId || undefined;
-          const createLog: ActivityLog = {
-            id: `${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
-            at: new Date().toISOString(),
-            who: currentUser || "시스템",
-            action: "create" as const,
-          };
-          return {
-            pid,
-            task: t.task || "",
-            who: t.assignee ? [t.assignee] : ["미배정"],
-            due: t.due || "",
-            pri: t.priority || "보통",
-            st: "대기",
-            det: t.detail || "",
-            repeat: t.repeat || "없음",
-            id: startId + i,
-            cre: td(),
-            done: null,
-            teamId: resolvedTeamId,
-            logs: [createLog],
-          };
-        }),
-      ]);
+      const newTodos: Todo[] = checked.map((t, i) => {
+        const mp = aProj.find(p => t.project && p.name.includes(t.project));
+        const pid = mp ? mp.id : 0;
+        const resolvedTeamId = projTeamMap[pid] || selectedTeamId || undefined;
+        const createLog: ActivityLog = {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
+          at: new Date().toISOString(),
+          who: currentUser || "시스템",
+          action: "create" as const,
+        };
+        return {
+          pid,
+          task: t.task || "",
+          who: t.assignee ? [t.assignee] : ["미배정"],
+          due: t.due || "",
+          pri: t.priority || "보통",
+          st: "대기",
+          det: t.detail || "",
+          repeat: t.repeat || "없음",
+          id: startId + i,
+          cre: td(),
+          done: null,
+          teamId: resolvedTeamId,
+          logs: [createLog],
+        } as Todo;
+      });
+      setTodosWithHistory((prev: Todo[]) => [...prev, ...newTodos]);
+      // Firestore 배치 쓰기 (개별 문서 N개)
+      fsWriteTodosBatch(newTodos).catch(e => { console.warn("[SYNC] AI 배치 실패:", e); flash("저장 실패", "err"); });
     },
     flash,
     undo, // AI 등록 후 "실행 취소" 토스트 버튼에서 사용
@@ -595,74 +621,73 @@ export function useTodoApp() {
     return `${v.interval}${v.unit}마다`;
   };
 
-  const updTodo = (id: number, u: any) => setTodosWithHistory((p: Todo[]) => p.map(t => {
-    if (t.id !== id) return t;
+  const updTodo = (id: number, u: any) => {
+    // 변경된 todo 객체를 외부에서 캡처하여 Firestore에 개별 쓰기로 전달.
+    let updated: Todo | null = null;
+    setTodosWithHistory((p: Todo[]) => p.map(t => {
+      if (t.id !== id) return t;
 
-    // 반복 업무를 완료 처리할 때는 일반 완료가 아닌 롤오버로 처리
-    // — due를 다음 주기로 이동하고 st를 "대기"로 리셋 (레코드는 삭제되지 않음)
-    const isRepeatTodo = t.repeat && t.repeat !== "없음";
-    const isCompletingRepeat = u.st === "완료" && t.st !== "완료" && isRepeatTodo;
-    if (isCompletingRepeat) {
-      // 롤오버 처리: st를 대기로 유지하고 due를 다음 주기로 이동
-      const nextDue = getNextDue(t.due, t.repeat);
-      if (nextDue) {
-        const rolloverLog: ActivityLog = {
+      // 반복 업무 완료 처리 — 롤오버
+      const isRepeatTodo = t.repeat && t.repeat !== "없음";
+      const isCompletingRepeat = u.st === "완료" && t.st !== "완료" && isRepeatTodo;
+      if (isCompletingRepeat) {
+        const nextDue = getNextDue(t.due, t.repeat);
+        if (nextDue) {
+          const rolloverLog: ActivityLog = {
+            id: mkLogId(),
+            at: new Date().toISOString(),
+            who: currentUser || "시스템",
+            action: "repeat_rollover",
+            prevDue: t.due ? t.due.split(" ")[0] : "",
+            changes: [{ field: "마감기한", from: t.due || "", to: nextDue }],
+          };
+          const next = { ...t, st: "대기", due: nextDue, done: null, logs: [...(t.logs || []), rolloverLog] };
+          updated = next;
+          return next;
+        }
+      }
+
+      const n: any = { ...t, ...u };
+      if (u.st === "완료" && t.st !== "완료") n.done = td();
+      else if (u.st && u.st !== "완료") n.done = null;
+
+      const LABELS: Record<string, string> = {
+        task: "업무내용", who: "담당자", due: "마감기한",
+        pri: "우선순위", st: "상태", pid: "프로젝트", repeat: "반복",
+      };
+      const changes = Object.entries(u)
+        .filter(([k]) => LABELS[k])
+        .filter(([k, v]) => {
+          const old = String((t as any)[k] || "");
+          const nw = k === "repeat" ? fmtRepeat(v) : String(v || "");
+          return old !== nw;
+        })
+        .map(([k, v]) => ({
+          field: LABELS[k],
+          from: k === "repeat" ? fmtRepeat((t as any)[k]) : String((t as any)[k] || ""),
+          to: k === "repeat" ? fmtRepeat(v) : String(v || ""),
+        }));
+
+      if (changes.length > 0) {
+        const isComplete = u.st === "완료" && t.st !== "완료";
+        const isReopen = u.st && u.st !== "완료" && t.st === "완료";
+        const entry: ActivityLog = {
           id: mkLogId(),
           at: new Date().toISOString(),
           who: currentUser || "시스템",
-          action: "repeat_rollover",
-          prevDue: t.due ? t.due.split(" ")[0] : "",
-          changes: [{ field: "마감기한", from: t.due || "", to: nextDue }],
+          action: isComplete ? "complete" : isReopen ? "reopen" : "update",
+          changes,
         };
-        return {
-          ...t,
-          st: "대기",
-          due: nextDue,
-          done: null,
-          logs: [...(t.logs || []), rolloverLog],
-        };
+        n.logs = [...(t.logs || []), entry];
+      } else if (u.logs) {
+        n.logs = u.logs;
       }
-    }
-
-    const n: any = { ...t, ...u };
-    if (u.st === "완료" && t.st !== "완료") n.done = td();
-    else if (u.st && u.st !== "완료") n.done = null;
-
-    // 변경된 필드를 로그로 기록 — det(상세내용)는 HTML이라 제외
-    const LABELS: Record<string, string> = {
-      task: "업무내용", who: "담당자", due: "마감기한",
-      pri: "우선순위", st: "상태", pid: "프로젝트", repeat: "반복",
-    };
-    const changes = Object.entries(u)
-      .filter(([k]) => LABELS[k])
-      .filter(([k, v]) => {
-        const old = String((t as any)[k] || "");
-        const nw = k === "repeat" ? fmtRepeat(v) : String(v || "");
-        return old !== nw;
-      })
-      .map(([k, v]) => ({
-        field: LABELS[k],
-        from: k === "repeat" ? fmtRepeat((t as any)[k]) : String((t as any)[k] || ""),
-        to: k === "repeat" ? fmtRepeat(v) : String(v || ""),
-      }));
-
-    if (changes.length > 0) {
-      const isComplete = u.st === "완료" && t.st !== "완료";
-      const isReopen = u.st && u.st !== "완료" && t.st === "완료";
-      const entry: ActivityLog = {
-        id: mkLogId(),
-        at: new Date().toISOString(),
-        who: currentUser || "시스템",
-        action: isComplete ? "complete" : isReopen ? "reopen" : "update",
-        changes,
-      };
-      n.logs = [...(t.logs || []), entry];
-    } else if (u.logs) {
-      // 메모 저장 등 logs 직접 업데이트 — 위 변경 감지에서 제외했으므로 그대로 반영
-      n.logs = u.logs;
-    }
-    return n;
-  }));
+      updated = n;
+      return n;
+    }));
+    // Firestore: 개별 todo 문서 업데이트 (실시간 전파)
+    if (updated) fsWriteTodo(updated).catch(e => { console.warn("[SYNC] updTodo 실패:", e); flash("저장 실패", "err"); });
+  };
 
   // 완료 처리 통합 함수 — 반복 업무는 롤오버, 일반 업무는 완료 처리
   // 모든 뷰의 완료 버튼은 이 함수를 통해 호출해야 함
@@ -700,6 +725,8 @@ export function useTodoApp() {
     const resolvedTeamId = t.teamId || projTeamMapForAdd[t.pid] || selectedTeamId || myTidsForAdd[0] || undefined;
     const newTodo = { ...t, id, cre: td(), done: t.st === "완료" ? td() : null, repeat: t.repeat || "없음", teamId: resolvedTeamId, logs: [createLog] };
     setTodosWithHistory((p: Todo[]) => [...p, newTodo]);
+    // Firestore: 개별 문서로 저장 (다른 기기에 실시간 전파)
+    fsWriteTodo(newTodo).catch(e => { console.warn("[SYNC] addTodo 실패:", e); flash("저장 실패", "err"); });
     return id;
   };
 
@@ -722,6 +749,8 @@ export function useTodoApp() {
     // 히스토리 포함 삭제 — undo로 복원 가능, 삭제는 즉시 Firestore에 반영
     immediateFlush.current = true;
     setTodosWithHistory((p: Todo[]) => p.filter(t => t.id !== id));
+    // Firestore: 개별 todo 문서 삭제 (실시간 전파, 부활 불가능)
+    fsRemoveTodo(id).catch(e => { console.warn("[SYNC] delTodo 실패:", e); flash("삭제 실패", "err"); });
     flash("업무가 삭제되었습니다", "err");
   };
 
@@ -750,10 +779,12 @@ export function useTodoApp() {
       repeat: entry.repeat || "없음",
     };
     setTodosWithHistory((p: Todo[]) => [...p, restored]);
+    fsWriteTodo(restored).catch(e => { console.warn("[SYNC] restoreTodo 실패:", e); flash("복원 실패", "err"); });
     flash(`'${entry.task}' 업무가 복원되었습니다`);
   };
 
-  // 리스트뷰 드래그 정렬 — 업무 배열 순서를 변경하여 수동 정렬 (정렬 미적용 시만 동작)
+  // 리스트뷰 드래그 정렬 — 로컬 배열 순서만 변경 (Phase 3에서는 Firestore 미반영)
+  // TODO: order 필드 추가하여 서브컬렉션에서도 정렬 유지하도록 후속 개선
   const reorderTodo = (dragId: number, beforeId: number | null) => {
     setTodosWithHistory((prev: Todo[]) => {
       const dragged = prev.find(t => t.id === dragId);
@@ -988,17 +1019,20 @@ export function useTodoApp() {
       lastUsedAt: undefined,
     };
     setTemplates(p => [...p, newTpl]);
+    fsWriteTemplate(newTpl).catch(e => { console.warn("[SYNC] addTemplate 실패:", e); });
     flash(`템플릿 "${tpl.name}"이(가) 저장되었습니다`);
     return id;
   };
 
   const updTemplate = (id: string, patch: Partial<TodoTemplate>) => {
     setTemplates(p => p.map(t => t.id === id ? { ...t, ...patch } : t));
+    fsPatchTemplate(id, patch).catch(e => { console.warn("[SYNC] updTemplate 실패:", e); });
   };
 
   const delTemplate = (id: string) => {
     const tpl = templates.find(t => t.id === id);
     setTemplates(p => p.filter(t => t.id !== id));
+    fsRemoveTemplate(id).catch(e => { console.warn("[SYNC] delTemplate 실패:", e); });
     if (tpl) flash(`템플릿 "${tpl.name}"이(가) 삭제되었습니다`, "err");
   };
 
@@ -1018,41 +1052,39 @@ export function useTodoApp() {
     const baseDt = baseDate ? new Date(baseDate) : new Date();
     const mkLogId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 
-    setTodosWithHistory((prev: Todo[]) => [
-      ...prev,
-      ...tpl.items.map((item, i) => {
-        // 상대 날짜 계산
-        let due = "";
-        if (item.offsetDays !== undefined && item.offsetDays >= 0) {
-          const d = new Date(baseDt);
-          d.setDate(d.getDate() + item.offsetDays);
-          due = d.toISOString().slice(0, 10);
-        }
-        const pid = item.pid || 0;
-        const resolvedTeamId = projTeamMap[pid] || selectedTeamId || undefined;
-        const createLog: ActivityLog = {
-          id: mkLogId(),
-          at: new Date().toISOString(),
-          who: currentUser || "시스템",
-          action: "create" as const,
-        };
-        return {
-          id: startId + i,
-          pid,
-          task: item.task,
-          who: defaultWho || currentUser || "미배정",
-          due,
-          pri: item.pri || "보통",
-          st: "대기",
-          det: item.det || "",
-          repeat: item.repeat || "없음",
-          cre: td(),
-          done: null,
-          teamId: resolvedTeamId,
-          logs: [createLog],
-        };
-      }),
-    ]);
+    const newTodos: Todo[] = tpl.items.map((item, i) => {
+      let due = "";
+      if (item.offsetDays !== undefined && item.offsetDays >= 0) {
+        const d = new Date(baseDt);
+        d.setDate(d.getDate() + item.offsetDays);
+        due = d.toISOString().slice(0, 10);
+      }
+      const pid = item.pid || 0;
+      const resolvedTeamId = projTeamMap[pid] || selectedTeamId || undefined;
+      const createLog: ActivityLog = {
+        id: mkLogId(),
+        at: new Date().toISOString(),
+        who: currentUser || "시스템",
+        action: "create" as const,
+      };
+      return {
+        id: startId + i,
+        pid,
+        task: item.task,
+        who: [defaultWho || currentUser || "미배정"],
+        due,
+        pri: item.pri || "보통",
+        st: "대기",
+        det: item.det || "",
+        repeat: item.repeat || "없음",
+        cre: td(),
+        done: null,
+        teamId: resolvedTeamId,
+        logs: [createLog],
+      } as Todo;
+    });
+    setTodosWithHistory((prev: Todo[]) => [...prev, ...newTodos]);
+    fsWriteTodosBatch(newTodos).catch(e => { console.warn("[SYNC] 템플릿 적용 실패:", e); flash("저장 실패", "err"); });
 
     // 사용 통계 업데이트
     updTemplate(id, { useCount: (tpl.useCount || 0) + 1, lastUsedAt: new Date().toISOString() });
@@ -1068,28 +1100,27 @@ export function useTodoApp() {
     nIdRef.current += items.length;
     setNId(nIdRef.current);
     const mkLogId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    setTodosWithHistory((prev: Todo[]) => [
-      ...prev,
-      ...items.map((t, i) => {
-        const pid = (t.pid as number) || 0;
-        const resolvedTeamId = projTeamMap[pid] || selectedTeamId || undefined;
-        return {
-          id: startId + i,
-          pid,
-          task: (t.task as string) || "",
-          who: Array.isArray(t.who) && t.who.length > 0 ? t.who as string[] : [currentUser || "미배정"],
-          due: (t.due as string) || "",
-          pri: (t.pri as string) || "보통",
-          st: (t.st as string) || "대기",
-          det: (t.det as string) || "",
-          repeat: (t.repeat as string) || "없음",
-          cre: td(),
-          done: null,
-          teamId: resolvedTeamId,
-          logs: [{ id: mkLogId(), at: new Date().toISOString(), who: currentUser || "시스템", action: "create" as const }],
-        };
-      }),
-    ]);
+    const newTodos: Todo[] = items.map((t, i) => {
+      const pid = (t.pid as number) || 0;
+      const resolvedTeamId = projTeamMap[pid] || selectedTeamId || undefined;
+      return {
+        id: startId + i,
+        pid,
+        task: (t.task as string) || "",
+        who: Array.isArray(t.who) && t.who.length > 0 ? t.who as string[] : [currentUser || "미배정"],
+        due: (t.due as string) || "",
+        pri: (t.pri as string) || "보통",
+        st: (t.st as string) || "대기",
+        det: (t.det as string) || "",
+        repeat: (t.repeat as string) || "없음",
+        cre: td(),
+        done: null,
+        teamId: resolvedTeamId,
+        logs: [{ id: mkLogId(), at: new Date().toISOString(), who: currentUser || "시스템", action: "create" as const }],
+      } as Todo;
+    });
+    setTodosWithHistory((prev: Todo[]) => [...prev, ...newTodos]);
+    fsWriteTodosBatch(newTodos).catch(e => { console.warn("[SYNC] confirmTplItems 실패:", e); flash("저장 실패", "err"); });
   };
 
   // 멤버 중 PIN 미발급자에게 자동 생성 — 신규 추가 경로(사이드바·팀 탭 등)에서
