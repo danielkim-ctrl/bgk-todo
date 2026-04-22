@@ -491,37 +491,17 @@ export function useTodoApp() {
       const now = Date.now();
       const expectedServerAt = lastSeenServerAt.current;
       const data = { todos, projects, nId, pNId, pris, stats, priC, priBg, stC, stBg, members, memberColors, memberRoles, memberPins, globalPermissions, teams, teamNId, templates, tplNId, sharedApiKey: sharedApiKeyRef.current, userSettings, _clientId: clientId.current, _updatedAt: now };
-      // stale write 차단 — 서버 _updatedAt 확인 후 setDoc
-      // getDoc이 네트워크 환경에 따라 실패할 수 있어, 실패 시에도 setDoc으로 폴백(sync 단절 방지).
-      // stale 검증은 best-effort — 서버 값을 못 가져오면 그냥 쓰기 진행.
-      (async () => {
-        let staleAborted = false;
-        try {
-          const cur = await getDoc(FS_DOC);
-          const serverAt = (cur.exists() && typeof cur.data()._updatedAt === "number") ? cur.data()._updatedAt : 0;
-          if (serverAt > expectedServerAt) {
-            staleAborted = true;
-            console.warn("[SYNC] 서버가 더 최신이므로 쓰기 스킵");
-            flash("최신 데이터와 동기화 중 — 방금 변경사항이 반영되지 않았을 수 있습니다.", "err");
-          }
-        } catch (e) {
-          // getDoc 실패(방화벽·오프라인 등) — stale 검증 생략하고 쓰기 진행
-          console.warn("[SYNC] getDoc 실패(stale 검증 생략):", e);
-        }
-        if (staleAborted) {
-          if (writeVersion.current === ver) pendingWrite.current = false;
-          return;
-        }
-        try {
-          await setDoc(FS_DOC, data);
-          lastSeenServerAt.current = now;
-        } catch (e) {
+      // 단순 setDoc — stale 검증은 제거 (일부 네트워크 환경에서 쓰기 취소로 동기화 단절됨)
+      // 경쟁 상태 방어는 pendingWrite 가드(onSnapshot에서 스킵)로 유지.
+      // expectedServerAt 변수는 미사용이지만 이후 stale 검증 재도입 시 참조용으로 보존.
+      void expectedServerAt;
+      setDoc(FS_DOC, data)
+        .then(() => { lastSeenServerAt.current = now; })
+        .catch((e) => {
           console.warn("[SYNC] setDoc 실패:", e);
           flash("저장 실패 — 네트워크를 확인하세요", "err");
-        } finally {
-          if (writeVersion.current === ver) pendingWrite.current = false;
-        }
-      })();
+        })
+        .finally(() => { if (writeVersion.current === ver) pendingWrite.current = false; });
     }, delay);
     return () => clearTimeout(t);
   }, [todos, projects, nId, pNId, members, pris, stats, priC, priBg, stC, stBg, memberColors, memberRoles, memberPins, globalPermissions, teams, teamNId, templates, tplNId, userSettings, loaded]);
