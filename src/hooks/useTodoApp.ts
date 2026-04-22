@@ -427,42 +427,52 @@ export function useTodoApp() {
     let bootstrapped = false;
     // Firebase 오프라인 캐시(IndexedDB) 덕분에 첫 onSnapshot이 캐시에서 즉시 옴
     // — localStorage 읽기/beforeunload 백업 불필요
-    const unsub = onSnapshot(FS_DOC, (snap) => {
-      if (!snap.exists()) {
+    const unsub = onSnapshot(
+      FS_DOC,
+      (snap) => {
+        if (!snap.exists()) {
+          if (!bootstrapped) {
+            setTodos(initTodos as any);
+            setProjects(initProj);
+            bootstrapped = true;
+            setLoaded(true);
+          }
+          return;
+        }
+        const d = snap.data();
         if (!bootstrapped) {
-          setTodos(initTodos as any);
-          setProjects(initProj);
+          applyData(d);
+          if (typeof d._updatedAt === "number") lastSeenServerAt.current = d._updatedAt;
           bootstrapped = true;
           setLoaded(true);
+          const needsMigration = (d.todos || []).some((t: any) => typeof t.who === "string");
+          if (needsMigration) {
+            console.warn("[FIX] who string→string[] 마이그레이션 필요 — 자동 저장 트리거");
+          }
+          return;
         }
-        return;
-      }
-      const d = snap.data();
-      if (!bootstrapped) {
-        // 첫 스냅샷 (캐시 또는 서버) — 그대로 적용 후 로드 완료
-        applyData(d);
-        // 적용한 데이터의 타임스탬프를 저장 — 이후 쓰기 stale 검증 기준점
+        if (d._clientId === clientId.current) return;
+        applyData(d, true);
         if (typeof d._updatedAt === "number") lastSeenServerAt.current = d._updatedAt;
+      },
+      (error) => {
+        // 인증 실패·규칙 거부 등 — 로딩 스피너 영원히 도는 것 방지
+        console.error("[SYNC] onSnapshot 에러:", error);
+        if (!bootstrapped) {
+          bootstrapped = true;
+          setLoaded(true); // 로그인 화면 노출하여 사용자가 다음 액션 취하게 함
+        }
+      }
+    );
+    // 타임아웃 가드 — 10초 내 snapshot 안 오면 강제로 loaded=true (인증 문제·네트워크 등)
+    const timeoutId = setTimeout(() => {
+      if (!bootstrapped) {
+        console.warn("[SYNC] 10초 내 snapshot 미수신 — loaded=true 강제 전환");
         bootstrapped = true;
         setLoaded(true);
-        // who: string → string[] 레거시 마이그레이션이 필요한 경우 자동 저장 트리거
-        const needsMigration = (d.todos || []).some((t: any) => typeof t.who === "string");
-        if (needsMigration) {
-          console.warn("[FIX] who string→string[] 마이그레이션 필요 — 자동 저장 트리거");
-        }
-        return;
       }
-      // 이후 스냅샷 — 내가 저장한 것이 돌아온 것이면 무시 (무한 루프 방지)
-      if (d._clientId === clientId.current) return;
-      // 다른 클라이언트의 변경 — 항상 merge 적용하여 기기 간 실시간 동기화 보장
-      // (pendingWrite 가드는 동기화 단절 원인이 되어 제거 — 경쟁 상태는 merge의 timestamp 비교로 처리)
-      applyData(d, true);
-      // 원격 데이터를 실제로 내 state에 적용한 시점에만 lastSeenServerAt 갱신.
-      // (skip한 snapshot의 타임스탬프는 추적하지 않음 — 그래야 내 state가 반영하지 못한
-      //  버전으로 stale 검증이 잘못 통과되어 다른 기기의 최신 데이터를 덮어쓰는 것을 방지)
-      if (typeof d._updatedAt === "number") lastSeenServerAt.current = d._updatedAt;
-    });
-    return () => unsub();
+    }, 10000);
+    return () => { clearTimeout(timeoutId); unsub(); };
   }, []);
 
   // 유저 전환 시 CRUD 상태 초기화 (설정 저장/복원은 useUserSettings에서 담당)
