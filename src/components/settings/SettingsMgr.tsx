@@ -159,8 +159,10 @@ export function SettingsMgr({
     if (tab === "members") {
       if (!members.includes(v)) {
         setMembers((p: string[]) => [...p, v]);
-        // 신규 멤버 PIN 자동 생성
+        // 신규 멤버 PIN + 역할 명시적 세팅 — 기본값 editor
+        // (권한이 "관리자"로 폴백되지 않고, PIN이 "------"로 남지 않도록 초기화 시점에 직접 지정)
         setMemberPins((p: any) => ({ ...p, [v]: generatePin() }));
+        setMemberRole(v, "editor");
       }
       flash(`담당자 "${v}"이(가) 추가되었습니다`);
     } else if (tab === "pris") {
@@ -215,7 +217,7 @@ export function SettingsMgr({
     const v = delConfirm.value;
     if (delConfirm.tab === "members") {
       setMembers((p: string[]) => p.filter((m: string) => m !== v));
-      // 관련 데이터 정리 — 고아 레코드 방지
+      // 관련 데이터 정리 — 고아 레코드 방지 (PIN·역할·아바타 색상)
       setMemberPins((p: any) => { const c = { ...p }; delete c[v]; return c; });
       // 소속 팀에서도 제거
       teams.forEach(t => {

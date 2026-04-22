@@ -364,8 +364,10 @@ export function useTodoApp() {
       const raw = (d.members as string[]).filter((m: string) => m && m !== "미배정");
       const rm = [...new Set(raw.map((m: string) => normName(m)))];
       if (raw.length !== rm.length) console.warn(`[FIX] members 중복 ${raw.length - rm.length}건 제거됨:`, raw.length, "→", rm.length);
-      if (merge) { setMembers(prev => { const rs = new Set(rm); return [...rm, ...prev.filter((x: string) => !rs.has(normName(x)))]; }); }
-      else setMembers(rm);
+      // 원격 우선(remote-wins) — 멀티탭/멀티클라이언트 환경에서 한쪽의 삭제가
+      // 다른 탭의 stale 로컬 상태와 union merge되어 "삭제한 멤버가 되살아나는" 현상 방지.
+      // 멤버 목록은 동시 편집이 드물어 최신 스냅샷 그대로 적용하는 편이 안전.
+      setMembers(rm);
     }
     // 팀·역할·권한·PIN 데이터 복원
     if (d.globalPermissions) setGlobalPermissions(d.globalPermissions);
@@ -1068,17 +1070,29 @@ export function useTodoApp() {
     ]);
   };
 
-  // PIN 마이그레이션 — 멤버 중 PIN 미발급자에게 자동 생성 (로드 완료 후 1회)
-  const pinMigDone = useRef(false);
+  // 멤버 중 PIN 미발급자에게 자동 생성 — 신규 추가 경로(사이드바·팀 탭 등)에서
+  // PIN 세팅이 빠져도 멤버 추가 후 다음 렌더에서 자동 복구되도록 게이트 제거
   useEffect(() => {
-    if (!loaded || pinMigDone.current || !members.length) return;
-    pinMigDone.current = true;
+    if (!loaded || !members.length) return;
     const missing = members.filter(m => !memberPins[m]);
     if (!missing.length) return;
     const pins: Record<string, string> = { ...memberPins };
     missing.forEach(m => { pins[m] = generatePin(); });
     setMemberPins(pins);
   }, [loaded, members, memberPins]);
+
+  // 멤버 역할 자동 복구 — memberRoles 누락 시 기본값 "editor"로 채워 넣음
+  // (누락 상태면 UI가 "관리자"로 폴백되어 잘못된 권한이 표시되는 것을 방지)
+  useEffect(() => {
+    if (!loaded || !members.length) return;
+    const missing = members.filter(m => !memberRoles[m]);
+    if (!missing.length) return;
+    setMemberRoles(p => {
+      const next = { ...p };
+      missing.forEach(m => { next[m] = "editor"; });
+      return next;
+    });
+  }, [loaded, members, memberRoles]);
 
   // 자동 마이그레이션 — teamId 없는 todo를 프로젝트 기반 or 담당자 기반으로 자동 배정
   // 로드 완료 후 1회만 실행 (기존 누락분 복구 포함)
