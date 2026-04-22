@@ -34,7 +34,7 @@ export default function App() {
 
   const app = useTodoApp();
   const {
-    projects, setProjects, todos, setTodos, nId, setNId, pNId, setPNId,
+    projects, setProjects, todos, setTodos, nId, setNId, pNId, setPNId, loaded,
     members, setMembers, pris, setPris, stats, setStats,
     priC, setPriC, priBg, setPriBg, stC, setStC, stBg, setStBg,
     memberColors, setMemberColors,
@@ -425,11 +425,26 @@ export default function App() {
     return () => { completeTimers.current.forEach(t => clearTimeout(t)); };
   }, []);
 
-  if (!currentUser) return (
-    <PermissionProvider currentUser={null}>
-      <LoginScreen members={members} memberPins={memberPins} teams={teams} onLogin={name => setCurrentUser(name)}/>
-    </PermissionProvider>
-  );
+  if (!currentUser) {
+    // 데이터 로드 전에는 간단한 로딩 화면 — PIN/멤버 데이터가 서버에서 내려오기 전에
+    // 로그인 시도되면 "PIN 설정 안됨"으로 잘못 판정되어 혼란 야기 (특히 캐시 없는 시크릿 모드)
+    if (!loaded) {
+      return (
+        <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f0f4f8", fontFamily: "'Pretendard', system-ui, sans-serif" }}>
+          <div style={{ textAlign: "center", color: "#64748b" }}>
+            <div style={{ width: 32, height: 32, border: "3px solid #e2e8f0", borderTop: "3px solid #2563eb", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 12px" }} />
+            <div style={{ fontSize: 13 }}>데이터 로드 중...</div>
+            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <PermissionProvider currentUser={null}>
+        <LoginScreen members={members} memberPins={memberPins} teams={teams} onLogin={name => setCurrentUser(name)}/>
+      </PermissionProvider>
+    );
+  }
 
   const content = <div style={S.wrap}>
     {/* ── 헤더 ── 모바일: 햄버거 + 타이틀 + 사용자 아바타 / 데스크톱: 기존 그대로 */}
