@@ -19,6 +19,17 @@ service cloud.firestore {
         && (request.resource == null || request.resource.data.keys().hasAny(['todos', '_updatedAt']));
     }
 
+    // ── Phase 1 서브컬렉션: 개별 todo / 템플릿 / meta ─────────────────────
+    // 설계 전환 중 — 모든 서브컬렉션 문서는 인증된 사용자에게 read/write 허용
+    match /todos_db/{document}/{subpath=**} {
+      allow read, write: if request.auth != null;
+    }
+
+    // ── Phase 1 백업 — 원본 단일 문서 롤백용 ──────────────────────────────
+    match /todos_db_backup/{document} {
+      allow read, write: if request.auth != null;
+    }
+
     // ── 팀별 독립 문서 (Phase 2+ 확장용) ──────────────────────────────────────
     match /teams/{teamId}/{document=**} {
       allow read: if request.auth != null;
