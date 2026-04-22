@@ -454,11 +454,8 @@ export function useTodoApp() {
       }
       // 이후 스냅샷 — 내가 저장한 것이 돌아온 것이면 무시 (무한 루프 방지)
       if (d._clientId === clientId.current) return;
-      // 로컬에 저장 대기 중인 변경사항이 있으면 원격 merge 스킵
-      // — 400ms 디바운스 창에 도착한 다른 기기의 stale snapshot이 방금 삭제한 todo나
-      //   새로 만든 멤버를 되돌려놓는 경쟁 상태 방지. 내 쓰기가 완료되면 다음 snapshot부터 정상 반영.
-      if (pendingWrite.current) return;
-      // 다른 클라이언트의 변경 — 로컬 미저장 업무 보존하며 merge 적용
+      // 다른 클라이언트의 변경 — 항상 merge 적용하여 기기 간 실시간 동기화 보장
+      // (pendingWrite 가드는 동기화 단절 원인이 되어 제거 — 경쟁 상태는 merge의 timestamp 비교로 처리)
       applyData(d, true);
       // 원격 데이터를 실제로 내 state에 적용한 시점에만 lastSeenServerAt 갱신.
       // (skip한 snapshot의 타임스탬프는 추적하지 않음 — 그래야 내 state가 반영하지 못한
