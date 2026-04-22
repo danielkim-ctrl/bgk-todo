@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from "react";
-import { doc, onSnapshot, setDoc, getDoc, runTransaction } from "firebase/firestore";
+import { doc, onSnapshot, setDoc, getDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import {
   INIT_MEMBERS, INIT_PRI, INIT_ST, INIT_PRI_C, INIT_PRI_BG, INIT_ST_C, INIT_ST_BG,
@@ -491,28 +491,27 @@ export function useTodoApp() {
       const now = Date.now();
       const expectedServerAt = lastSeenServerAt.current;
       const data = { todos, projects, nId, pNId, pris, stats, priC, priBg, stC, stBg, members, memberColors, memberRoles, memberPins, globalPermissions, teams, teamNId, templates, tplNId, sharedApiKey: sharedApiKeyRef.current, userSettings, _clientId: clientId.current, _updatedAt: now };
-      // 트랜잭션으로 stale write 차단 — 서버의 _updatedAt이 내가 마지막으로 본 것보다
-      // 새로우면(= 다른 기기가 이미 최신 상태를 올려둔 상태) 내 오래된 상태로 덮어쓰지 않고 abort.
-      // abort된 경우 onSnapshot이 최신 데이터를 다시 전달하므로 state가 자동 복원됨.
-      runTransaction(db, async (tx) => {
-        const cur = await tx.get(FS_DOC);
-        const serverAt = (cur.exists() && typeof cur.data()._updatedAt === "number") ? cur.data()._updatedAt : 0;
-        if (serverAt > expectedServerAt) {
-          throw new Error("stale-write-aborted");
-        }
-        tx.set(FS_DOC, data);
-      })
-        .then(() => { lastSeenServerAt.current = now; })
-        .catch((e: any) => {
-          if (e?.message === "stale-write-aborted") {
-            // 서버가 더 최신 — 내 쓰기 스킵. 다음 snapshot이 도착하면 state 자동 업데이트.
+      // stale write 차단 — 서버 _updatedAt 확인 후 setDoc
+      // (runTransaction은 서버 왕복 강제로 대용량 문서에서 반복 실패하기에 getDoc+setDoc로 분리)
+      // 실패 시 안전하게 setDoc로 폴백해서 sync가 완전히 끊기지 않도록 함.
+      (async () => {
+        try {
+          const cur = await getDoc(FS_DOC);
+          const serverAt = (cur.exists() && typeof cur.data()._updatedAt === "number") ? cur.data()._updatedAt : 0;
+          if (serverAt > expectedServerAt) {
             console.warn("[SYNC] 서버가 더 최신이므로 쓰기 스킵 — 최신 데이터로 재동기화됨");
-            flash("최신 데이터와 동기화 중 — 방금 변경사항이 반영되지 않았을 수 있습니다. 다시 시도해주세요.", "err");
-          } else {
-            flash("저장 실패 — 네트워크를 확인하세요", "err");
+            flash("최신 데이터와 동기화 중 — 방금 변경사항이 반영되지 않았을 수 있습니다.", "err");
+            return;
           }
-        })
-        .finally(() => { if (writeVersion.current === ver) pendingWrite.current = false; });
+          await setDoc(FS_DOC, data);
+          lastSeenServerAt.current = now;
+        } catch (e) {
+          console.warn("[SYNC] 저장 실패:", e);
+          flash("저장 실패 — 네트워크를 확인하세요", "err");
+        } finally {
+          if (writeVersion.current === ver) pendingWrite.current = false;
+        }
+      })();
     }, delay);
     return () => clearTimeout(t);
   }, [todos, projects, nId, pNId, members, pris, stats, priC, priBg, stC, stBg, memberColors, memberRoles, memberPins, globalPermissions, teams, teamNId, templates, tplNId, userSettings, loaded]);
