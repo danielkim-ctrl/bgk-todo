@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from "react";
-import { doc, onSnapshot, setDoc, getDoc } from "firebase/firestore";
+import { doc, onSnapshot, setDoc, getDoc, runTransaction } from "firebase/firestore";
 import { db } from "../firebase";
 import {
   INIT_MEMBERS, INIT_PRI, INIT_ST, INIT_PRI_C, INIT_PRI_BG, INIT_ST_C, INIT_ST_BG,
@@ -19,6 +19,10 @@ export function useTodoApp() {
   const clientId = useRef(Math.random().toString(36).slice(2));
   const pendingWrite = useRef(false);
   const writeVersion = useRef(0);
+  // 마지막으로 수신·적용한 서버 _updatedAt — 내 쓰기가 이 시점 이후에 만들어졌는지 검증용
+  // (오래 열려 있던 탭/절전에서 깨어난 기기가 stale 상태를 서버에 덮어써서
+  //  팀원 전체의 최신 todo가 사라지는 문제 방지)
+  const lastSeenServerAt = useRef<number>(0);
   const FS_DOC = useMemo(() => doc(db, "todos_db", "team"), []);
   const detHoverTimerRef = useRef<any>(null);
   const noteLeaveTimerRef = useRef<any>(null);
@@ -437,6 +441,8 @@ export function useTodoApp() {
       if (!bootstrapped) {
         // 첫 스냅샷 (캐시 또는 서버) — 그대로 적용 후 로드 완료
         applyData(d);
+        // 적용한 데이터의 타임스탬프를 저장 — 이후 쓰기 stale 검증 기준점
+        if (typeof d._updatedAt === "number") lastSeenServerAt.current = d._updatedAt;
         bootstrapped = true;
         setLoaded(true);
         // who: string → string[] 레거시 마이그레이션이 필요한 경우 자동 저장 트리거
@@ -454,6 +460,10 @@ export function useTodoApp() {
       if (pendingWrite.current) return;
       // 다른 클라이언트의 변경 — 로컬 미저장 업무 보존하며 merge 적용
       applyData(d, true);
+      // 원격 데이터를 실제로 내 state에 적용한 시점에만 lastSeenServerAt 갱신.
+      // (skip한 snapshot의 타임스탬프는 추적하지 않음 — 그래야 내 state가 반영하지 못한
+      //  버전으로 stale 검증이 잘못 통과되어 다른 기기의 최신 데이터를 덮어쓰는 것을 방지)
+      if (typeof d._updatedAt === "number") lastSeenServerAt.current = d._updatedAt;
     });
     return () => unsub();
   }, []);
@@ -479,9 +489,29 @@ export function useTodoApp() {
     const t = setTimeout(() => {
       const ver = ++writeVersion.current;
       const now = Date.now();
+      const expectedServerAt = lastSeenServerAt.current;
       const data = { todos, projects, nId, pNId, pris, stats, priC, priBg, stC, stBg, members, memberColors, memberRoles, memberPins, globalPermissions, teams, teamNId, templates, tplNId, sharedApiKey: sharedApiKeyRef.current, userSettings, _clientId: clientId.current, _updatedAt: now };
-      setDoc(FS_DOC, data)
-        .catch(() => flash("저장 실패 — 네트워크를 확인하세요", "err"))
+      // 트랜잭션으로 stale write 차단 — 서버의 _updatedAt이 내가 마지막으로 본 것보다
+      // 새로우면(= 다른 기기가 이미 최신 상태를 올려둔 상태) 내 오래된 상태로 덮어쓰지 않고 abort.
+      // abort된 경우 onSnapshot이 최신 데이터를 다시 전달하므로 state가 자동 복원됨.
+      runTransaction(db, async (tx) => {
+        const cur = await tx.get(FS_DOC);
+        const serverAt = (cur.exists() && typeof cur.data()._updatedAt === "number") ? cur.data()._updatedAt : 0;
+        if (serverAt > expectedServerAt) {
+          throw new Error("stale-write-aborted");
+        }
+        tx.set(FS_DOC, data);
+      })
+        .then(() => { lastSeenServerAt.current = now; })
+        .catch((e: any) => {
+          if (e?.message === "stale-write-aborted") {
+            // 서버가 더 최신 — 내 쓰기 스킵. 다음 snapshot이 도착하면 state 자동 업데이트.
+            console.warn("[SYNC] 서버가 더 최신이므로 쓰기 스킵 — 최신 데이터로 재동기화됨");
+            flash("최신 데이터와 동기화 중 — 방금 변경사항이 반영되지 않았을 수 있습니다. 다시 시도해주세요.", "err");
+          } else {
+            flash("저장 실패 — 네트워크를 확인하세요", "err");
+          }
+        })
         .finally(() => { if (writeVersion.current === ver) pendingWrite.current = false; });
     }, delay);
     return () => clearTimeout(t);
