@@ -448,6 +448,10 @@ export function useTodoApp() {
       }
       // 이후 스냅샷 — 내가 저장한 것이 돌아온 것이면 무시 (무한 루프 방지)
       if (d._clientId === clientId.current) return;
+      // 로컬에 저장 대기 중인 변경사항이 있으면 원격 merge 스킵
+      // — 400ms 디바운스 창에 도착한 다른 기기의 stale snapshot이 방금 삭제한 todo나
+      //   새로 만든 멤버를 되돌려놓는 경쟁 상태 방지. 내 쓰기가 완료되면 다음 snapshot부터 정상 반영.
+      if (pendingWrite.current) return;
       // 다른 클라이언트의 변경 — 로컬 미저장 업무 보존하며 merge 적용
       applyData(d, true);
     });
@@ -466,11 +470,13 @@ export function useTodoApp() {
   useEffect(() => {
     if (!loaded) return;
     if (!skipFirst.current) { skipFirst.current = true; return; }
+    // 상태 변경 발생 즉시 pending 플래그 설정 — 디바운스 창 동안 도착한
+    // 원격 snapshot이 로컬 삭제/추가를 되돌리지 않도록 onSnapshot에서 스킵.
+    pendingWrite.current = true;
     // 삭제 등 즉각 반영이 필요한 작업은 디바운스 없이 즉시 저장
     const delay = immediateFlush.current ? 0 : 400;
     immediateFlush.current = false;
     const t = setTimeout(() => {
-      pendingWrite.current = true;
       const ver = ++writeVersion.current;
       const now = Date.now();
       const data = { todos, projects, nId, pNId, pris, stats, priC, priBg, stC, stBg, members, memberColors, memberRoles, memberPins, globalPermissions, teams, teamNId, templates, tplNId, sharedApiKey: sharedApiKeyRef.current, userSettings, _clientId: clientId.current, _updatedAt: now };
