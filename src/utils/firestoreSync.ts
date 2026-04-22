@@ -32,15 +32,12 @@ const itemsCol = () => collection(db, "todos_db", "team", "items");
 const tplRef = (id: string) => doc(db, "todos_db", "team", "templates", id);
 const tplCol = () => collection(db, "todos_db", "team", "templates");
 
-/** meta/main 존재·완료 플래그(_migratedAt) 확인 + 미완료면 마이그레이션 자동 실행 */
+/** meta/main 존재 확인 + 없으면 마이그레이션 자동 실행 */
 export async function ensureSubcollectionReady(): Promise<{ ready: boolean; migrated: boolean }> {
   try {
     const s = await getDoc(metaRef());
-    // 완료 플래그 존재 시에만 ready로 판정 (부분 실패 상태 감지)
-    if (s.exists() && s.data()?._migratedAt) {
-      return { ready: true, migrated: false };
-    }
-    console.warn("[SYNC] meta/main 없음 또는 _migratedAt 플래그 누락 — 자동 마이그레이션 시도");
+    if (s.exists()) return { ready: true, migrated: false };
+    console.warn("[SYNC] meta/main 없음 — 자동 마이그레이션 시도");
     const result = await migrateFirestoreSubcollections();
     return { ready: result.ok, migrated: true };
   } catch (e) {
