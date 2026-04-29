@@ -456,10 +456,12 @@ export function useTodoApp() {
     };
 
     // meta 구독 — 설정류 (todos·templates 제외) applyData 경로 재사용
-    // merge=true: 사용자가 디바운스 중에 추가한 projects·members 등이 다른 snapshot으로 덮어씌워지지 않도록 보존
+    // pendingWrite 가드: 디바운스 창 동안 도착한 snapshot이 사용자의 local 변경(추가/수정)을
+    // 덮어쓰지 않도록 차단. setDoc 완료 후 다시 활성화되어 다른 사용자 변경 정상 수신.
     unsubs.push(subscribeMeta((data) => {
       if (cancelled) return;
-      applyData({ ...data, todos: undefined, templates: undefined }, true);
+      if (pendingWrite.current) return;
+      applyData({ ...data, todos: undefined, templates: undefined });
       if (typeof data._updatedAt === "number") lastSeenServerAt.current = data._updatedAt;
       metaReceived = true;
       markLoadedIfReady();
@@ -575,6 +577,9 @@ export function useTodoApp() {
   useEffect(() => {
     if (!loaded) return;
     if (!skipFirst.current) { skipFirst.current = true; return; }
+    // 디바운스 시작 즉시 pendingWrite=true — subscribeMeta가 이 창 동안 도착한
+    // 다른 클라이언트의 snapshot으로 사용자 변경을 덮어쓰지 못하도록 차단
+    pendingWrite.current = true;
     const delay = immediateFlush.current ? 0 : 400;
     immediateFlush.current = false;
     const t = setTimeout(() => {
@@ -586,10 +591,15 @@ export function useTodoApp() {
         userSettings,
         _clientId: clientId.current,
       };
-      fsWriteMeta(meta).catch((e) => {
-        console.warn("[SYNC] meta 저장 실패:", e);
-        flash("설정 저장 실패 — 네트워크를 확인하세요", "err");
-      });
+      fsWriteMeta(meta)
+        .catch((e) => {
+          console.warn("[SYNC] meta 저장 실패:", e);
+          flash("설정 저장 실패 — 네트워크를 확인하세요", "err");
+        })
+        .finally(() => {
+          // setDoc 완료 후 pendingWrite 해제 — 이후 snapshot은 정상 수신
+          pendingWrite.current = false;
+        });
     }, delay);
     return () => clearTimeout(t);
   }, [projects, nId, pNId, members, pris, stats, priC, priBg, stC, stBg, memberColors, memberRoles, memberPins, globalPermissions, teams, teamNId, tplNId, userSettings, loaded]);
