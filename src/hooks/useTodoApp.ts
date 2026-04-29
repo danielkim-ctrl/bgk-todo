@@ -663,39 +663,35 @@ export function useTodoApp() {
   };
 
   const updTodo = (id: number, u: any) => {
-    // 변경 후 Firestore에 쓸 업무를 캡처 — 서브컬렉션 개별 문서 업데이트용
-    let updated: Todo | null = null;
-    setTodosWithHistory((p: Todo[]) => p.map(t => {
-      if (t.id !== id) return t;
+    // outer scope에서 새 todo 사전 계산 — setState functional updater는 commit 시점 호출이라
+    // outer let 변수로 캡처하면 fsWriteTodo가 null로 호출되는 race 발생 (Phase 2-3 회귀 버그).
+    const t = todos.find(todo => todo.id === id);
+    if (!t) return;
 
-      // 반복 업무를 완료 처리할 때는 일반 완료가 아닌 롤오버로 처리
-      // — due를 다음 주기로 이동하고 st를 "대기"로 리셋 (레코드는 삭제되지 않음)
-      const isRepeatTodo = t.repeat && t.repeat !== "없음";
-      const isCompletingRepeat = u.st === "완료" && t.st !== "완료" && isRepeatTodo;
-      if (isCompletingRepeat) {
-        // 롤오버 처리: st를 대기로 유지하고 due를 다음 주기로 이동
-        const nextDue = getNextDue(t.due, t.repeat);
-        if (nextDue) {
-          const rolloverLog: ActivityLog = {
-            id: mkLogId(),
-            at: new Date().toISOString(),
-            who: currentUser || "시스템",
-            action: "repeat_rollover",
-            prevDue: t.due ? t.due.split(" ")[0] : "",
-            changes: [{ field: "마감기한", from: t.due || "", to: nextDue }],
-          };
-          const next: Todo = {
-            ...t,
-            st: "대기",
-            due: nextDue,
-            done: null,
-            logs: [...(t.logs || []), rolloverLog],
-          };
-          updated = next;
-          return next;
-        }
-      }
+    let updated: Todo;
 
+    // 반복 업무를 완료 처리할 때는 일반 완료가 아닌 롤오버 (다음 주기로 이동)
+    const isRepeatTodo = t.repeat && t.repeat !== "없음";
+    const isCompletingRepeat = u.st === "완료" && t.st !== "완료" && isRepeatTodo;
+    const rolloverDue = isCompletingRepeat ? getNextDue(t.due, t.repeat) : null;
+
+    if (isCompletingRepeat && rolloverDue) {
+      const rolloverLog: ActivityLog = {
+        id: mkLogId(),
+        at: new Date().toISOString(),
+        who: currentUser || "시스템",
+        action: "repeat_rollover",
+        prevDue: t.due ? t.due.split(" ")[0] : "",
+        changes: [{ field: "마감기한", from: t.due || "", to: rolloverDue }],
+      };
+      updated = {
+        ...t,
+        st: "대기",
+        due: rolloverDue,
+        done: null,
+        logs: [...(t.logs || []), rolloverLog],
+      };
+    } else {
       const n: any = { ...t, ...u };
       if (u.st === "완료" && t.st !== "완료") n.done = td();
       else if (u.st && u.st !== "완료") n.done = null;
@@ -730,14 +726,20 @@ export function useTodoApp() {
         };
         n.logs = [...(t.logs || []), entry];
       } else if (u.logs) {
-        // 메모 저장 등 logs 직접 업데이트 — 위 변경 감지에서 제외했으므로 그대로 반영
+        // 메모 저장 등 logs 직접 업데이트
         n.logs = u.logs;
       }
       updated = n as Todo;
-      return n;
-    }));
-    // 변경된 업무를 Firestore 서브컬렉션 개별 문서로 저장
-    if (updated) fsWriteTodo(updated).catch(e => { console.warn("[SYNC] updTodo 실패:", e); flash("저장 실패", "err"); });
+    }
+
+    // 로컬 state 업데이트 (히스토리 포함)
+    setTodosWithHistory((p: Todo[]) => p.map(x => x.id === id ? updated : x));
+
+    // Firestore 서브컬렉션 개별 문서 업데이트 — 즉시 호출되므로 race 없음
+    fsWriteTodo(updated).catch(e => {
+      console.warn("[SYNC] updTodo 실패:", e);
+      flash("저장 실패", "err");
+    });
   };
 
   // 완료 처리 통합 함수 — 반복 업무는 롤오버, 일반 업무는 완료 처리
