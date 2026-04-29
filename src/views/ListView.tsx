@@ -1048,7 +1048,8 @@ export function ListView(props: ListViewProps) {
                 {/* 마감기한 셀 — 날짜+D-day 뱃지 세로 배치 시 행 높이 증가 방지
                     padding을 10px→3px로 줄이고 뱃지 lineHeight 압축해 표준 행 높이 유지 */}
                 <CellEdit todo={t} field="due" tdStyle={{...priCellStyle,padding:"3px 12px",verticalAlign:"middle" as const}}>{(()=>{const[dpart,tpart]=(t.due||"").split(" ");const fmt12v=(v: string)=>{if(!v)return "";const[hh,mm]=v.split(":").map(Number);const ap=hh<12?"오전":"오후";const h12=hh===0?12:hh>12?hh-12:hh;return `${ap} ${h12}:${fmt2(mm)}`;};const dd=dDay(t.due,t.st);return <div style={{display:"flex",flexDirection:"column" as const,alignItems:"center",gap:1}}>
-                  <span style={{fontSize:13,lineHeight:"17px",color:od?"#dc2626":"#64748b",whiteSpace:"nowrap" as const}}>{dpart?`${dpart}(${fDow(dpart)})`:"—"}{tpart?` ${fmt12v(tpart)}`:""}</span>
+                  <span style={{fontSize:13,lineHeight:"17px",color:od?"#dc2626":"#64748b",whiteSpace:"nowrap" as const}}>{dpart?`${dpart}(${fDow(dpart)})`:"—"}</span>
+                  {tpart&&<span style={{fontSize:11,lineHeight:"14px",color:od?"#dc2626":"#94a3b8",whiteSpace:"nowrap" as const}}>{fmt12v(tpart)}</span>}
                   {dd&&<span style={{fontSize:10,fontWeight:700,color:dd.color,background:dd.bg,border:`1px solid ${dd.border}`,padding:"0 5px",borderRadius:4,lineHeight:"13px",letterSpacing:"0.02em",flexShrink:0}}>{dd.label}</span>}
                 </div>;})()}</CellEdit>
                 {!expandMode&&<>
