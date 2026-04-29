@@ -456,9 +456,10 @@ export function useTodoApp() {
     };
 
     // meta 구독 — 설정류 (todos·templates 제외) applyData 경로 재사용
+    // merge=true: 사용자가 디바운스 중에 추가한 projects·members 등이 다른 snapshot으로 덮어씌워지지 않도록 보존
     unsubs.push(subscribeMeta((data) => {
       if (cancelled) return;
-      applyData({ ...data, todos: undefined, templates: undefined });
+      applyData({ ...data, todos: undefined, templates: undefined }, true);
       if (typeof data._updatedAt === "number") lastSeenServerAt.current = data._updatedAt;
       metaReceived = true;
       markLoadedIfReady();
