@@ -94,9 +94,26 @@ export function useTodoApp() {
   // 스냅샷을 앱 상태에 복원하는 함수
   // owner를 넘기면 해당 사용자의 todos만 스냅샷으로 교체 — 타 사용자 todos는 현재 상태 유지
   const restoreSnapshot = (snap: AppSnapshot, owner?: string) => {
+    // Phase 2-3: Firestore 서브컬렉션에도 diff 동기화 — undo/redo가 다른 기기에 반영되도록
+    // owner 모드: 자기 todos만 변경 (타 사용자 변경 보호)
+    const currentTodos = todos;
+    const snapMyTodos = owner
+      ? snap.todos.filter(t => (t.logs?.[0]?.who || "") === owner)
+      : snap.todos;
+    const currentMyTodos = owner
+      ? currentTodos.filter(t => (t.logs?.[0]?.who || "") === owner)
+      : currentTodos;
+    const snapIds = new Set(snapMyTodos.map(t => t.id));
+    // snapshot에 있는 모든 자기 todos를 server에 다시 쓰기 (이전 상태 복원)
+    snapMyTodos.forEach(t => {
+      fsWriteTodo(t).catch(e => console.warn("[SYNC] undo writeTodo 실패:", e));
+    });
+    // 현재에는 있는데 snapshot에 없는 자기 todos는 server에서 삭제
+    currentMyTodos.filter(t => !snapIds.has(t.id)).forEach(t => {
+      fsRemoveTodo(t.id).catch(e => console.warn("[SYNC] undo removeTodo 실패:", e));
+    });
+
     if (owner) {
-      // 현재 사용자(owner)가 생성한 todos만 스냅샷 버전으로 교체
-      // 타 사용자가 만든 todos(logs[0].who !== owner)는 현재 상태를 유지하여 데이터 손실 방지
       setTodos((current: Todo[]) => {
         const othersTodos = current.filter((t: Todo) => (t.logs?.[0]?.who || "") !== owner);
         const myTodosAtSnapshot = snap.todos.filter((t: Todo) => (t.logs?.[0]?.who || "") === owner);
