@@ -113,6 +113,7 @@ export function useUserSettings() {
     starredIds: number[];
     hiddenProjects: number[];
     hiddenMembers: string[];
+    selectedTeamId?: string | null;
   }>>({});
 
   // ── 유저 전환: 이전 유저 설정 저장 → 새 유저 설정 복원 ─────────────────────

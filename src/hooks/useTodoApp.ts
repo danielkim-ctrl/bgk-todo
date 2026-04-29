@@ -206,7 +206,10 @@ export function useTodoApp() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [teamNId, setTeamNId] = useState(1); // 팀 ID 자동 증가용
   // 현재 선택된 팀 (null = 전체 보기)
-  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+  const [selectedTeamId, setSelectedTeamIdRaw] = useState<string | null>(null);
+  // 마지막으로 복원한 값 추적 — 사용자 변경 또는 Firestore userSettings 로드 시 복원
+  // 같은 값으로 반복 복원하지 않아 무한 루프 방지
+  const lastRestoredTeamIdRef = useRef<{ user: string | null; value: string | null | undefined }>({ user: null, value: undefined });
   // 멤버별 역할 — 팀 소속과 독립적으로 관리 (팀 미배정이어도 역할 설정 가능)
   const [memberRoles, setMemberRoles] = useState<Record<string, TeamRole>>({});
   // 멤버별 6자리 PIN 코드 — 로그인 인증용 (Firestore에 저장)
@@ -481,6 +484,33 @@ export function useTodoApp() {
     historyRef.current = [];
     redoRef.current = [];
   }, [currentUser]);
+
+  // selectedTeamId 사용자별 Firestore 동기화 — 한 기기에서 선택한 팀이 다른 기기에도 자동 반영
+  // userSettings는 Firestore에 사용자별로 저장되므로 기기 무관하게 사람 정체성 따라감
+  useEffect(() => {
+    if (!currentUser) return;
+    const saved = userSettings[currentUser]?.selectedTeamId;
+    const last = lastRestoredTeamIdRef.current;
+    if (last.user === currentUser && last.value === saved) return;
+    lastRestoredTeamIdRef.current = { user: currentUser, value: saved };
+    setSelectedTeamIdRaw(saved ?? null);
+  }, [currentUser, userSettings]);
+
+  // 변경 시 userSettings에 저장 — 자동으로 Firestore 동기화 effect가 처리
+  const setSelectedTeamId = (id: string | null) => {
+    setSelectedTeamIdRaw(id);
+    if (currentUser) {
+      setUserSettings(prev => ({
+        ...prev,
+        [currentUser]: {
+          ...(prev[currentUser] || { kanbanOrder: [], sidebarOrder: [], starredIds: [], hiddenProjects: [], hiddenMembers: [] }),
+          selectedTeamId: id,
+        },
+      }));
+      // 마지막 복원 값도 업데이트해서 위 useEffect가 다시 복원하지 않도록
+      lastRestoredTeamIdRef.current = { user: currentUser, value: id };
+    }
+  };
 
   // 자동 복구 안전망 — 단일 문서의 members/teams가 손상된 상태로 로드되고
   // meta/main에 더 많은 데이터가 있으면 자동으로 복구 실행 (1회).
@@ -824,14 +854,15 @@ export function useTodoApp() {
       });
     }
     // 전체 보기 — 소속 팀 업무 합산 (관리자는 미배정 포함 전부)
-    const isAdmin = (currentUser && memberRoles[currentUser] === "admin") || !myTids.length;
+    // loaded 가드: 초기 로드 전 teams가 빈 배열이면 !myTids.length가 true → 전원 admin처럼 전체 노출되는 레이스 컨디션 방지
+    const isAdmin = loaded && ((currentUser && memberRoles[currentUser] === "admin") || !myTids.length);
     if (isAdmin) return todos;
     return todos.filter(t => {
       if (t.teamId) return myTids.includes(t.teamId);
       // teamId 없는 업무: 현재 사용자가 담당자이면 표시
       return isMyTask(t);
     });
-  }, [todos, selectedTeamId, teams, currentUser, memberRoles]);
+  }, [todos, selectedTeamId, teams, currentUser, memberRoles, loaded]);
 
   // viewTodos(팀 필터 적용 후)를 기반으로 검색/필터 적용
   const filtered = useMemo(() => viewTodos.filter(t => {
