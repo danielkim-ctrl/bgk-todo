@@ -4,19 +4,23 @@ service cloud.firestore {
 
     // ⚠️ 사용자 지시로 auth 없이 공개 접근 허용 상태 (2026-04-22)
     // PIN 로그인이 클라이언트 UI 보안을 담당하고, 인증 세팅은 추후 별도 진행 예정.
-    // URL이 노출되면 누구나 데이터를 읽고 쓸 수 있으니 추후 auth 세팅 필수.
 
-    // ── 팀 전체 공유 todo 데이터 (단일 문서 경로) ───────────────────────────
-    // 2026-04-29: Phase 2-3 전환 후 단일 문서 쓰기 차단.
-    // legacy 캐시 클라이언트가 stale 데이터로 server를 덮어쓰던 사이클을 끊음.
-    // 읽기는 유지 (롤백/조회 용도).
-    match /todos_db/{document} {
+    // ── 단일 문서 todos_db/team — 쓰기 명시적 차단 ─────────────────────────
+    // 2026-04-29: Phase 2-3 전환 후 legacy 코드의 stale write 사이클 끊기 위해.
+    // 명시적 path로 작성 (이전 wildcard 패턴이 작동 안 한 이슈 대응).
+    match /todos_db/team {
       allow read: if true;
       allow write: if false;
     }
 
-    // ── 서브컬렉션: items / templates / meta ─────────────────────────────────
-    match /todos_db/{document}/{subpath=**} {
+    // ── 서브컬렉션 명시적 허용 — items / templates / meta ────────────────────
+    match /todos_db/team/items/{itemId} {
+      allow read, write: if true;
+    }
+    match /todos_db/team/templates/{tplId} {
+      allow read, write: if true;
+    }
+    match /todos_db/team/meta/{metaId} {
       allow read, write: if true;
     }
 
