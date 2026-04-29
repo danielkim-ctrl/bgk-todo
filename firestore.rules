@@ -7,8 +7,12 @@ service cloud.firestore {
     // URL이 노출되면 누구나 데이터를 읽고 쓸 수 있으니 추후 auth 세팅 필수.
 
     // ── 팀 전체 공유 todo 데이터 (단일 문서 경로) ───────────────────────────
+    // 2026-04-29: Phase 2-3 전환 후 단일 문서 쓰기 차단.
+    // legacy 캐시 클라이언트가 stale 데이터로 server를 덮어쓰던 사이클을 끊음.
+    // 읽기는 유지 (롤백/조회 용도).
     match /todos_db/{document} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if false;
     }
 
     // ── 서브컬렉션: items / templates / meta ─────────────────────────────────
