@@ -3,6 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- 캐시 무효화: 매 방문 시 새 index.html 받게 강제 (옛 JS 번들 캐싱 방지)
+       빌드된 assets/*.js는 hash가 파일명에 포함되어 새 버전마다 다른 파일이라 안전.
+       index.html만 매번 fresh가 되면 자동으로 최신 번들 reference 받음. -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>팀 TODO 통합관리 시스템</title>
   <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
