@@ -423,7 +423,20 @@ export function useTodoApp() {
     // 업무 템플릿 복원
     if (d.templates) setTemplates(d.templates);
     if (d.tplNId) setTplNId(d.tplNId);
-    if (d.userSettings) setUserSettings(d.userSettings);
+    if (d.userSettings) {
+      if (merge && currentUser) {
+        // merge 모드 = 다른 클라이언트의 setDoc snapshot. 자기 사용자 entry는 로컬 우선 보존.
+        // 이유: 사용자가 selectedTeamId 등을 막 변경했고 아직 server에 반영 전인데,
+        // 다른 사용자의 snapshot(자기 변경 모름)이 들어오면 자기 변경이 사라지는 race 방지.
+        setUserSettings(prev => {
+          const localUserEntry = prev[currentUser];
+          if (!localUserEntry) return d.userSettings;
+          return { ...d.userSettings, [currentUser]: localUserEntry };
+        });
+      } else {
+        setUserSettings(d.userSettings);
+      }
+    }
   };
 
   useEffect(() => {
@@ -498,7 +511,6 @@ export function useTodoApp() {
 
   // 변경 시 userSettings에 저장 — 자동으로 Firestore 동기화 effect가 처리
   const setSelectedTeamId = (id: string | null) => {
-    console.warn(`[TRACE-setSelectedTeamId] id=${id} currentUser=${currentUser} stack=${new Error().stack?.split("\n").slice(2,5).join(" | ")}`);
     setSelectedTeamIdRaw(id);
     if (currentUser) {
       setUserSettings(prev => ({
