@@ -809,7 +809,15 @@ export default function App() {
         stC={stC} setStC={setStC} stBg={stBg} setStBg={setStBg}
         memberColors={memberColors} setMemberColor={(name,c)=>setMemberColors((p:any)=>({...p,[name]:c}))}
         projects={projects} setProjects={setProjects} pNId={pNId} setPNId={setPNId}
-        onAddProj={p=>{const np={...p,id:pNId};setProjects((prev:any)=>[...prev,np]);setPNId(pNId+1);flash(`"${p.name}" 프로젝트가 추가되었습니다`);return np.id;}}
+        onAddProj={p=>{
+          // pNId가 손상되어 max(id)보다 작을 수 있음 — 충돌 시 applyData의 dedup으로 새 항목이 사라지는 버그 방지
+          const safeId = Math.max(pNId, ...projects.map((x: any) => x.id + 1));
+          const np={...p,id:safeId};
+          setProjects((prev:any)=>[...prev,np]);
+          setPNId(safeId+1);
+          flash(`"${p.name}" 프로젝트가 추가되었습니다`);
+          return np.id;
+        }}
         onDelProj={id=>{if(todos.some(t=>t.pid===id)){alert("해당 프로젝트에 업무가 존재하여 삭제할 수 없습니다.");return;}setProjects((p:any)=>p.filter((x:any)=>x.id!==id));flash("프로젝트가 삭제되었습니다","err")}}
         onEditProj={(id,u)=>{setProjects((p:any)=>p.map((x:any)=>{if(x.id!==id)return x;return{...x,...u};}));flash("프로젝트 정보가 수정되었습니다")}}
         todos={todos} flash={flash} apiKey={apiKey} setApiKey={setApiKey}
