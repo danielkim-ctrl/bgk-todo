@@ -511,16 +511,20 @@ export function useTodoApp() {
 
   // 변경 시 userSettings에 저장 — 자동으로 Firestore 동기화 effect가 처리
   const setSelectedTeamId = (id: string | null) => {
+    console.warn(`[T1] setSelectedTeamId(${id}) currentUser=${currentUser}`);
     setSelectedTeamIdRaw(id);
     if (currentUser) {
-      setUserSettings(prev => ({
-        ...prev,
-        [currentUser]: {
-          ...(prev[currentUser] || { kanbanOrder: [], sidebarOrder: [], starredIds: [], hiddenProjects: [], hiddenMembers: [] }),
-          selectedTeamId: id,
-        },
-      }));
-      // 마지막 복원 값도 업데이트해서 위 useEffect가 다시 복원하지 않도록
+      setUserSettings(prev => {
+        const next = {
+          ...prev,
+          [currentUser]: {
+            ...(prev[currentUser] || { kanbanOrder: [], sidebarOrder: [], starredIds: [], hiddenProjects: [], hiddenMembers: [] }),
+            selectedTeamId: id,
+          },
+        };
+        console.warn(`[T2] setUserSettings prev.김대윤?.selectedTeamId=${prev["김대윤"]?.selectedTeamId} → next.김대윤.selectedTeamId=${(next as any)["김대윤"]?.selectedTeamId}`);
+        return next;
+      });
       lastRestoredTeamIdRef.current = { user: currentUser, value: id };
     }
   };
@@ -568,14 +572,13 @@ export function useTodoApp() {
     // 삭제 등 즉각 반영이 필요한 작업은 디바운스 없이 즉시 저장
     const delay = immediateFlush.current ? 0 : 400;
     immediateFlush.current = false;
+    console.warn(`[T3] save effect TRIGGERED (deps changed) userSettings.김대윤?.selectedTeamId=${userSettings["김대윤"]?.selectedTeamId} delay=${delay}`);
     const t = setTimeout(() => {
       const ver = ++writeVersion.current;
       const now = Date.now();
       const expectedServerAt = lastSeenServerAt.current;
       const data = { todos, projects, nId, pNId, pris, stats, priC, priBg, stC, stBg, members, memberColors, memberRoles, memberPins, globalPermissions, teams, teamNId, templates, tplNId, sharedApiKey: sharedApiKeyRef.current, userSettings, _clientId: clientId.current, _updatedAt: now };
-      // 단순 setDoc — stale 검증은 제거 (일부 네트워크 환경에서 쓰기 취소로 동기화 단절됨)
-      // 경쟁 상태 방어는 pendingWrite 가드(onSnapshot에서 스킵)로 유지.
-      // expectedServerAt 변수는 미사용이지만 이후 stale 검증 재도입 시 참조용으로 보존.
+      console.warn(`[T4] setDoc FIRE userSettings.김대윤?.selectedTeamId=${(data.userSettings as any)["김대윤"]?.selectedTeamId}`);
       void expectedServerAt;
       setDoc(FS_DOC, data)
         .then(() => { lastSeenServerAt.current = now; })
