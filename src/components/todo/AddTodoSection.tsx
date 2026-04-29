@@ -547,14 +547,14 @@ export function AddTodoSection({
           {/* UA-2: % 기반 열 너비 */}
           <table style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
             <colgroup>
-              <col style={{width:"12%"}}/>
-              <col style={{width:"24%"}}/>
-              <col/>
-              <col style={{width:"8%"}}/>
-              <col style={{width:"12%"}}/>
-              <col style={{width:"7%"}}/>
-              <col style={{width:"7%"}}/>
-              <col style={{width:"5%"}}/>
+              <col style={{width:"18%"}}/>{/* 프로젝트 12 → 18 */}
+              <col style={{width:"20%"}}/>{/* 업무내용 24 → 20 */}
+              <col/>{/* 상세 자유 */}
+              <col style={{width:"8%"}}/>{/* 담당자 */}
+              <col style={{width:"11%"}}/>{/* 마감 12 → 11 */}
+              <col style={{width:"7%"}}/>{/* 우선순위 */}
+              <col style={{width:"7%"}}/>{/* 반복 */}
+              <col style={{width:"7%"}}/>{/* 액션 5 → 7 */}
             </colgroup>
             <thead><tr style={{background:"#f8fafc",borderBottom:"1px solid #e2e8f0"}}>
               {["프로젝트","업무내용 *","상세내용","담당자 *","마감기한","우선순위","반복",""].map((h,i)=>
@@ -562,7 +562,7 @@ export function AddTodoSection({
             </tr></thead>
             <tbody>
               {newRows.map((r,i)=>{const empty=isNREmpty(r);return <tr key={"nr"+i} style={{background:i%2===0?"#fafcff":"#f5f8ff",borderBottom:i===newRows.length-1?"none":"1px solid #e2e8f0"}}>
-                <td style={{padding:"4px 6px"}}><select value={r.pid} onChange={e=>{const n=[...newRows];n[i].pid=e.target.value;setNewRows(n)}} style={{...cellInput,fontSize:10}}><option value="">프로젝트</option>{projOptions}</select></td>
+                <td style={{padding:"4px 6px"}}><select value={r.pid} onChange={e=>{const n=[...newRows];n[i].pid=e.target.value;setNewRows(n)}} title={aProj.find(p=>String(p.id)===String(r.pid))?.name||""} style={cellInput}><option value="">프로젝트</option>{projOptions}</select></td>
                 <td style={{padding:"4px 6px"}}><input value={r.task} onChange={e=>{const n=[...newRows];n[i].task=e.target.value;setNewRows(n)}} onKeyDown={e=>{if(e.key==="Enter"){if(!isNREmpty(newRows[i]))saveOneNR(i);else addNR()}}} placeholder="업무내용 (필수)" autoFocus={i===newRows.length-1} style={{...cellInput,fontWeight:600}}/></td>
                 <td style={{padding:"4px 6px"}}>
                   <div onClick={e=>{const rect=e.currentTarget.getBoundingClientRect();setNotePopup({todo:{id:`__nr_${i}`,task:r.task||"새 업무",det:r.det||""},x:rect.left,y:rect.bottom,_newRow:i});}}
@@ -570,9 +570,9 @@ export function AddTodoSection({
                     {r.det&&stripHtml(r.det)?stripHtml(r.det).slice(0,20)+(stripHtml(r.det).length>20?"…":""):<span style={{color:"#bfcfe8"}}>상세내용...</span>}
                   </div>
                 </td>
-                <td style={{padding:"4px 6px"}}><select value={(r.who||[])[0]||""} onChange={e=>{const n=[...newRows];n[i].who=e.target.value?[e.target.value]:[];setNewRows(n)}} style={{...cellInput,fontSize:10}}><option value="">담당자</option>{members.map(m=><option key={m}>{m}</option>)}</select></td>
+                <td style={{padding:"4px 6px"}}><select value={(r.who||[])[0]||""} onChange={e=>{const n=[...newRows];n[i].who=e.target.value?[e.target.value]:[];setNewRows(n)}} title={(r.who||[])[0]||""} style={cellInput}><option value="">담당자</option>{members.map(m=><option key={m}>{m}</option>)}</select></td>
                 <td style={{padding:"4px 6px"}}><div onClick={e=>{const rect=e.currentTarget.getBoundingClientRect();setNrDatePop({id:i,rect,value:r.due||""});}} style={{...cellInput,cursor:"pointer",color:r.due?"#334155":"#94a3b8",whiteSpace:"nowrap",display:"flex",alignItems:"center",padding:"0 6px"}}>{r.due?fD(r.due):"날짜 선택"}</div></td>
-                <td style={{padding:"4px 6px"}}><select value={r.pri} onChange={e=>{const n=[...newRows];n[i].pri=e.target.value;setNewRows(n)}} style={{...cellInput,fontSize:10}}>{pris.map(p=><option key={p}>{p}</option>)}</select></td>
+                <td style={{padding:"4px 6px"}}><select value={r.pri} onChange={e=>{const n=[...newRows];n[i].pri=e.target.value;setNewRows(n)}} style={cellInput}>{pris.map(p=><option key={p}>{p}</option>)}</select></td>
                 {/* 반복 셀 — 클릭 시 RepeatPicker 팝오버 열기 */}
                 <td style={{padding:"4px 6px",position:"relative"}}>
                   <div onClick={e=>{const rect=(e.currentTarget as HTMLElement).getBoundingClientRect();setRepPop({idx:i,rect});}}

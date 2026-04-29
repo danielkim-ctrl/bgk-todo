@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>직접입력 프로젝트 셀 너비 개선 데모</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Pretendard', system-ui, sans-serif;
+    background: #f0f4f8;
+    color: #1a2332;
+    padding: 32px;
+    line-height: 1.5;
+  }
+  .container { max-width: 1280px; margin: 0 auto; }
+  h1 {
+    font-size: 20px; font-weight: 800; color: #172f5a;
+    margin-bottom: 4px;
+  }
+  .subtitle { font-size: 13px; color: #64748b; margin-bottom: 24px; }
+  .section {
+    background: #fff; border-radius: 10px; padding: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.07); margin-bottom: 16px;
+  }
+  .section-title {
+    font-size: 14px; font-weight: 700; color: #1a2332;
+    margin-bottom: 4px; display: flex; align-items: center; gap: 8px;
+  }
+  .badge {
+    display: inline-flex; align-items: center;
+    padding: 2px 8px; border-radius: 99px;
+    font-size: 11px; font-weight: 600;
+  }
+  .badge-before { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+  .badge-after  { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+  .desc { font-size: 12px; color: #64748b; margin-bottom: 12px; }
+
+  /* AddTodoSection 재현 */
+  .addtable {
+    border: 1.5px solid #e2e8f0; border-radius: 8px; overflow: hidden;
+  }
+  .addtable table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  .addtable thead tr { background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
+  .addtable th {
+    padding: 6px 8px; font-size: 10px; font-weight: 700;
+    color: #64748b; text-align: left;
+  }
+  .addtable tbody tr {
+    background: #fafcff; border-bottom: 1px solid #e2e8f0;
+  }
+  .addtable tbody tr:last-child { border-bottom: none; }
+  .addtable td { padding: 4px 6px; }
+
+  /* cellInput 공통 */
+  .cell {
+    width: 100%; padding: 0 6px;
+    border: 1.5px solid #e2e8f0; border-radius: 6px;
+    background: #fff; outline: none; font-family: inherit;
+    height: 28px; box-sizing: border-box;
+  }
+  .cell-task { font-weight: 600; font-size: 11px; }
+  .cell-detail { color: #94a3b8; display: flex; align-items: center; padding: 0 6px; font-size: 11px; }
+  .cell-date, .cell-repeat {
+    color: #94a3b8; cursor: pointer; display: flex; align-items: center;
+    padding: 0 6px; font-size: 11px;
+  }
+  .save-btn {
+    width: 28px; height: 28px; border-radius: 6px; border: none;
+    background: #2563eb; color: #fff; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .cancel-btn {
+    width: 28px; height: 28px; border-radius: 6px; border: 1px solid #fecaca;
+    background: #fef2f2; color: #dc2626; cursor: pointer; margin-left: 4px;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+
+  /* BEFORE — fontSize 10px override */
+  .before .cell-select { font-size: 10px; }
+  /* AFTER — fontSize 11px (cellInput 기본값 그대로) */
+  .after .cell-select { font-size: 11px; }
+
+  /* 컬럼 너비 표시 */
+  .col-meta {
+    margin-top: 12px; display: flex; gap: 12px;
+    font-size: 11px; color: #94a3b8;
+  }
+  .col-meta strong { color: #1a2332; }
+
+  /* 비교 강조 */
+  .highlight-cell { background: #fef3c7; }
+
+  .changes {
+    background: #f8fafc; border-left: 3px solid #2563eb;
+    padding: 12px 16px; border-radius: 4px;
+    font-size: 12px; line-height: 1.7; color: #334155;
+    margin-top: 16px;
+  }
+  .changes strong { color: #1a2332; }
+  .changes code {
+    font-family: monospace; font-size: 11px;
+    background: #e2e8f0; padding: 1px 4px; border-radius: 3px;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <h1>직접입력 프로젝트 셀 너비 개선</h1>
+    <div class="subtitle">
+      현재 12% 너비 + 10px 폰트로 긴 프로젝트명이 잘리는 문제 → 18% 너비 + 11px 폰트로 가독성 확보
+    </div>
+
+    <!-- BEFORE -->
+    <div class="section before">
+      <div class="section-title">
+        <span class="badge badge-before">현재 (BEFORE)</span>
+        프로젝트 이름이 잘려 식별 어려움
+      </div>
+      <div class="desc">
+        선택한 프로젝트 <strong>"[KOTRA] 산업AI (w/위드바튼)"</strong>이 셀 안에서 잘려 끝부분 보이지 않음.
+        native select라 hover tooltip도 없음.
+      </div>
+      <div class="addtable">
+        <table>
+          <colgroup>
+            <col style="width:12%"><!-- 프로젝트 -->
+            <col style="width:24%"><!-- 업무내용 -->
+            <col><!-- 상세 -->
+            <col style="width:8%"><!-- 담당자 -->
+            <col style="width:12%"><!-- 마감 -->
+            <col style="width:7%"><!-- 우선순위 -->
+            <col style="width:7%"><!-- 반복 -->
+            <col style="width:5%"><!-- 액션 -->
+          </colgroup>
+          <thead><tr>
+            <th>프로젝트</th><th>업무내용 *</th><th>상세내용</th><th>담당자 *</th>
+            <th>마감기한</th><th>우선순위</th><th>반복</th><th></th>
+          </tr></thead>
+          <tbody><tr>
+            <td class="highlight-cell">
+              <select class="cell cell-select">
+                <option>ㄴ [KOTRA] 산업AI (w/위드바튼)</option>
+              </select>
+            </td>
+            <td><input class="cell cell-task" placeholder="업무내용 (필수)"></td>
+            <td><div class="cell cell-detail">상세내용...</div></td>
+            <td>
+              <select class="cell cell-select">
+                <option>김대윤</option>
+              </select>
+            </td>
+            <td><div class="cell cell-date">날짜 선택</div></td>
+            <td>
+              <select class="cell cell-select">
+                <option>보통</option>
+              </select>
+            </td>
+            <td><div class="cell cell-repeat">↻ 반복</div></td>
+            <td>
+              <button class="save-btn">✓</button>
+            </td>
+          </tr></tbody>
+        </table>
+      </div>
+      <div class="col-meta">
+        <span>프로젝트 컬럼: <strong>12%</strong> (~130px @ 1080px)</span>
+        <span>·</span>
+        <span>폰트: <strong>10px</strong> (다른 셀 11px과 불일치)</span>
+        <span>·</span>
+        <span>tooltip: <strong>없음</strong></span>
+      </div>
+    </div>
+
+    <!-- AFTER -->
+    <div class="section after">
+      <div class="section-title">
+        <span class="badge badge-after">개선 (AFTER)</span>
+        18% 너비 + 11px 폰트 + title 속성으로 정보 손실 제거
+      </div>
+      <div class="desc">
+        프로젝트 컬럼 너비 1.5배 확대로 평균 프로젝트명 표시 가능.
+        <strong>마우스 hover하면 전체 이름 tooltip</strong> — 매우 긴 이름도 안전.
+      </div>
+      <div class="addtable">
+        <table>
+          <colgroup>
+            <col style="width:18%"><!-- 프로젝트 12 → 18 (+6) -->
+            <col style="width:20%"><!-- 업무내용 24 → 20 (-4) -->
+            <col><!-- 상세 -->
+            <col style="width:8%"><!-- 담당자 -->
+            <col style="width:11%"><!-- 마감 12 → 11 (-1) -->
+            <col style="width:7%"><!-- 우선순위 -->
+            <col style="width:7%"><!-- 반복 -->
+            <col style="width:7%"><!-- 액션 5 → 7 (+2) -->
+          </colgroup>
+          <thead><tr>
+            <th>프로젝트</th><th>업무내용 *</th><th>상세내용</th><th>담당자 *</th>
+            <th>마감기한</th><th>우선순위</th><th>반복</th><th></th>
+          </tr></thead>
+          <tbody><tr>
+            <td class="highlight-cell">
+              <select class="cell cell-select" title="ㄴ [KOTRA] 산업AI (w/위드바튼)">
+                <option>ㄴ [KOTRA] 산업AI (w/위드바튼)</option>
+              </select>
+            </td>
+            <td><input class="cell cell-task" placeholder="업무내용 (필수)"></td>
+            <td><div class="cell cell-detail">상세내용...</div></td>
+            <td>
+              <select class="cell cell-select" title="김대윤">
+                <option>김대윤</option>
+              </select>
+            </td>
+            <td><div class="cell cell-date">날짜 선택</div></td>
+            <td>
+              <select class="cell cell-select">
+                <option>보통</option>
+              </select>
+            </td>
+            <td><div class="cell cell-repeat">↻ 반복</div></td>
+            <td>
+              <button class="save-btn">✓</button>
+            </td>
+          </tr></tbody>
+        </table>
+      </div>
+      <div class="col-meta">
+        <span>프로젝트 컬럼: <strong>18%</strong> (~195px @ 1080px)</span>
+        <span>·</span>
+        <span>폰트: <strong>11px</strong> (전체 통일)</span>
+        <span>·</span>
+        <span>tooltip: <strong>전체 이름 표시</strong></span>
+      </div>
+    </div>
+
+    <!-- 변경 요약 -->
+    <div class="changes">
+      <strong>colgroup 재분배 (총합 100% 유지):</strong><br>
+      • 프로젝트 <code>12% → 18%</code> (+6, 잘림 해소)<br>
+      • 업무내용 <code>24% → 20%</code> (−4, 여유분 분배)<br>
+      • 마감기한 <code>12% → 11%</code> (−1, 미세 조정)<br>
+      • 액션 <code>5% → 7%</code> (+2, 저장·취소 버튼 여유)<br>
+      <br>
+      <strong>폰트 통일:</strong> select의 <code>fontSize:10</code> override 제거 → cellInput 기본 11px 적용<br>
+      <strong>title 속성 추가:</strong> 잘려도 hover 시 전체 이름 tooltip 노출<br>
+      <br>
+      <strong>적용 범위:</strong> AddTodoSection 직접입력 행 (다른 뷰는 영향 없음)
+    </div>
+
+    <!-- 매우 긴 이름 케이스 -->
+    <div class="section after">
+      <div class="section-title">
+        <span class="badge badge-after">검증</span>
+        매우 긴 이름도 tooltip으로 정보 손실 0
+      </div>
+      <div class="desc">
+        18% 너비여도 30자 이상 프로젝트명은 여전히 잘릴 수 있음. 그러나 hover 시 tooltip으로 즉시 확인.
+        <strong>아래 셀에 마우스 올려보세요 ↓</strong>
+      </div>
+      <div class="addtable">
+        <table>
+          <colgroup>
+            <col style="width:18%"><col style="width:20%"><col>
+            <col style="width:8%"><col style="width:11%">
+            <col style="width:7%"><col style="width:7%"><col style="width:7%">
+          </colgroup>
+          <thead><tr>
+            <th>프로젝트</th><th>업무내용 *</th><th>상세내용</th><th>담당자 *</th>
+            <th>마감기한</th><th>우선순위</th><th>반복</th><th></th>
+          </tr></thead>
+          <tbody><tr>
+            <td class="highlight-cell">
+              <select class="cell cell-select" title="ㄴ 매우매우긴프로젝트이름2026하반기특별프로젝트 (with 외부 컨설팅)">
+                <option>ㄴ 매우매우긴프로젝트이름2026하반기특별프로젝트 (with 외부 컨설팅)</option>
+              </select>
+            </td>
+            <td><input class="cell cell-task" placeholder="업무내용 (필수)"></td>
+            <td><div class="cell cell-detail">상세내용...</div></td>
+            <td>
+              <select class="cell cell-select"><option>김대윤</option></select>
+            </td>
+            <td><div class="cell cell-date">날짜 선택</div></td>
+            <td>
+              <select class="cell cell-select"><option>보통</option></select>
+            </td>
+            <td><div class="cell cell-repeat">↻ 반복</div></td>
+            <td><button class="save-btn">✓</button></td>
+          </tr></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>
