@@ -511,20 +511,15 @@ export function useTodoApp() {
 
   // 변경 시 userSettings에 저장 — 자동으로 Firestore 동기화 effect가 처리
   const setSelectedTeamId = (id: string | null) => {
-    console.warn(`[T1] setSelectedTeamId(${id}) currentUser=${currentUser}`);
     setSelectedTeamIdRaw(id);
     if (currentUser) {
-      setUserSettings(prev => {
-        const next = {
-          ...prev,
-          [currentUser]: {
-            ...(prev[currentUser] || { kanbanOrder: [], sidebarOrder: [], starredIds: [], hiddenProjects: [], hiddenMembers: [] }),
-            selectedTeamId: id,
-          },
-        };
-        console.warn(`[T2] setUserSettings prev.김대윤?.selectedTeamId=${prev["김대윤"]?.selectedTeamId} → next.김대윤.selectedTeamId=${(next as any)["김대윤"]?.selectedTeamId}`);
-        return next;
-      });
+      setUserSettings(prev => ({
+        ...prev,
+        [currentUser]: {
+          ...(prev[currentUser] || { kanbanOrder: [], sidebarOrder: [], starredIds: [], hiddenProjects: [], hiddenMembers: [] }),
+          selectedTeamId: id,
+        },
+      }));
       lastRestoredTeamIdRef.current = { user: currentUser, value: id };
     }
   };
@@ -572,13 +567,11 @@ export function useTodoApp() {
     // 삭제 등 즉각 반영이 필요한 작업은 디바운스 없이 즉시 저장
     const delay = immediateFlush.current ? 0 : 400;
     immediateFlush.current = false;
-    console.warn(`[T3] save effect TRIGGERED (deps changed) userSettings.김대윤?.selectedTeamId=${userSettings["김대윤"]?.selectedTeamId} delay=${delay}`);
     const t = setTimeout(() => {
       const ver = ++writeVersion.current;
       const now = Date.now();
       const expectedServerAt = lastSeenServerAt.current;
       const data = { todos, projects, nId, pNId, pris, stats, priC, priBg, stC, stBg, members, memberColors, memberRoles, memberPins, globalPermissions, teams, teamNId, templates, tplNId, sharedApiKey: sharedApiKeyRef.current, userSettings, _clientId: clientId.current, _updatedAt: now };
-      console.warn(`[T4] setDoc FIRE userSettings.김대윤?.selectedTeamId=${(data.userSettings as any)["김대윤"]?.selectedTeamId}`);
       void expectedServerAt;
       setDoc(FS_DOC, data)
         .then(() => { lastSeenServerAt.current = now; })

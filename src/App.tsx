@@ -147,17 +147,21 @@ export default function App() {
   const isMultiTeam = myTeamIds.length > 1;
 
   // 로그인 시 기본 팀 선택 — 초기 1회만 실행
-  // - 복수 팀 소속: "전체 보기"(null) → 소속 팀 전체 데이터 표시
-  // - 단일 팀 소속: 해당 팀 자동 선택
+  // - 사용자가 이전에 저장한 selectedTeamId가 있으면 자동 init 건너뛰기 (사용자 의도 우선, 기기 간 동기화 보존)
+  // - 저장값 없으면: 단일 팀 소속이면 해당 팀, 복수 팀이면 전체 보기(null)
   const teamInitDone = useRef(false);
   useEffect(() => {
     if (!teams.length || !currentUser) return;
-    // 초기 세팅이 완료됐으면 다시 실행하지 않음 — 사용자의 드롭다운 선택을 덮어쓰지 않기 위함
     if (teamInitDone.current) return;
+    // userSettings 도착 전(빈 객체)이면 대기 — 다음 dep 변경 시 재시도
+    // userSettings에 사용자 entry가 있으면 saved 체크 진행
+    const userEntry = userSettings[currentUser];
+    if (!userEntry) return;
     teamInitDone.current = true;
-    // 단일 팀 소속이면 해당 팀 자동 선택, 복수 팀이면 전체 보기(null) 유지
+    // 사용자가 다른 기기·세션에서 명시적으로 저장한 selectedTeamId가 있으면 자동 init 안 함 (덮어쓰기 방지)
+    if (userEntry.selectedTeamId !== undefined) return;
     if (myTeamIds.length === 1) setSelectedTeamId(myTeamIds[0]);
-  }, [teams, currentUser]);
+  }, [teams, currentUser, userSettings]);
 
   // 사용자 전환 시 초기 세팅 플래그 리셋
   useEffect(() => { teamInitDone.current = false; todayPopupDismissed.current = false; }, [currentUser]);
