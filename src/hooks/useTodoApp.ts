@@ -509,10 +509,12 @@ export function useTodoApp() {
     setSelectedTeamIdRaw(saved ?? null);
   }, [currentUser, userSettings]);
 
-  // 변경 시 userSettings에 저장 — 자동으로 Firestore 동기화 effect가 처리
+  // 변경 시 userSettings에 저장 — immediateFlush로 디바운스 없이 즉시 setDoc
+  // (다른 자동 setDoc과의 race로 사용자 선택이 묻히는 현상 방지)
   const setSelectedTeamId = (id: string | null) => {
     setSelectedTeamIdRaw(id);
     if (currentUser) {
+      immediateFlush.current = true;
       setUserSettings(prev => ({
         ...prev,
         [currentUser]: {
