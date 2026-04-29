@@ -45,7 +45,7 @@ export default function App() {
     addTeamMember, removeTeamMember, setTeamMemberRole,
     addTeamProject, removeTeamProject, assignTodosToTeams,
     templates, addTemplate, updTemplate, delTemplate, applyTemplate, confirmTplItems, tplFavs, setTplFavs,
-    view, setView, toast, filters, setFilters, favSidebar, togFavSidebar,
+    view, setView, filters, setFilters, favSidebar, togFavSidebar,
     search, setSearch, editCell, setEditCell, sortCol, sortDir, setSortCol, setSortDir, customSortOrders, setCustomSortOrders, activeSortFields, setActiveSortFields,
     newRows, setNewRows, kbF, setKbF, kbFWho, setKbFWho,
     dragId, setDragId, dragOver, setDragOver,
@@ -1029,7 +1029,7 @@ export default function App() {
       </div>;
     })()}
 
-    <Toast msg={toast.m} type={toast.t} action={toast.action}/>
+    <Toast/>
     {notePopup&&<NotePopup
       key={notePopup.todo.id}
       todo={notePopup.todo}

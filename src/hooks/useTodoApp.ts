@@ -12,6 +12,7 @@ import {
   INIT_MEMBERS, INIT_PRI, INIT_ST, INIT_PRI_C, INIT_PRI_BG, INIT_ST_C, INIT_ST_BG,
 } from "../constants";
 import { td, gP, stripHtml, isOD, getNextDue, fmtRepeatLabel } from "../utils";
+import { flash } from "../utils/toast";
 import { Filters, NewRow, AiParsed, DatePopState, NotePopupState, Project, Todo, DeletedTodo, SavedFilter, ActivityLog, Team, TeamMember, TeamRole, TodoTemplate, TemplateItem } from "../types";
 import { useAI } from "./useAI";
 import { useCalendar } from "./useCalendar";
@@ -238,7 +239,6 @@ export function useTodoApp() {
   const generatePin = () => String(Math.floor(100000 + Math.random() * 900000));
 
   const [view, setView] = useState("list");
-  const [toast, setToast] = useState<{ m: string; t: string; action?: { label: string; fn: () => void } }>({ m: "", t: "" });
   const [search, setSearch] = useState("");
   const [editCell, setEditCell] = useState<{ id: number, field: string } | null>(null);
   const [newRows, setNewRows] = useState<NewRow[]>([]);
@@ -593,12 +593,6 @@ export function useTodoApp() {
     return () => clearTimeout(t);
   }, [projects, nId, pNId, members, pris, stats, priC, priBg, stC, stBg, memberColors, memberRoles, memberPins, globalPermissions, teams, teamNId, tplNId, userSettings, loaded]);
 
-  // action을 전달하면 토스트에 버튼이 표시됨 (예: AI 등록 후 "실행 취소")
-  const flash = (m: string, t = "ok", action?: { label: string; fn: () => void }) => {
-    setToast({ m, t, action });
-    setTimeout(() => setToast({ m: "", t: "" }), action ? 5000 : 2500); // 액션 있을 때는 5초 유지
-  };
-
   const forceFirestoreSync = async () => {
     try {
       const snap = await getDoc(FS_DOC);
@@ -780,6 +774,7 @@ export function useTodoApp() {
       flash(nextLabel ? `완료! 다음 일정: ${nextLabel}` : "완료 처리되었습니다");
     } else {
       updTodo(id, { st: "완료" });
+      flash("완료 처리되었습니다");
     }
   };
 
@@ -1364,7 +1359,7 @@ export function useTodoApp() {
     templates, setTemplates, addTemplate, updTemplate, delTemplate, applyTemplate, confirmTplItems,
     // 템플릿 즐겨찾기 — 사용자별 localStorage 저장
     tplFavs, setTplFavs,
-    view, setView, toast,
+    view, setView,
     search, setSearch, editCell, setEditCell,
     newRows, setNewRows, kbF, setKbF, kbFWho, setKbFWho,
     dragId, setDragId, dragOver, setDragOver,
