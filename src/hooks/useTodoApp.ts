@@ -498,6 +498,7 @@ export function useTodoApp() {
 
   // 변경 시 userSettings에 저장 — 자동으로 Firestore 동기화 effect가 처리
   const setSelectedTeamId = (id: string | null) => {
+    console.warn(`[TRACE-setSelectedTeamId] id=${id} currentUser=${currentUser} stack=${new Error().stack?.split("\n").slice(2,5).join(" | ")}`);
     setSelectedTeamIdRaw(id);
     if (currentUser) {
       setUserSettings(prev => ({
