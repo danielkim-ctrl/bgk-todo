@@ -794,7 +794,10 @@ export function useTodoApp() {
     teams.forEach(tm => tm.projectIds.forEach(pid => { projTeamMapForAdd[pid] = tm.id; }));
     const myTidsForAdd = teams.filter(tm => tm.members.some(m => m.name === currentUser)).map(tm => tm.id);
     const resolvedTeamId = t.teamId || projTeamMapForAdd[t.pid] || selectedTeamId || myTidsForAdd[0] || undefined;
-    const newTodo = { ...t, id, cre: td(), done: t.st === "완료" ? td() : null, repeat: t.repeat || "없음", teamId: resolvedTeamId, logs: [createLog] };
+    // order 가중치 — 마지막에 추가한 업무가 가장 뒤에 오도록 현재 max + 1000
+    // (1000 간격으로 두면 사이 삽입 시 정수 평균으로 새 order 부여 가능)
+    const maxOrder = todos.reduce((m, x) => Math.max(m, x.order ?? 0), 0);
+    const newTodo = { ...t, id, cre: td(), done: t.st === "완료" ? td() : null, repeat: t.repeat || "없음", teamId: resolvedTeamId, order: maxOrder + 1000, logs: [createLog] };
     setTodosWithHistory((p: Todo[]) => [...p, newTodo]);
     // 신규 업무를 Firestore 서브컬렉션 개별 문서로 저장
     fsWriteTodo(newTodo).catch(e => { console.warn("[SYNC] addTodo 실패:", e); flash("저장 실패", "err"); });
@@ -855,18 +858,28 @@ export function useTodoApp() {
     flash(`'${entry.task}' 업무가 복원되었습니다`);
   };
 
-  // TODO: Phase 2-3 제한 — reorderTodo는 로컬 state만 변경. order 필드 추가하여 Firestore 동기화 필요
-  // 리스트뷰 드래그 정렬 — 업무 배열 순서를 변경하여 수동 정렬 (정렬 미적용 시만 동작)
+  // 리스트뷰 드래그 정렬 — 드래그된 업무의 order 가중치만 갱신해 Firestore 동기화
+  // (todos 배열 자체 reorder가 아니라 order 필드 갱신 — 새로고침/타 기기에서도 같은 순서 유지)
   const reorderTodo = (dragId: number, beforeId: number | null) => {
-    setTodosWithHistory((prev: Todo[]) => {
-      const dragged = prev.find(t => t.id === dragId);
-      if (!dragged) return prev;
-      const without = prev.filter(t => t.id !== dragId);
-      if (beforeId === null) return [...without, dragged];
-      const idx = without.findIndex(t => t.id === beforeId);
-      if (idx === -1) return [...without, dragged];
-      return [...without.slice(0, idx), dragged, ...without.slice(idx)];
-    });
+    const dragged = todos.find(t => t.id === dragId);
+    if (!dragged) return;
+    // 현재 sort된 순서 (order 가중치 기반, 없으면 id 폴백)
+    const sortedAll = [...todos].sort((a, b) => (a.order ?? a.id * 1000) - (b.order ?? b.id * 1000));
+    const without = sortedAll.filter(t => t.id !== dragId);
+    // 새 위치 계산 — beforeId 직전 또는 맨 뒤
+    const insertIdx = beforeId === null ? without.length : without.findIndex(t => t.id === beforeId);
+    const targetIdx = insertIdx === -1 ? without.length : insertIdx;
+    // 새 위치의 앞·뒤 이웃 order로 평균 계산 (사이 삽입)
+    const prevOrder = targetIdx > 0 ? (without[targetIdx - 1].order ?? without[targetIdx - 1].id * 1000) : null;
+    const nextOrder = targetIdx < without.length ? (without[targetIdx].order ?? without[targetIdx].id * 1000) : null;
+    let newOrder: number;
+    if (prevOrder !== null && nextOrder !== null) newOrder = (prevOrder + nextOrder) / 2;
+    else if (prevOrder !== null) newOrder = prevOrder + 1000;
+    else if (nextOrder !== null) newOrder = nextOrder - 1000;
+    else newOrder = Date.now();
+    const updated: Todo = { ...dragged, order: newOrder };
+    setTodosWithHistory((p: Todo[]) => p.map(t => t.id === dragId ? updated : t));
+    fsWriteTodo(updated).catch(e => { console.warn("[SYNC] reorderTodo 실패:", e); flash("순서 저장 실패", "err"); });
   };
 
   // 팀 필터 적용된 todo 목록 — 모든 뷰에서 표시용으로 사용
@@ -950,8 +963,8 @@ export function useTodoApp() {
 
   // 누적 정렬 — activeSortFields 배열 순서대로 비교 (1차 정렬 → 2차 정렬 → ...)
   // activeSortFields가 비어있으면 sortCol 단일 정렬 (메모뷰 등 호환)
+  // 둘 다 비어있으면 사용자 드래그앤드롭 순서(order 필드, 없으면 id) 폴백 — 새로고침·기기간 일관 유지
   const sorted = useMemo(() => {
-    console.log("[SORT] activeSortFields:", JSON.stringify(activeSortFields), "sortCol:", sortCol, "sortDir:", sortDir);
     return [...filtered].sort((a, b) => {
       if (activeSortFields.length > 0) {
         for (const sf of activeSortFields) {
@@ -960,8 +973,11 @@ export function useTodoApp() {
         }
         return 0;
       }
-      if (!sortCol) return 0;
-      return compareByCol(a, b, sortCol, sortDir as "asc" | "desc");
+      if (sortCol) return compareByCol(a, b, sortCol, sortDir as "asc" | "desc");
+      // 정렬 미적용 — 드래그앤드롭 순서(order 가중치) 적용. order 없는 항목은 id 기반 폴백.
+      const ao = a.order ?? a.id * 1000;
+      const bo = b.order ?? b.id * 1000;
+      return ao - bo;
     });
   }, [filtered, sortCol, sortDir, projects, customSortOrders, activeSortFields]);
   const sortIcon = (col: string) => sortCol === col ? (sortDir === "asc" ? "▲" : "▼") : "⇅";

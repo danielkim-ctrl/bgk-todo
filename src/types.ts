@@ -31,6 +31,7 @@ export interface Todo {
   repeat: string;
   noteColor?: number;
   memoOrder?: number;
+  order?: number;        // 리스트 정렬 가중치 — 드래그앤드롭 사용자 지정 순서 (없으면 id 기준 폴백)
   teamId?: string;       // 소속 팀 ID (미지정 시 관리자만 조회 가능)
   attachments?: Attachment[];  // 첨부 파일/링크
   logs?: ActivityLog[];  // 활동 로그 기록
