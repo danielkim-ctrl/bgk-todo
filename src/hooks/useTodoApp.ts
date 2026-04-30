@@ -475,10 +475,17 @@ export function useTodoApp() {
     // meta 구독 — 설정류 (todos·templates 제외) applyData 경로 재사용
     // pendingWrite 가드: 디바운스 창 동안 도착한 snapshot이 사용자의 local 변경(추가/수정)을
     // 덮어쓰지 않도록 차단. setDoc 완료 후 다시 활성화되어 다른 사용자 변경 정상 수신.
+    // _clientId 자기 echo 스킵: 자기가 쓴 데이터의 echo는 applyData로 재적용하지 않음.
+    // setDoc 완료 후(.finally) pendingWrite=false 직후 도착하는 echo가 merge=false 경로로
+    // 전체 projects를 덮어쓰면서 사용자 편집이 stale 상태로 되돌아가는 race 차단.
+    // (Phase 2-3 전 단일 문서 onSnapshot에 있던 동일 가드를 복원 — "잠깐 반영 후 원복" 증상 대응)
     unsubs.push(subscribeMeta((data) => {
       if (cancelled) return;
       if (pendingWrite.current) return;
-      applyData({ ...data, todos: undefined, templates: undefined });
+      const isOwnEcho = metaReceived && data._clientId === clientId.current;
+      if (!isOwnEcho) {
+        applyData({ ...data, todos: undefined, templates: undefined });
+      }
       if (typeof data._updatedAt === "number") lastSeenServerAt.current = data._updatedAt;
       metaReceived = true;
       markLoadedIfReady();
