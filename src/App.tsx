@@ -175,14 +175,9 @@ export default function App() {
     if (hasOverdue || hasTodayDue) setTodayPopup(true);
   }, [currentUser]);
 
-  // 권한 없는 팀 선택 차단 — 드롭다운 onChange에서 직접 처리하지 않고 여기서 방어
-  // 타 팀 조회 권한이 없는데 소속 외 팀이 선택된 경우만 리셋
-  useEffect(() => {
-    if (!selectedTeamId || !currentUser || canViewOtherTeams) return;
-    if (!myTeamIds.includes(selectedTeamId)) {
-      setSelectedTeamId(isMultiTeam ? null : myTeamIds[0] || null);
-    }
-  }, [canViewOtherTeams]);
+  // 권한 검증은 헤더 드롭다운 옵션 필터(canViewOtherTeams || 본인이 멤버)에서 이미 처리됨.
+  // 추가 자동 리셋을 두면 memberRoles가 늦게 로드되며 canViewOtherTeams가 true→false로 깜빡일 때
+  // 사용자가 방금 선택한 팀이 본인 소속팀으로 되돌아가는 사용자 의도 침해 발생 → 자동 리셋 제거.
 
   // ── 캘린더 팝오버 / 빠른 추가 상태 ──────────────────────────────
   const [calEvPop, setCalEvPop] = useState<{todo:any,x:number,y:number}|null>(null);
