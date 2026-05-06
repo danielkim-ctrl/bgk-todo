@@ -6,6 +6,16 @@ import { Project, Team, TeamRole, TEAM_ROLE_LABELS, ALL_PERMISSIONS, TEAM_ROLE_P
 import { topProjects, childProjects } from "../../utils";
 import { UserIcon, UserGroupIcon, BoltIcon, CheckCircleIcon, Cog6ToothIcon, FolderIcon, CheckIcon, PencilSquareIcon, TrashIcon, PlusIcon, XMarkIcon, ChevronRightIcon, Bars3Icon, EyeIcon, EyeSlashIcon, ICON_SM } from "../ui/Icons";
 
+// 모듈 최상위에 선언 — SettingsMgr 내부에 두면 리렌더마다 새 컴포넌트 타입이 생성되어
+// input이 언마운트/재마운트되면서 브라우저 color picker가 즉시 닫히는 버그가 발생함
+const ColorDot = ({ color, onChange }: { color: string; onChange: (c: string) => void }) => (
+  <div style={{ position: "relative", width: 20, height: 20, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+    <span style={{ width: 12, height: 12, borderRadius: "50%", background: color, display: "block", boxShadow: `0 0 0 2px ${color}33` }} />
+    <input type="color" value={color} onChange={e => onChange(e.target.value)}
+      style={{ position: "absolute", inset: 0, width: 20, height: 20, opacity: 0, cursor: "pointer", padding: 0, border: "none" }} />
+  </div>
+);
+
 export function SettingsMgr({
   members, setMembers,
   pris, setPris, stats, setStats,
@@ -127,15 +137,6 @@ export function SettingsMgr({
     display: "inline-flex", alignItems: "center", padding: 4, borderRadius: 6,
     transition: "color .12s, background .12s",
   };
-  // 원형 도트 컬러 피커 — 팀 탭과 동일한 형태
-  // 원형 도트 컬러 피커 — 팀 탭의 10px 도트와 동일한 크기
-  const ColorDot = ({ color, onChange }: { color: string; onChange: (c: string) => void }) => (
-    <div style={{ position: "relative", width: 20, height: 20, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <span style={{ width: 12, height: 12, borderRadius: "50%", background: color, display: "block", boxShadow: `0 0 0 2px ${color}33` }} />
-      <input type="color" value={color} onChange={e => onChange(e.target.value)}
-        style={{ position: "absolute", inset: 0, width: 20, height: 20, opacity: 0, cursor: "pointer", padding: 0, border: "none" }} />
-    </div>
-  );
   // 드래그 정렬 핸들러 생성 — 배열 재정렬 함수를 받아 이벤트 핸들러 반환
   const mkDrag = (idx: number, reorder: (from: number, to: number) => void) => ({
     draggable: true,
