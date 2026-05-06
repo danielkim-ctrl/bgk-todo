@@ -1112,7 +1112,11 @@ export function useTodoApp() {
   const todayStr = td();
 
   // ── 팀 CRUD ────────────────────────────────────────────────────────────────
+  // 팀 수정 함수 — 모두 guard()로 pendingWrite 즉시 설정
+  // (raw setTeams만 쓰면 setTeams→save useEffect 사이 마이크로태스크 윈도우에서
+  //  subscribeMeta가 stale snapshot으로 applyData→setTeams를 부르며 사용자 변경을 덮어쓰는 race 발생)
   const addTeam = (name: string, color: string) => {
+    guard();
     pushHistory();
     const id = `team-${String(teamNId).padStart(3, "0")}`;
     const team: Team = { id, name, color, members: [], projectIds: [], createdAt: td() };
@@ -1122,12 +1126,14 @@ export function useTodoApp() {
     return id;
   };
   const updTeam = (id: string, u: Partial<Team>) => {
+    guard();
     pushHistory();
     setTeams(p => p.map(t => t.id === id ? { ...t, ...u } : t));
   };
   const delTeam = (id: string) => {
     const team = teams.find(t => t.id === id);
     if (!team) return;
+    guard();
     // 팀 삭제 시 해당 팀 todo의 teamId 제거 — 미배정 상태가 됨 (관리자만 조회 가능)
     setTodos(p => p.map(t => t.teamId === id ? { ...t, teamId: undefined } : t));
     pushHistory();
@@ -1136,6 +1142,7 @@ export function useTodoApp() {
   };
   // 팀에 멤버 추가/제거/역할 변경
   const addTeamMember = (teamId: string, name: string, role: TeamRole = "editor") => {
+    guard();
     // 복수 팀 소속 허용 — 해당 팀에만 추가 (다른 팀에서 제거하지 않음)
     setTeams(p => p.map(t => {
       if (t.id === teamId) return { ...t, members: [...t.members.filter(m => m.name !== name), { name, role }] };
@@ -1145,14 +1152,17 @@ export function useTodoApp() {
     setMemberRoles(p => ({ ...p, [name]: role }));
   };
   const removeTeamMember = (teamId: string, name: string) => {
+    guard();
     setTeams(p => p.map(t => t.id === teamId ? { ...t, members: t.members.filter(m => m.name !== name) } : t));
   };
   const setTeamMemberRole = (teamId: string, name: string, role: TeamRole) => {
+    guard();
     setTeams(p => p.map(t => t.id === teamId ? { ...t, members: t.members.map(m => m.name === name ? { ...m, role } : m) } : t));
     setMemberRoles(p => ({ ...p, [name]: role }));
   };
   // 팀 미소속 멤버의 역할만 변경 (전역 memberRoles만 업데이트)
   const setMemberRole = (name: string, role: TeamRole) => {
+    guard();
     setMemberRoles(p => ({ ...p, [name]: role }));
     // 팀에 소속된 경우 팀 내 역할도 동기화
     const t = teams.find(tm => tm.members.some(m => m.name === name));
@@ -1160,6 +1170,7 @@ export function useTodoApp() {
   };
   // 팀에 프로젝트 연결/해제
   const addTeamProject = (teamId: string, pid: number) => {
+    guard();
     // 프로젝트는 단일 팀 소속 — 다른 팀에 이미 배정된 경우 먼저 제거 후 새 팀에 추가
     // (동일 프로젝트가 여러 팀 필터에 중복 노출되는 버그 방지)
     setTeams(p => p.map(t => {
@@ -1169,6 +1180,7 @@ export function useTodoApp() {
     }));
   };
   const removeTeamProject = (teamId: string, pid: number) => {
+    guard();
     setTeams(p => p.map(t => t.id === teamId ? { ...t, projectIds: t.projectIds.filter(id => id !== pid) } : t));
   };
 
