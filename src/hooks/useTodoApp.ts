@@ -496,43 +496,41 @@ export function useTodoApp() {
       if (metaReceived && todosReceived && !cancelled) setLoaded(true);
     };
 
-    // 마이그레이션 — projects를 meta에서 서브컬렉션으로 이전 (1회 실행)
-    // 첫 로드 시 subscribeProjects가 빈 배열이고 meta.projects에 데이터가 있으면 이전
-    let firstMetaProjects: Project[] | null = null;
-    let firstProjectsCount: number | null = null;
-    const checkProjectsMigration = () => {
-      if (firstMetaProjects === null || firstProjectsCount === null) return;
-      if (firstProjectsCount === 0 && firstMetaProjects.length > 0) {
-        console.log(`[MIGRATION] meta.projects → projects 서브컬렉션 ${firstMetaProjects.length}건 이전`);
-        fsWriteProjectsBatch(firstMetaProjects)
+    // 마이그레이션 — projects를 meta에서 서브컬렉션으로 이전 + 데이터 손실 방지 폴백
+    // 핵심 안전망:
+    // 1. meta.projects는 여전히 server에 백업으로 보존 (meta save에 포함)
+    // 2. 첫 meta fire에서 무조건 setProjects(meta.projects) — rules 미배포로 subscribeProjects가
+    //    permission-denied로 실패해도 사용자가 프로젝트 못 보는 사태 방지
+    // 3. subscribeProjects가 정상 fire하면 그 데이터가 우선 (subcollection이 source of truth)
+    let metaProjectsApplied = false;
+    let projectsReceived = false;
+    const checkProjectsMigration = (metaProjects: Project[] | null, subCollCount: number | null) => {
+      if (metaProjects === null || subCollCount === null) return;
+      if (subCollCount === 0 && metaProjects.length > 0) {
+        console.log(`[MIGRATION] meta.projects → projects 서브컬렉션 ${metaProjects.length}건 이전 시도`);
+        fsWriteProjectsBatch(metaProjects)
           .then(() => console.log("[MIGRATION] projects 마이그레이션 완료"))
-          .catch(e => console.warn("[MIGRATION] projects 실패:", e));
-        // 마이그레이션이 진행되는 동안 사용자가 빈 프로젝트 화면을 보지 않도록 임시로 로컬에 즉시 채움
-        // (subscribeProjects가 곧 새 데이터로 다시 fire하면서 정식 반영됨)
-        setProjects(firstMetaProjects);
-        const maxPid = firstMetaProjects.reduce((m, p) => p.id > m ? p.id : m, 0);
-        setPNId(prev => prev > maxPid ? prev : maxPid + 1);
+          .catch(e => console.warn("[MIGRATION] projects 실패 (rules 미배포 가능):", e));
       }
-      // 두 번 실행 안 되도록 sentinel
-      firstMetaProjects = null;
-      firstProjectsCount = null;
     };
 
-    // meta 구독 — 설정류 (todos·templates·projects 제외) applyData 경로 재사용
-    // pendingWrite 가드: 디바운스 창 동안 도착한 snapshot이 사용자의 local 변경(추가/수정)을
-    // 덮어쓰지 않도록 차단. setDoc 완료 후 다시 활성화되어 다른 사용자 변경 정상 수신.
-    // _clientId 자기 echo 스킵: 자기가 쓴 데이터의 echo는 applyData로 재적용하지 않음.
+    // meta 구독 — 설정류 applyData 경로 재사용 + projects 폴백 처리
     unsubs.push(subscribeMeta((data) => {
       if (cancelled) return;
-      // 첫 fire에서 meta.projects 캡처 (마이그레이션 판단용)
-      if (!metaReceived && Array.isArray(data.projects)) {
-        firstMetaProjects = data.projects;
-        checkProjectsMigration();
+      // 첫 fire에서 meta.projects를 즉시 로컬에 반영 (subscribeProjects 실패 대비 안전망)
+      // subscribeProjects가 나중에 fire하면 그 데이터가 override
+      if (!metaProjectsApplied && Array.isArray(data.projects) && data.projects.length > 0 && !projectsReceived) {
+        setProjects(data.projects);
+        const maxPid = data.projects.reduce((m: number, p: Project) => p.id > m ? p.id : m, 0);
+        setPNId(prev => prev > maxPid ? prev : maxPid + 1);
+        metaProjectsApplied = true;
+        // 마이그레이션 시도 (subcollection이 비어 있을 때만 실제 쓰기 발생)
+        checkProjectsMigration(data.projects, projectsReceived ? null : 0);
       }
       if (pendingWrite.current) return;
       const isOwnEcho = metaReceived && data._clientId === clientId.current;
       if (!isOwnEcho) {
-        // projects도 이제 서브컬렉션에서 별도 수신 — meta 경로에서 제외
+        // projects는 서브컬렉션에서 별도 수신 — meta 경로에서 제외 (race 차단)
         applyData({ ...data, todos: undefined, templates: undefined, projects: undefined });
       }
       if (typeof data._updatedAt === "number") lastSeenServerAt.current = data._updatedAt;
@@ -561,21 +559,12 @@ export function useTodoApp() {
     }));
 
     // projects 구독 — 서브컬렉션 개별 문서 단위 실시간 동기화
-    // (이전: meta 단일 문서에 통째로 들어가 다른 클라이언트의 stale 쓰기로 사용자 편집 원복 발생.
-    //  todos·templates와 동일하게 개별 문서로 분리하여 race 근본 차단.)
-    let projectsReceived = false;
+    // 비어 있으면 setProjects 건너뜀 (meta.projects 폴백 보존). 데이터 있으면 subscription 데이터 우선.
     unsubs.push(subscribeProjects((projs) => {
       if (cancelled) return;
-      // 첫 fire에서 개수 캡처 (마이그레이션 판단용)
-      if (!projectsReceived) {
-        firstProjectsCount = projs.length;
-        projectsReceived = true;
-        // 첫 fire가 빈 배열이면 마이그레이션이 필요할 수 있음 — meta 도착도 확인 후 진행
-        // 마이그레이션 미필요 케이스(이미 데이터 있음)는 그대로 진행
-        checkProjectsMigration();
-        if (projs.length === 0) return; // 빈 상태면 일단 setProjects 건너뜀 (마이그레이션 결과 기다림)
-      }
-      // 원격 데이터의 중복 ID 제거 (Firestore 문서 ID는 고유하지만 마이그레이션 과정 안전망)
+      projectsReceived = true;
+      if (projs.length === 0) return; // 빈 상태면 meta 폴백 그대로 유지
+      // 원격 데이터의 중복 ID 제거
       const deduped = projs.filter((p, i, arr) => arr.findIndex(x => x.id === p.id) === i);
       setProjects(deduped);
       // pNId 보정 — 기존 max(id)보다 작아진 경우 다음 추가 시 ID 충돌 방지
@@ -650,9 +639,10 @@ export function useTodoApp() {
     const delay = immediateFlush.current ? 0 : 400;
     immediateFlush.current = false;
     const t = setTimeout(() => {
-      // projects·pNId는 서브컬렉션에서 별도 관리 — meta에서 제외 (race 차단)
+      // projects는 서브컬렉션이 source of truth지만, rules 미배포·서브컬렉션 손상 등에 대비해
+      // meta에도 projects 백업 함께 저장 (읽을 때 subcollection 우선, 비어 있으면 meta 폴백)
       const meta = {
-        nId, pris, stats, priC, priBg, stC, stBg,
+        projects, nId, pNId, pris, stats, priC, priBg, stC, stBg,
         members, memberColors, memberRoles, memberPins, globalPermissions,
         teams, teamNId, tplNId,
         sharedApiKey: sharedApiKeyRef.current,
@@ -670,7 +660,7 @@ export function useTodoApp() {
         });
     }, delay);
     return () => clearTimeout(t);
-  }, [nId, members, pris, stats, priC, priBg, stC, stBg, memberColors, memberRoles, memberPins, globalPermissions, teams, teamNId, tplNId, userSettings, loaded]);
+  }, [projects, nId, pNId, members, pris, stats, priC, priBg, stC, stBg, memberColors, memberRoles, memberPins, globalPermissions, teams, teamNId, tplNId, userSettings, loaded]);
 
   const forceFirestoreSync = async () => {
     try {

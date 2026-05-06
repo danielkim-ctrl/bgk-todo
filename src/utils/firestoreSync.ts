@@ -83,10 +83,12 @@ export async function writeMeta(meta: any): Promise<void> {
 // projects 서브컬렉션 실시간 구독 — 개별 프로젝트 문서 변경 즉시 반영
 // (meta 전체 덮어쓰기 race 차단 — 다중 클라이언트가 같은 meta를 stale 데이터로 덮어써서
 //  사용자 편집이 원복되던 문제 해결)
+// 에러 핸들러: rules 미배포 등으로 listener가 실패하면 콘솔 경고 (cb는 호출 안 됨)
 export function subscribeProjects(cb: (projects: Project[]) => void): Unsubscribe {
-  return onSnapshot(projCol(), (snap) => {
-    cb(snap.docs.map((d) => d.data() as Project));
-  });
+  return onSnapshot(projCol(),
+    (snap) => cb(snap.docs.map((d) => d.data() as Project)),
+    (err) => console.warn("[SYNC] subscribeProjects 실패 — Firestore rules에 /todos_db/team/projects 경로가 허용되어 있는지 확인:", err)
+  );
 }
 
 // 프로젝트 하나 저장 (신규 또는 전체 덮어쓰기) — undefined 필드는 Firestore 거부 → 제거 후 저장
