@@ -43,7 +43,7 @@ export default function App() {
     globalPermissions, setGlobalPermissions,
     addTeam, updTeam, delTeam,
     addTeamMember, removeTeamMember, setTeamMemberRole,
-    addTeamProject, removeTeamProject, assignTodosToTeams,
+    addTeamProject, removeTeamProject, removeProjectFromAllTeams, assignTodosToTeams,
     templates, addTemplate, updTemplate, delTemplate, applyTemplate, confirmTplItems, tplFavs, setTplFavs,
     view, setView, filters, setFilters, favSidebar, togFavSidebar,
     search, setSearch, editCell, setEditCell, sortCol, sortDir, setSortCol, setSortDir, customSortOrders, setCustomSortOrders, activeSortFields, setActiveSortFields,
@@ -817,7 +817,7 @@ export default function App() {
           flash(`"${p.name}" 프로젝트가 추가되었습니다`);
           return np.id;
         }}
-        onDelProj={id=>{if(todos.some(t=>t.pid===id)){alert("해당 프로젝트에 업무가 존재하여 삭제할 수 없습니다.");return;}setProjects((p:any)=>p.filter((x:any)=>x.id!==id));flash("프로젝트가 삭제되었습니다","err")}}
+        onDelProj={id=>{if(todos.some(t=>t.pid===id)){alert("해당 프로젝트에 업무가 존재하여 삭제할 수 없습니다.");return;}setProjects((p:any)=>p.filter((x:any)=>x.id!==id));removeProjectFromAllTeams(id);flash("프로젝트가 삭제되었습니다","err")}}
         onEditProj={(id,u)=>{setProjects((p:any)=>p.map((x:any)=>{if(x.id!==id)return x;return{...x,...u};}));flash("프로젝트 정보가 수정되었습니다")}}
         todos={todos} flash={flash} apiKey={apiKey} setApiKey={setApiKey}
         teams={teams} setTeams={setTeams} memberRoles={memberRoles} setMemberRole={setMemberRole} memberPins={memberPins} setMemberPins={setMemberPins} generatePin={generatePin}

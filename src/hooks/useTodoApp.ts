@@ -1183,6 +1183,11 @@ export function useTodoApp() {
     guard();
     setTeams(p => p.map(t => t.id === teamId ? { ...t, projectIds: t.projectIds.filter(id => id !== pid) } : t));
   };
+  // 프로젝트 삭제 시 모든 팀에서 해당 projectId 제거 — onDelProj 경로에서 사용
+  const removeProjectFromAllTeams = (pid: number) => {
+    guard();
+    setTeams(p => p.map(t => ({ ...t, projectIds: t.projectIds.filter(id => id !== pid) })));
+  };
 
   // 기존 업무를 프로젝트 기준으로 팀에 일괄 배정
   // 프로젝트가 팀에 연결되어 있으면 해당 팀의 teamId를 업무에 설정
@@ -1478,7 +1483,7 @@ export function useTodoApp() {
     globalPermissions, setGlobalPermissions,
     addTeam, updTeam, delTeam,
     addTeamMember, removeTeamMember, setTeamMemberRole,
-    addTeamProject, removeTeamProject, assignTodosToTeams,
+    addTeamProject, removeTeamProject, removeProjectFromAllTeams, assignTodosToTeams,
     // 업무 템플릿
     templates, setTemplates, addTemplate, updTemplate, delTemplate, applyTemplate, confirmTplItems,
     // 템플릿 즐겨찾기 — 사용자별 localStorage 저장
