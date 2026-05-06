@@ -42,3 +42,6 @@ tsconfig.tsbuildinfo
 
 # 외부 대용량 디렉토리
 everything-claude-code-main/
+
+# Playwright 버그 검증 스크린샷 (README는 유지)
+bugfix/*/

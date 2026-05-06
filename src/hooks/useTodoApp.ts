@@ -533,23 +533,24 @@ export function useTodoApp() {
       }
     };
 
-    // meta 구독 — 설정류 applyData 경로 재사용 + projects 폴백 처리
+    // meta 구독 — 설정류 applyData 경로 재사용
     unsubs.push(subscribeMeta((data) => {
       if (cancelled) return;
-      // 첫 fire에서 meta.projects를 즉시 로컬에 반영 (subscribeProjects 실패 대비 안전망)
-      // subscribeProjects가 나중에 fire하면 그 데이터가 override
-      if (!metaProjectsApplied && Array.isArray(data.projects) && data.projects.length > 0 && !projectsReceived) {
+      // meta.projects 폴백 — subscribeProjects가 아직 응답하지 않았고 meta에 데이터가 있을 때만
+      // (서브컬렉션 rules 미배포 등 비상 상황 대비 안전망)
+      // 단, 서브컬렉션이 이미 응답했으면 절대 meta로 덮어쓰지 않음 — 구버전 복원 race 방지
+      if (!metaProjectsApplied && !projectsReceived && Array.isArray(data.projects) && data.projects.length > 0) {
         setProjects(data.projects);
         const maxPid = data.projects.reduce((m: number, p: Project) => p.id > m ? p.id : m, 0);
         setPNId(prev => prev > maxPid ? prev : maxPid + 1);
         metaProjectsApplied = true;
-        // 마이그레이션 시도 (subcollection이 비어 있을 때만 실제 쓰기 발생)
-        checkProjectsMigration(data.projects, projectsReceived ? null : 0);
+        // 서브컬렉션이 비어 있으면 meta 데이터로 마이그레이션 시도
+        checkProjectsMigration(data.projects, 0);
       }
       if (pendingWrite.current) return;
       const isOwnEcho = metaReceived && data._clientId === clientId.current;
       if (!isOwnEcho) {
-        // projects는 서브컬렉션에서 별도 수신 — meta 경로에서 제외 (race 차단)
+        // projects는 서브컬렉션에서 별도 수신 — meta 경로에서 완전 제외
         applyData({ ...data, todos: undefined, templates: undefined, projects: undefined });
       }
       if (typeof data._updatedAt === "number") lastSeenServerAt.current = data._updatedAt;
@@ -661,10 +662,11 @@ export function useTodoApp() {
     const delay = immediateFlush.current ? 0 : 400;
     immediateFlush.current = false;
     const t = setTimeout(() => {
-      // projects는 서브컬렉션이 source of truth지만, rules 미배포·서브컬렉션 손상 등에 대비해
-      // meta에도 projects 백업 함께 저장 (읽을 때 subcollection 우선, 비어 있으면 meta 폴백)
+      // projects는 서브컬렉션이 source of truth — meta에 포함하지 않음
+      // meta에 projects가 포함되면 다른 클라이언트 접속 시 meta 첫 fire에서
+      // 구버전 백업이 서브컬렉션 최신 데이터를 덮어쓰는 race가 발생함
       const meta = {
-        projects, nId, pNId, pris, stats, priC, priBg, stC, stBg,
+        nId, pNId, pris, stats, priC, priBg, stC, stBg,
         members, memberColors, memberRoles, memberPins, globalPermissions,
         teams, teamNId, tplNId,
         sharedApiKey: sharedApiKeyRef.current,
