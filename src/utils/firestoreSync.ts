@@ -3,7 +3,7 @@ import {
   onSnapshot, writeBatch, Unsubscribe,
 } from "firebase/firestore";
 import { db } from "../firebase";
-import type { Todo, TodoTemplate } from "../types";
+import type { Todo, TodoTemplate, Project } from "../types";
 
 // 참조 헬퍼 — 서브컬렉션 경로를 한 곳에서 관리하여 오타 방지
 const metaRef = () => doc(db, "todos_db", "team", "meta", "main");
@@ -11,6 +11,8 @@ const itemRef = (id: number | string) => doc(db, "todos_db", "team", "items", St
 const itemsCol = () => collection(db, "todos_db", "team", "items");
 const tplRef = (id: string) => doc(db, "todos_db", "team", "templates", id);
 const tplCol = () => collection(db, "todos_db", "team", "templates");
+const projRef = (id: number | string) => doc(db, "todos_db", "team", "projects", String(id));
+const projCol = () => collection(db, "todos_db", "team", "projects");
 
 // 메타(설정류) 단일 문서 실시간 구독 — projects, members, teams 등 설정 데이터
 export function subscribeMeta(cb: (data: any) => void): Unsubscribe {
@@ -73,7 +75,47 @@ export async function removeTemplate(id: string): Promise<void> {
 }
 
 // meta 문서 전체 덮어쓰기 — 설정류는 크기가 작아 전체 쓰기로 처리
-// todos/templates는 이 함수에 포함하지 않음 (개별 CRUD로 관리)
+// todos/templates/projects는 이 함수에 포함하지 않음 (개별 CRUD로 관리)
 export async function writeMeta(meta: any): Promise<void> {
   await setDoc(metaRef(), { ...meta, _updatedAt: Date.now() });
+}
+
+// projects 서브컬렉션 실시간 구독 — 개별 프로젝트 문서 변경 즉시 반영
+// (meta 전체 덮어쓰기 race 차단 — 다중 클라이언트가 같은 meta를 stale 데이터로 덮어써서
+//  사용자 편집이 원복되던 문제 해결)
+export function subscribeProjects(cb: (projects: Project[]) => void): Unsubscribe {
+  return onSnapshot(projCol(), (snap) => {
+    cb(snap.docs.map((d) => d.data() as Project));
+  });
+}
+
+// 프로젝트 하나 저장 (신규 또는 전체 덮어쓰기) — undefined 필드는 Firestore 거부 → 제거 후 저장
+export async function writeProject(project: Project): Promise<void> {
+  const clean: any = {};
+  for (const [k, v] of Object.entries(project)) {
+    if (v !== undefined) clean[k] = v;
+  }
+  await setDoc(projRef(project.id), clean);
+}
+
+// 프로젝트 삭제
+export async function removeProject(id: number): Promise<void> {
+  await deleteDoc(projRef(id));
+}
+
+// 여러 프로젝트 동시 쓰기 (마이그레이션용)
+export async function writeProjectsBatch(projects: Project[]): Promise<void> {
+  const BATCH = 400;
+  for (let i = 0; i < projects.length; i += BATCH) {
+    const chunk = projects.slice(i, i + BATCH);
+    const batch = writeBatch(db);
+    chunk.forEach((p) => {
+      const clean: any = {};
+      for (const [k, v] of Object.entries(p)) {
+        if (v !== undefined) clean[k] = v;
+      }
+      batch.set(projRef(p.id), clean);
+    });
+    await batch.commit();
+  }
 }

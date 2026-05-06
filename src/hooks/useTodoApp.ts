@@ -2,11 +2,13 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import {
-  subscribeMeta, subscribeTodos, subscribeTemplates,
+  subscribeMeta, subscribeTodos, subscribeTemplates, subscribeProjects,
   writeTodo as fsWriteTodo, removeTodo as fsRemoveTodo,
   writeTodosBatch as fsWriteTodosBatch,
   writeTemplate as fsWriteTemplate, patchTemplate as fsPatchTemplate, removeTemplate as fsRemoveTemplate,
   writeMeta as fsWriteMeta,
+  writeProject as fsWriteProject, removeProject as fsRemoveProject,
+  writeProjectsBatch as fsWriteProjectsBatch,
 } from "../utils/firestoreSync";
 import {
   INIT_MEMBERS, INIT_PRI, INIT_ST, INIT_PRI_C, INIT_PRI_BG, INIT_ST_C, INIT_ST_BG,
@@ -113,6 +115,15 @@ export function useTodoApp() {
       fsRemoveTodo(t.id).catch(e => console.warn("[SYNC] undo removeTodo 실패:", e));
     });
 
+    // projects도 서브컬렉션 diff 동기화 (undo/redo가 다른 기기에 반영되도록)
+    const snapProjIds = new Set(snap.projects.map(p => p.id));
+    snap.projects.forEach(p => {
+      fsWriteProject(p).catch(e => console.warn("[SYNC] undo writeProject 실패:", e));
+    });
+    projects.filter(p => !snapProjIds.has(p.id)).forEach(p => {
+      fsRemoveProject(p.id).catch(e => console.warn("[SYNC] undo removeProject 실패:", e));
+    });
+
     if (owner) {
       setTodos((current: Todo[]) => {
         const othersTodos = current.filter((t: Todo) => (t.logs?.[0]?.who || "") !== owner);
@@ -162,7 +173,32 @@ export function useTodoApp() {
   };
 
   // 모든 상태 변경 함수에 히스토리 저장을 적용
-  const setProjectsGuarded = (fn: any) => { guard(); pushHistory(); setProjects(fn); };
+  // setProjectsGuarded — 로컬 state 업데이트 + diff 계산 후 Firestore 서브컬렉션에 개별 쓰기/삭제
+  // (이전: meta 단일 문서에 통째로 들어가 다른 클라이언트의 stale 쓰기로 사용자 편집 원복 발생)
+  const setProjectsGuarded = (fn: any) => {
+    guard();
+    pushHistory();
+    setProjects(prev => {
+      const next = typeof fn === "function" ? fn(prev) : fn;
+      // 변경 사항을 Firestore에 개별 문서 단위로 동기화
+      const prevMap = new Map(prev.map(p => [p.id, p]));
+      const nextMap = new Map(next.map((p: Project) => [p.id, p]));
+      // 추가·수정: 새 값이 이전과 다르면 개별 쓰기
+      next.forEach((p: Project) => {
+        const old = prevMap.get(p.id);
+        if (!old || JSON.stringify(old) !== JSON.stringify(p)) {
+          fsWriteProject(p).catch(e => console.warn("[SYNC] writeProject 실패:", e));
+        }
+      });
+      // 삭제: 이전엔 있고 새것엔 없으면 개별 삭제
+      prev.forEach(p => {
+        if (!nextMap.has(p.id)) {
+          fsRemoveProject(p.id).catch(e => console.warn("[SYNC] removeProject 실패:", e));
+        }
+      });
+      return next;
+    });
+  };
   const setMembersGuarded = (fn: any) => { guard(); pushHistory(); setMembers(fn); };
   const setPrisGuarded = (fn: any) => { guard(); pushHistory(); setPris(fn); };
   const setStatsGuarded = (fn: any) => { guard(); pushHistory(); setStats(fn); };
@@ -360,22 +396,10 @@ export function useTodoApp() {
       const maxId = fixed.reduce((m: number, t: any) => t.id > m ? t.id : m, 0);
       if (maxId >= nIdRef.current) { nIdRef.current = maxId + 1; setNId(maxId + 1); }
     }
-    if (d.projects?.length) {
-      // 원격 데이터의 중복 프로젝트 제거 — Firestore에 중복 항목이 있을 경우 첫 번째만 유지
-      const dedupedRemoteProjects = d.projects.filter((p: any, i: number, arr: any[]) =>
-        arr.findIndex((x: any) => x.id === p.id) === i);
-      if (merge) {
-        setProjects(prev => {
-          const remoteIds = new Set(dedupedRemoteProjects.map((p: any) => p.id));
-          const localOnly = prev.filter((p: any) => !remoteIds.has(p.id));
-          // 병합 후에도 중복이 없도록 한 번 더 필터링
-          const merged = [...dedupedRemoteProjects, ...localOnly];
-          return merged.filter((p: any, i: number, arr: any[]) => arr.findIndex((x: any) => x.id === p.id) === i);
-        });
-      } else { setProjects(dedupedRemoteProjects); }
-    }
+    // projects는 서브컬렉션 subscribeProjects에서 별도 수신 — 이 경로 제거
+    // 다만 forceFirestoreSync(레거시 단일 문서 복원)에서는 마이그레이션 용도로 직접 setProjects 가능
     if (d.nId && d.nId > nIdRef.current) { setNId(d.nId); nIdRef.current = d.nId; }
-    if (d.pNId) setPNId(d.pNId);
+    // pNId는 더 이상 meta에 저장 안 함 — subscribeProjects에서 max(id)+1로 자동 보정
     if (d.pris) {
       if (merge) { setPris(prev => { const rs = new Set(d.pris); return [...d.pris, ...prev.filter((x: string) => !rs.has(x))]; }); }
       else setPris(d.pris);
@@ -472,19 +496,44 @@ export function useTodoApp() {
       if (metaReceived && todosReceived && !cancelled) setLoaded(true);
     };
 
-    // meta 구독 — 설정류 (todos·templates 제외) applyData 경로 재사용
+    // 마이그레이션 — projects를 meta에서 서브컬렉션으로 이전 (1회 실행)
+    // 첫 로드 시 subscribeProjects가 빈 배열이고 meta.projects에 데이터가 있으면 이전
+    let firstMetaProjects: Project[] | null = null;
+    let firstProjectsCount: number | null = null;
+    const checkProjectsMigration = () => {
+      if (firstMetaProjects === null || firstProjectsCount === null) return;
+      if (firstProjectsCount === 0 && firstMetaProjects.length > 0) {
+        console.log(`[MIGRATION] meta.projects → projects 서브컬렉션 ${firstMetaProjects.length}건 이전`);
+        fsWriteProjectsBatch(firstMetaProjects)
+          .then(() => console.log("[MIGRATION] projects 마이그레이션 완료"))
+          .catch(e => console.warn("[MIGRATION] projects 실패:", e));
+        // 마이그레이션이 진행되는 동안 사용자가 빈 프로젝트 화면을 보지 않도록 임시로 로컬에 즉시 채움
+        // (subscribeProjects가 곧 새 데이터로 다시 fire하면서 정식 반영됨)
+        setProjects(firstMetaProjects);
+        const maxPid = firstMetaProjects.reduce((m, p) => p.id > m ? p.id : m, 0);
+        setPNId(prev => prev > maxPid ? prev : maxPid + 1);
+      }
+      // 두 번 실행 안 되도록 sentinel
+      firstMetaProjects = null;
+      firstProjectsCount = null;
+    };
+
+    // meta 구독 — 설정류 (todos·templates·projects 제외) applyData 경로 재사용
     // pendingWrite 가드: 디바운스 창 동안 도착한 snapshot이 사용자의 local 변경(추가/수정)을
     // 덮어쓰지 않도록 차단. setDoc 완료 후 다시 활성화되어 다른 사용자 변경 정상 수신.
     // _clientId 자기 echo 스킵: 자기가 쓴 데이터의 echo는 applyData로 재적용하지 않음.
-    // setDoc 완료 후(.finally) pendingWrite=false 직후 도착하는 echo가 merge=false 경로로
-    // 전체 projects를 덮어쓰면서 사용자 편집이 stale 상태로 되돌아가는 race 차단.
-    // (Phase 2-3 전 단일 문서 onSnapshot에 있던 동일 가드를 복원 — "잠깐 반영 후 원복" 증상 대응)
     unsubs.push(subscribeMeta((data) => {
       if (cancelled) return;
+      // 첫 fire에서 meta.projects 캡처 (마이그레이션 판단용)
+      if (!metaReceived && Array.isArray(data.projects)) {
+        firstMetaProjects = data.projects;
+        checkProjectsMigration();
+      }
       if (pendingWrite.current) return;
       const isOwnEcho = metaReceived && data._clientId === clientId.current;
       if (!isOwnEcho) {
-        applyData({ ...data, todos: undefined, templates: undefined });
+        // projects도 이제 서브컬렉션에서 별도 수신 — meta 경로에서 제외
+        applyData({ ...data, todos: undefined, templates: undefined, projects: undefined });
       }
       if (typeof data._updatedAt === "number") lastSeenServerAt.current = data._updatedAt;
       metaReceived = true;
@@ -509,6 +558,29 @@ export function useTodoApp() {
     unsubs.push(subscribeTemplates((tpls) => {
       if (cancelled) return;
       setTemplates(tpls);
+    }));
+
+    // projects 구독 — 서브컬렉션 개별 문서 단위 실시간 동기화
+    // (이전: meta 단일 문서에 통째로 들어가 다른 클라이언트의 stale 쓰기로 사용자 편집 원복 발생.
+    //  todos·templates와 동일하게 개별 문서로 분리하여 race 근본 차단.)
+    let projectsReceived = false;
+    unsubs.push(subscribeProjects((projs) => {
+      if (cancelled) return;
+      // 첫 fire에서 개수 캡처 (마이그레이션 판단용)
+      if (!projectsReceived) {
+        firstProjectsCount = projs.length;
+        projectsReceived = true;
+        // 첫 fire가 빈 배열이면 마이그레이션이 필요할 수 있음 — meta 도착도 확인 후 진행
+        // 마이그레이션 미필요 케이스(이미 데이터 있음)는 그대로 진행
+        checkProjectsMigration();
+        if (projs.length === 0) return; // 빈 상태면 일단 setProjects 건너뜀 (마이그레이션 결과 기다림)
+      }
+      // 원격 데이터의 중복 ID 제거 (Firestore 문서 ID는 고유하지만 마이그레이션 과정 안전망)
+      const deduped = projs.filter((p, i, arr) => arr.findIndex(x => x.id === p.id) === i);
+      setProjects(deduped);
+      // pNId 보정 — 기존 max(id)보다 작아진 경우 다음 추가 시 ID 충돌 방지
+      const maxPid = deduped.reduce((m, p) => p.id > m ? p.id : m, 0);
+      setPNId(prev => prev > maxPid ? prev : maxPid + 1);
     }));
 
     // 10초 타임아웃 가드 — meta 또는 todos 수신 실패 시 강제로 loaded=true
@@ -567,8 +639,8 @@ export function useTodoApp() {
 
 
   const skipFirst = useRef(false);
-  // meta만 저장 — todos와 templates는 개별 CRUD 함수에서 직접 Firestore에 씀
-  // (setDoc 전체 덮어쓰기에서 서브컬렉션 개별 쓰기로 전환 — Phase 2-3)
+  // meta만 저장 — todos·templates·projects는 개별 CRUD 함수에서 직접 Firestore에 씀
+  // (setDoc 전체 덮어쓰기에서 서브컬렉션 개별 쓰기로 전환 — Phase 2-3 + projects 분리)
   useEffect(() => {
     if (!loaded) return;
     if (!skipFirst.current) { skipFirst.current = true; return; }
@@ -578,8 +650,9 @@ export function useTodoApp() {
     const delay = immediateFlush.current ? 0 : 400;
     immediateFlush.current = false;
     const t = setTimeout(() => {
+      // projects·pNId는 서브컬렉션에서 별도 관리 — meta에서 제외 (race 차단)
       const meta = {
-        projects, nId, pNId, pris, stats, priC, priBg, stC, stBg,
+        nId, pris, stats, priC, priBg, stC, stBg,
         members, memberColors, memberRoles, memberPins, globalPermissions,
         teams, teamNId, tplNId,
         sharedApiKey: sharedApiKeyRef.current,
@@ -597,7 +670,7 @@ export function useTodoApp() {
         });
     }, delay);
     return () => clearTimeout(t);
-  }, [projects, nId, pNId, members, pris, stats, priC, priBg, stC, stBg, memberColors, memberRoles, memberPins, globalPermissions, teams, teamNId, tplNId, userSettings, loaded]);
+  }, [nId, members, pris, stats, priC, priBg, stC, stBg, memberColors, memberRoles, memberPins, globalPermissions, teams, teamNId, tplNId, userSettings, loaded]);
 
   const forceFirestoreSync = async () => {
     try {
@@ -1333,8 +1406,11 @@ export function useTodoApp() {
     if (!chipVal.trim()) return; const v = chipVal.trim();
     if (chipAdd === "proj") {
       if (projects.some(p => p.name === v)) { flash(`프로젝트 "${v}"은(는) 이미 존재합니다`, "err"); return; }
-      const newPid = pNId;
-      setProjectsGuarded((p: Project[]) => [...p, { id: newPid, name: v, color: chipColor, status: "활성" }]); setPNId(pNId + 1);
+      // pNId가 손상되어 max(project.id)보다 작아진 경우 ID 충돌 방지
+      // (충돌 시 applyData의 dedup이 새 항목을 첫 번째 occurrence로 밀어내며 사라지는 버그 방지)
+      // App.tsx onAddProj와 동일 패턴 — 사이드바·설정 두 경로 모두 안전 ID 적용
+      const newPid = Math.max(pNId, ...projects.map(p => p.id + 1));
+      setProjectsGuarded((p: Project[]) => [...p, { id: newPid, name: v, color: chipColor, status: "활성" }]); setPNId(newPid + 1);
       // 현재 선택된 팀에 프로젝트 자동 연결
       if (selectedTeamId) addTeamProject(selectedTeamId, newPid);
       flash(`프로젝트 "${v}"이(가) 추가되었습니다`);

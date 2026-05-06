@@ -13,7 +13,7 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // ── 서브컬렉션 명시적 허용 — items / templates / meta ────────────────────
+    // ── 서브컬렉션 명시적 허용 — items / templates / meta / projects ─────────
     match /todos_db/team/items/{itemId} {
       allow read, write: if true;
     }
@@ -21,6 +21,9 @@ service cloud.firestore {
       allow read, write: if true;
     }
     match /todos_db/team/meta/{metaId} {
+      allow read, write: if true;
+    }
+    match /todos_db/team/projects/{projId} {
       allow read, write: if true;
     }
 
