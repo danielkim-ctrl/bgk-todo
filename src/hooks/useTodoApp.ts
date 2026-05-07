@@ -551,7 +551,9 @@ export function useTodoApp() {
       const isOwnEcho = metaReceived && data._clientId === clientId.current;
       if (!isOwnEcho) {
         // projects는 서브컬렉션에서 별도 수신 — meta 경로에서 완전 제외
-        applyData({ ...data, todos: undefined, templates: undefined, projects: undefined });
+        // merge=true: 다른 클라이언트 snapshot이 와도 현재 사용자의 userSettings 로컬값 보존
+        // (selectedTeamId 등 사용자 선택이 남의 snapshot으로 덮어씌워지는 race 방지)
+        applyData({ ...data, todos: undefined, templates: undefined, projects: undefined }, true);
       }
       if (typeof data._updatedAt === "number") lastSeenServerAt.current = data._updatedAt;
       metaReceived = true;
@@ -624,10 +626,13 @@ export function useTodoApp() {
     if (!currentUser) return;
     const saved = userSettings[currentUser]?.selectedTeamId;
     const last = lastRestoredTeamIdRef.current;
+    // 같은 사용자·같은 값으로 이미 복원했으면 재설정 안 함 — meta snapshot 반복 도착 시 루프 방지
     if (last.user === currentUser && last.value === saved) return;
+    // 현재 표시 중인 selectedTeamId와도 같으면 state 업데이트 불필요
+    if (saved === selectedTeamId || (saved === undefined && selectedTeamId === null)) return;
     lastRestoredTeamIdRef.current = { user: currentUser, value: saved };
     setSelectedTeamIdRaw(saved ?? null);
-  }, [currentUser, userSettings]);
+  }, [currentUser, userSettings]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 변경 시 userSettings에 저장 — immediateFlush로 디바운스 없이 즉시 setDoc
   // (다른 자동 setDoc과의 race로 사용자 선택이 묻히는 현상 방지)
