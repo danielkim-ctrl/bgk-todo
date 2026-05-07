@@ -36,9 +36,23 @@ export function subscribeTemplates(cb: (templates: TodoTemplate[]) => void): Uns
   });
 }
 
+// Firestore는 undefined 값을 직렬화하지 못하므로 저장 전 제거
+// RepeatConfig의 time/endDate/endCount 등 조건부 undefined 필드 대응
+function stripUndefined(obj: any): any {
+  if (Array.isArray(obj)) return obj.map(stripUndefined);
+  if (obj !== null && typeof obj === "object") {
+    return Object.fromEntries(
+      Object.entries(obj)
+        .filter(([, v]) => v !== undefined)
+        .map(([k, v]) => [k, stripUndefined(v)])
+    );
+  }
+  return obj;
+}
+
 // todo 하나 저장 (신규 또는 전체 덮어쓰기)
 export async function writeTodo(todo: Todo): Promise<void> {
-  await setDoc(itemRef(todo.id), todo);
+  await setDoc(itemRef(todo.id), stripUndefined(todo));
 }
 
 // todo 일부 필드만 업데이트
@@ -58,7 +72,7 @@ export async function writeTodosBatch(todos: Todo[]): Promise<void> {
   for (let i = 0; i < todos.length; i += BATCH) {
     const chunk = todos.slice(i, i + BATCH);
     const batch = writeBatch(db);
-    chunk.forEach((t) => batch.set(itemRef(t.id), t));
+    chunk.forEach((t) => batch.set(itemRef(t.id), stripUndefined(t)));
     await batch.commit();
   }
 }
