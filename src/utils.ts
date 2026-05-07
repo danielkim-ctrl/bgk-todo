@@ -44,7 +44,9 @@ export const stripHtml = (h: string) => h ? h.replace(/<[^>]*>/g,"").replace(/&n
 export function getNextDue(due: string, repeat: any): string | null {
   if (!repeat || repeat === "없음") return null;
 
-  // 기준일: due가 있으면 due, 없으면 오늘
+  // 기준일: due가 있으면 날짜 부분만, 없으면 오늘
+  // 시간 부분(" HH:MM")은 분리해서 보존 — 롤오버 후에도 동일한 시간 유지
+  const timePart = due && due.includes(" ") ? due.slice(due.indexOf(" ")) : "";
   const base = due ? due.split(" ")[0] : td();
   const cur = new Date(base);
   if (isNaN(cur.getTime())) return null;
@@ -76,7 +78,8 @@ export function getNextDue(due: string, repeat: any): string | null {
     cur.setDate(Math.min(cur.getDate(), lastDay));
   }
 
-  return `${cur.getFullYear()}-${fmt2(cur.getMonth() + 1)}-${fmt2(cur.getDate())}`;
+  // 원본 due에 시간이 있었으면 다음 날짜에도 동일한 시간을 이어붙임
+  return `${cur.getFullYear()}-${fmt2(cur.getMonth() + 1)}-${fmt2(cur.getDate())}${timePart}`;
 }
 
 // 반복 설정 표시용 문자열 변환 (유틸 공통 함수)

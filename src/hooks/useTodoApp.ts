@@ -863,8 +863,10 @@ export function useTodoApp() {
     if (isRepeat) {
       const nextDue = getNextDue(t.due, t.repeat);
       updTodo(id, { st: "완료" }); // updTodo 내부에서 롤오버로 자동 처리
-      const nextLabel = nextDue
-        ? nextDue.slice(5).replace("-", "/") + `(${["일","월","화","수","목","금","토"][new Date(nextDue).getDay()]})`
+      // 토스트 표시용 날짜 — 시간 부분 제거 후 날짜·요일만 표기
+      const nextDateOnly = nextDue ? nextDue.split(" ")[0] : null;
+      const nextLabel = nextDateOnly
+        ? nextDateOnly.slice(5).replace("-", "/") + `(${["일","월","화","수","목","금","토"][new Date(nextDateOnly).getDay()]})`
         : null;
       flash(nextLabel ? `완료! 다음 일정: ${nextLabel}` : "완료 처리되었습니다");
     } else {
