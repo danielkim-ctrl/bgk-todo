@@ -28,10 +28,6 @@ export function useTodoApp() {
   const clientId = useRef(Math.random().toString(36).slice(2));
   const pendingWrite = useRef(false);
   const writeVersion = useRef(0);
-  // projects 서브컬렉션 쓰기 진행 카운터 — subscribeProjects가 lag된 snapshot으로
-  // 사용자 편집을 덮어쓰지 못하도록 차단. fsWriteProject/fsRemoveProject 호출 시 ++,
-  // .finally에서 --. > 0 동안 subscribeProjects 콜백은 setProjects 스킵.
-  const pendingProjectWrites = useRef(0);
   // teams 로컬 편집 진행 카운터 — addTeamProject 등 팀 설정 변경 후 fsWriteMeta 완료 전까지
   // subscribeMeta의 구버전 snapshot이 setTeams를 덮어쓰지 못하도록 차단
   const pendingTeamsWrite = useRef(0);
@@ -125,20 +121,12 @@ export function useTodoApp() {
     });
 
     // projects도 서브컬렉션 diff 동기화 (undo/redo가 다른 기기에 반영되도록)
-    // pendingProjectWrites 카운터로 subscribeProjects의 race 차단
     const snapProjIds = new Set(snap.projects.map(p => p.id));
-    const decProj = () => { pendingProjectWrites.current = Math.max(0, pendingProjectWrites.current - 1); };
     snap.projects.forEach(p => {
-      pendingProjectWrites.current++;
-      fsWriteProject(p)
-        .catch(e => console.warn("[SYNC] undo writeProject 실패:", e))
-        .finally(decProj);
+      fsWriteProject(p).catch(e => console.warn("[SYNC] undo writeProject 실패:", e));
     });
     projects.filter(p => !snapProjIds.has(p.id)).forEach(p => {
-      pendingProjectWrites.current++;
-      fsRemoveProject(p.id)
-        .catch(e => console.warn("[SYNC] undo removeProject 실패:", e))
-        .finally(decProj);
+      fsRemoveProject(p.id).catch(e => console.warn("[SYNC] undo removeProject 실패:", e));
     });
 
     if (owner) {
@@ -191,12 +179,10 @@ export function useTodoApp() {
 
   // 모든 상태 변경 함수에 히스토리 저장을 적용
   // setProjectsGuarded — 로컬 state 업데이트 + diff 계산 후 Firestore 서브컬렉션에 개별 쓰기/삭제
-  // 패턴: setProjects 호출 후 closure의 projects를 prev로 써서 diff 계산.
-  //       updater 내부에서 side effect 부르는 안티패턴 제거 (React 18 concurrent에서 다중 호출 우려).
-  // race 차단: 쓰기 시작 시 pendingProjectWrites++, .finally --. subscribeProjects가 카운터>0이면
-  //          setProjects 스킵 → IndexedDB cache lag으로 인한 "잠깐 보였다 사라짐" 증상 차단.
+  // todo와 동일한 패턴: 로컬 state를 먼저 반영하고 Firestore에 비동기 저장.
+  // subscribeProjects snapshot이 오면 그냥 setProjects — 어차피 내가 방금 쓴 데이터라 동일함.
+  // 카운터 기반 가드 제거 — 타이밍 race가 더 위험했음.
   const setProjectsGuarded = (fn: any) => {
-    guard();
     pushHistory();
     const prev = projects;
     const next = typeof fn === "function" ? fn(prev) : fn;
@@ -204,22 +190,15 @@ export function useTodoApp() {
     // diff 계산 후 변경된 것만 Firestore에 개별 동기화
     const prevMap = new Map(prev.map(p => [p.id, p]));
     const nextMap = new Map(next.map((p: Project) => [p.id, p]));
-    const decrement = () => { pendingProjectWrites.current = Math.max(0, pendingProjectWrites.current - 1); };
     next.forEach((p: Project) => {
       const old = prevMap.get(p.id);
       if (!old || JSON.stringify(old) !== JSON.stringify(p)) {
-        pendingProjectWrites.current++;
-        fsWriteProject(p)
-          .catch(e => console.warn("[SYNC] writeProject 실패:", e))
-          .finally(decrement);
+        fsWriteProject(p).catch(e => console.warn("[SYNC] writeProject 실패:", e));
       }
     });
     prev.forEach(p => {
       if (!nextMap.has(p.id)) {
-        pendingProjectWrites.current++;
-        fsRemoveProject(p.id)
-          .catch(e => console.warn("[SYNC] removeProject 실패:", e))
-          .finally(decrement);
+        fsRemoveProject(p.id).catch(e => console.warn("[SYNC] removeProject 실패:", e));
       }
     });
   };
@@ -587,15 +566,12 @@ export function useTodoApp() {
       setTemplates(tpls);
     }));
 
-    // projects 구독 — 서브컬렉션 개별 문서 단위 실시간 동기화
+    // projects 구독 — todo와 동일한 패턴: snapshot 오면 그냥 setProjects
     // 비어 있으면 setProjects 건너뜀 (meta.projects 폴백 보존). 데이터 있으면 subscription 데이터 우선.
-    // pendingProjectWrites > 0 동안 스킵 — IndexedDB cache lag으로 우리 쓰기가 아직 snapshot에
-    // 반영되지 않은 상태로 fire되어 사용자 편집이 잠깐 보였다 사라지는 race 차단.
     unsubs.push(subscribeProjects((projs) => {
       if (cancelled) return;
       projectsReceived = true;
       if (projs.length === 0) return; // 빈 상태면 meta 폴백 그대로 유지
-      if (pendingProjectWrites.current > 0) return;
       // 원격 데이터의 중복 ID 제거
       const deduped = projs.filter((p, i, arr) => arr.findIndex(x => x.id === p.id) === i);
       setProjects(deduped);
