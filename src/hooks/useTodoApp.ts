@@ -595,7 +595,7 @@ export function useTodoApp() {
       if (cancelled) return;
       projectsReceived = true;
       if (projs.length === 0) return; // 빈 상태면 meta 폴백 그대로 유지
-      if (pendingProjectWrites.current > 0) return; // 우리 쓰기 진행 중 — 다음 fire에서 적용
+      if (pendingProjectWrites.current > 0) return;
       // 원격 데이터의 중복 ID 제거
       const deduped = projs.filter((p, i, arr) => arr.findIndex(x => x.id === p.id) === i);
       setProjects(deduped);
