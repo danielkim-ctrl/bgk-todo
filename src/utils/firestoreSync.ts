@@ -3,10 +3,12 @@ import {
   onSnapshot, writeBatch, Unsubscribe,
 } from "firebase/firestore";
 import { db } from "../firebase";
-import type { Todo, TodoTemplate, Project } from "../types";
+import type { Todo, TodoTemplate, Project, Team } from "../types";
 
 // 참조 헬퍼 — 서브컬렉션 경로를 한 곳에서 관리하여 오타 방지
 const metaRef = () => doc(db, "todos_db", "team", "meta", "main");
+// teams를 meta/main에서 분리 — 독립 문서로 저장해 다른 설정 변경과 충돌 방지
+const teamsRef = () => doc(db, "todos_db", "team", "meta", "teams");
 const itemRef = (id: number | string) => doc(db, "todos_db", "team", "items", String(id));
 const itemsCol = () => collection(db, "todos_db", "team", "items");
 const tplRef = (id: string) => doc(db, "todos_db", "team", "templates", id);
@@ -89,9 +91,22 @@ export async function removeTemplate(id: string): Promise<void> {
 }
 
 // meta 문서 전체 덮어쓰기 — 설정류는 크기가 작아 전체 쓰기로 처리
-// todos/templates/projects는 이 함수에 포함하지 않음 (개별 CRUD로 관리)
+// todos/templates/projects/teams는 이 함수에 포함하지 않음 (개별 CRUD로 관리)
 export async function writeMeta(meta: any): Promise<void> {
   await setDoc(metaRef(), { ...meta, _updatedAt: Date.now() });
+}
+
+// teams 독립 문서 구독 — meta/main과 분리하여 다른 설정 변경이 teams를 롤백하는 race 차단
+export function subscribeTeams(cb: (data: { teams: Team[]; teamNId: number } | null) => void): Unsubscribe {
+  return onSnapshot(teamsRef(),
+    (s) => cb(s.exists() ? s.data() as { teams: Team[]; teamNId: number } : null),
+    (err) => console.warn("[SYNC] subscribeTeams 실패:", err)
+  );
+}
+
+// teams 독립 문서 저장 — meta/main의 다른 필드와 완전히 독립된 쓰기
+export async function writeTeams(teams: Team[], teamNId: number): Promise<void> {
+  await setDoc(teamsRef(), { teams: stripUndefined(teams), teamNId, _updatedAt: Date.now() });
 }
 
 // projects 서브컬렉션 실시간 구독 — 개별 프로젝트 문서 변경 즉시 반영
