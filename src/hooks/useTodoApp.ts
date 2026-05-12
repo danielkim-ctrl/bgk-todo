@@ -32,6 +32,9 @@ export function useTodoApp() {
   // 사용자 편집을 덮어쓰지 못하도록 차단. fsWriteProject/fsRemoveProject 호출 시 ++,
   // .finally에서 --. > 0 동안 subscribeProjects 콜백은 setProjects 스킵.
   const pendingProjectWrites = useRef(0);
+  // teams 로컬 편집 진행 카운터 — addTeamProject 등 팀 설정 변경 후 fsWriteMeta 완료 전까지
+  // subscribeMeta의 구버전 snapshot이 setTeams를 덮어쓰지 못하도록 차단
+  const pendingTeamsWrite = useRef(0);
   // 마지막으로 수신·적용한 서버 _updatedAt — 내 쓰기가 이 시점 이후에 만들어졌는지 검증용
   // (오래 열려 있던 탭/절전에서 깨어난 기기가 stale 상태를 서버에 덮어써서
   //  팀원 전체의 최신 todo가 사라지는 문제 방지)
@@ -60,6 +63,8 @@ export function useTodoApp() {
   } = userSets;
 
   const guard = () => { pendingWrite.current = true; };
+  // 팀 설정 변경 전 호출 — fsWriteMeta 완료까지 subscribeMeta의 구버전 teams 적용 차단
+  const guardTeams = () => { pendingWrite.current = true; pendingTeamsWrite.current++; };
 
   // ── 전체 앱 상태 스냅샷 기반 Undo/Redo ────────────────────────────────────
   // 업무뿐 아니라 프로젝트, 멤버, 우선순위, 상태 등 모든 변경을 되돌릴 수 있도록
@@ -450,7 +455,9 @@ export function useTodoApp() {
       setMemberPins(d.memberPins);
     }
     // 팀 데이터 복원 — 이름 정규화(normName) + 중복 제거
-    if (d.teams) {
+    // merge=true(다른 클라이언트 snapshot)이고 팀 편집이 진행 중이면 원격 데이터로 덮어쓰지 않음
+    // (addTeamProject 등 직후 400ms 내에 다른 사용자의 구버전 snapshot이 로컬 변경을 롤백하는 race 차단)
+    if (d.teams && !(merge && pendingTeamsWrite.current > 0)) {
       // 팀 멤버 중복 제거 + 동일 projectId가 여러 팀에 중복 배정된 경우 첫 번째 팀에만 유지
       const seenProjIds = new Set<number>();
       const cleaned = (d.teams as Team[]).map(t => {
@@ -686,6 +693,8 @@ export function useTodoApp() {
         .finally(() => {
           // setDoc 완료 후 pendingWrite 해제 — 이후 snapshot은 정상 수신
           pendingWrite.current = false;
+          // 팀 편집 카운터도 리셋 — 이후 snapshot에서 teams 적용 허용
+          pendingTeamsWrite.current = 0;
         });
     }, delay);
     return () => clearTimeout(t);
@@ -1121,11 +1130,11 @@ export function useTodoApp() {
   const todayStr = td();
 
   // ── 팀 CRUD ────────────────────────────────────────────────────────────────
-  // 팀 수정 함수 — 모두 guard()로 pendingWrite 즉시 설정
+  // 팀 수정 함수 — 모두 guardTeams()로 pendingWrite + pendingTeamsWrite 즉시 설정
   // (raw setTeams만 쓰면 setTeams→save useEffect 사이 마이크로태스크 윈도우에서
   //  subscribeMeta가 stale snapshot으로 applyData→setTeams를 부르며 사용자 변경을 덮어쓰는 race 발생)
   const addTeam = (name: string, color: string) => {
-    guard();
+    guardTeams();
     pushHistory();
     const id = `team-${String(teamNId).padStart(3, "0")}`;
     const team: Team = { id, name, color, members: [], projectIds: [], createdAt: td() };
@@ -1135,14 +1144,14 @@ export function useTodoApp() {
     return id;
   };
   const updTeam = (id: string, u: Partial<Team>) => {
-    guard();
+    guardTeams();
     pushHistory();
     setTeams(p => p.map(t => t.id === id ? { ...t, ...u } : t));
   };
   const delTeam = (id: string) => {
     const team = teams.find(t => t.id === id);
     if (!team) return;
-    guard();
+    guardTeams();
     // 팀 삭제 시 해당 팀 todo의 teamId 제거 — 미배정 상태가 됨 (관리자만 조회 가능)
     setTodos(p => p.map(t => t.teamId === id ? { ...t, teamId: undefined } : t));
     pushHistory();
@@ -1151,7 +1160,7 @@ export function useTodoApp() {
   };
   // 팀에 멤버 추가/제거/역할 변경
   const addTeamMember = (teamId: string, name: string, role: TeamRole = "editor") => {
-    guard();
+    guardTeams();
     // 복수 팀 소속 허용 — 해당 팀에만 추가 (다른 팀에서 제거하지 않음)
     setTeams(p => p.map(t => {
       if (t.id === teamId) return { ...t, members: [...t.members.filter(m => m.name !== name), { name, role }] };
@@ -1161,11 +1170,11 @@ export function useTodoApp() {
     setMemberRoles(p => ({ ...p, [name]: role }));
   };
   const removeTeamMember = (teamId: string, name: string) => {
-    guard();
+    guardTeams();
     setTeams(p => p.map(t => t.id === teamId ? { ...t, members: t.members.filter(m => m.name !== name) } : t));
   };
   const setTeamMemberRole = (teamId: string, name: string, role: TeamRole) => {
-    guard();
+    guardTeams();
     setTeams(p => p.map(t => t.id === teamId ? { ...t, members: t.members.map(m => m.name === name ? { ...m, role } : m) } : t));
     setMemberRoles(p => ({ ...p, [name]: role }));
   };
@@ -1179,7 +1188,7 @@ export function useTodoApp() {
   };
   // 팀에 프로젝트 연결/해제
   const addTeamProject = (teamId: string, pid: number) => {
-    guard();
+    guardTeams();
     // 프로젝트는 단일 팀 소속 — 다른 팀에 이미 배정된 경우 먼저 제거 후 새 팀에 추가
     // (동일 프로젝트가 여러 팀 필터에 중복 노출되는 버그 방지)
     setTeams(p => p.map(t => {
@@ -1187,14 +1196,21 @@ export function useTodoApp() {
       // 다른 팀에서 해당 프로젝트 제거
       return { ...t, projectIds: t.projectIds.filter(id => id !== pid) };
     }));
+    // 해당 프로젝트의 기존 업무들에 teamId 즉시 배정 — viewTodos 필터가 팀 변경 즉시 업무를 포함하도록
+    // (setTeams만 업데이트하면 기존 t.teamId=undefined 업무는 4팀 선택 시 필터에서 누락됨)
+    const affected = todos.filter(t => t.pid === pid && t.teamId !== teamId).map(t => ({ ...t, teamId }));
+    if (affected.length > 0) {
+      setTodos(p => p.map(t => t.pid === pid ? { ...t, teamId } : t));
+      fsWriteTodosBatch(affected).catch(e => console.warn("[SYNC] addTeamProject todos 업데이트 실패:", e));
+    }
   };
   const removeTeamProject = (teamId: string, pid: number) => {
-    guard();
+    guardTeams();
     setTeams(p => p.map(t => t.id === teamId ? { ...t, projectIds: t.projectIds.filter(id => id !== pid) } : t));
   };
   // 프로젝트 삭제 시 모든 팀에서 해당 projectId 제거 — onDelProj 경로에서 사용
   const removeProjectFromAllTeams = (pid: number) => {
-    guard();
+    guardTeams();
     setTeams(p => p.map(t => ({ ...t, projectIds: t.projectIds.filter(id => id !== pid) })));
   };
 
