@@ -105,10 +105,16 @@ export async function cleanMetaTeamsField(): Promise<void> {
   }
 }
 
-// teams 독립 문서 구독 — meta/main과 분리하여 다른 설정 변경이 teams를 롤백하는 race 차단
-export function subscribeTeams(cb: (data: { teams: Team[]; teamNId: number } | null) => void): Unsubscribe {
-  return onSnapshot(teamsRef(),
-    (s) => cb(s.exists() ? s.data() as { teams: Team[]; teamNId: number } : null),
+// teams 독립 문서 구독 — includeMetadataChanges로 hasPendingWrites 감지
+// isLocalWrite=true: 내가 방금 쓴 데이터의 즉각 반영(echo) → 무시
+// isLocalWrite=false: 서버 확정 또는 타인이 쓴 데이터 → 적용
+export function subscribeTeams(
+  cb: (data: { teams: Team[]; teamNId: number } | null, isLocalWrite: boolean) => void
+): Unsubscribe {
+  return onSnapshot(
+    teamsRef(),
+    { includeMetadataChanges: true },
+    (s) => cb(s.exists() ? s.data() as { teams: Team[]; teamNId: number } : null, s.metadata.hasPendingWrites),
     (err) => console.warn("[SYNC] subscribeTeams 실패:", err)
   );
 }

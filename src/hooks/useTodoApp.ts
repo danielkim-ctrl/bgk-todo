@@ -550,13 +550,14 @@ export function useTodoApp() {
       setPNId(prev => prev > maxPid ? prev : maxPid + 1);
     }));
 
-    // teams 독립 문서 구독 — meta/main과 완전히 분리된 경로(meta/teams)에서 수신
-    // null이면 아직 마이그레이션 전 — subscribeMeta에서 받은 teams 데이터로 초기화 후 저장
-    unsubs.push(subscribeTeams((data) => {
+    // teams 독립 문서 구독 — hasPendingWrites로 내 쓰기의 즉각 echo 차단
+    unsubs.push(subscribeTeams((data, isLocalWrite) => {
       if (cancelled) return;
       if (data === null) return; // 문서 없음 — subscribeMeta 폴백이 처리
-      // meta/teams 정상 수신 — 이후 subscribeMeta의 teams 폴백은 무시
       teamsReceived = true;
+      // 내가 방금 fsWriteTeams한 데이터의 즉각 반영(hasPendingWrites=true) — 이미 로컬 state가 최신이므로 무시
+      if (isLocalWrite) return;
+      // 서버 확정 또는 타인이 쓴 데이터 — 로컬 state 업데이트
       const cleaned = (data.teams as Team[]).map(t => {
         const seenMembers = new Set<string>();
         const dedupedMembers = (t.members || [])
@@ -564,7 +565,7 @@ export function useTodoApp() {
           .filter(m => { if (seenMembers.has(m.name)) return false; seenMembers.add(m.name); return true; });
         return { ...t, members: dedupedMembers, projectIds: t.projectIds || [] };
       });
-      // 서버 수신 플래그 — useEffect가 echo 쓰기를 건너뛰도록
+      // useEffect가 이 데이터를 다시 서버로 쓰지 않도록 플래그 설정
       teamsFromServer.current = true;
       setTeams(cleaned);
       if (data.teamNId) setTeamNId(data.teamNId);
@@ -630,9 +631,10 @@ export function useTodoApp() {
 
   const skipFirst = useRef(false);
   const skipFirstTeams = useRef(false);
-  // 서버 → setTeams → useEffect → fsWriteTeams 에코 루프 차단
-  // subscribeTeams가 데이터를 받아 setTeams할 때 true로 설정 → useEffect에서 감지해 쓰기 건너뜀
+  // 서버(또는 delayed echo)에서 온 데이터로 setTeams된 경우 — useEffect 쓰기 건너뜀
   const teamsFromServer = useRef(false);
+  // stale closure 방지 — addTeamProject 등에서 항상 최신 teams를 참조
+  const latestTeamsRef = useRef<Team[]>([]);
 
   // meta 저장 — todos·templates·projects·teams는 개별 경로에서 별도 저장
   useEffect(() => {
@@ -660,18 +662,20 @@ export function useTodoApp() {
     return () => clearTimeout(t);
   }, [nId, pNId, members, pris, stats, priC, priBg, stC, stBg, memberColors, memberRoles, memberPins, globalPermissions, tplNId, userSettings, loaded]);
 
+  // latestTeamsRef 동기화 — addTeamProject 등에서 stale closure 없이 최신 teams 참조
+  useEffect(() => { latestTeamsRef.current = teams; }, [teams]);
+
   // teams 독립 저장 — meta/main과 완전히 분리된 문서(meta/teams)에 저장
   // teams 변경이 다른 설정(members, pris 등) 저장과 충돌하는 race를 근본 차단
   useEffect(() => {
     if (!loaded) return;
+    // 초기 마운트 시 빈 배열을 Firestore에 덮어쓰는 사고 방지
     if (!skipFirstTeams.current) { skipFirstTeams.current = true; return; }
-    // 서버에서 받은 데이터를 그대로 setTeams한 경우 — Firestore에 다시 쓰면 echo 루프 발생
-    // teamsFromServer=true이면 쓰기 건너뛰고 플래그 초기화 (단, 플래그는 동기적으로 즉시 리셋)
+    // 서버에서 온 데이터(echo 포함)로 setTeams된 경우 — 다시 쓰면 무한 루프
     if (teamsFromServer.current) { teamsFromServer.current = false; return; }
-    // 사용자가 직접 변경한 경우에만 저장 — 400ms 디바운스로 연속 변경 묶음
-    const snapshot = { teams, teamNId }; // closure로 현재 값 캡처
+    // 사용자가 직접 변경한 경우에만 저장 — 400ms 디바운스
     const t = setTimeout(() => {
-      fsWriteTeams(snapshot.teams, snapshot.teamNId)
+      fsWriteTeams(teams, teamNId)
         .catch((e) => console.warn("[SYNC] teams 저장 실패:", e));
     }, 400);
     return () => clearTimeout(t);
@@ -1164,20 +1168,17 @@ export function useTodoApp() {
   };
   // 팀에 프로젝트 연결/해제
   const addTeamProject = (teamId: string, pid: number) => {
-    // 프로젝트는 단일 팀 소속 — 모든 팀에서 제거 후 대상 팀에만 추가
-    // (Firebase에 중복 배정 데이터가 남아있어도 이 시점에 완전히 정리됨)
-    const newTeams = teams.map(t => {
+    // latestTeamsRef로 stale closure 방지 — 리렌더 타이밍과 무관하게 항상 최신 teams 기반으로 계산
+    const newTeams = latestTeamsRef.current.map(t => {
       if (t.id === teamId) return { ...t, projectIds: [...new Set([...t.projectIds.filter(id => id !== pid), pid])] };
       return { ...t, projectIds: t.projectIds.filter(id => id !== pid) };
     });
     setTeams(newTeams);
-    // useEffect 디바운스를 거치지 않고 즉시 Firestore 저장 — 다른 클라이언트가 접속해도 최신 상태 유지
-    // (디바운스 400ms 동안 다른 기기가 구버전 snapshot을 받아 롤백하는 race 차단)
-    teamsFromServer.current = true; // useEffect의 중복 저장 방지 (직접 저장했으므로)
+    // teamsFromServer 플래그 설정 안 함 — 사용자 액션이므로 useEffect가 정상 저장 경로를 타야 함
+    // hasPendingWrites=true인 echo는 subscribeTeams에서 무시되므로 이중 저장 없음
     fsWriteTeams(newTeams, teamNId)
       .catch(e => console.warn("[SYNC] addTeamProject teams 저장 실패:", e));
     // 해당 프로젝트의 기존 업무들에 teamId 즉시 배정 — viewTodos 필터가 팀 변경 즉시 업무를 포함하도록
-    // (setTeams만 업데이트하면 기존 t.teamId=undefined 업무는 4팀 선택 시 필터에서 누락됨)
     const affected = todos.filter(t => t.pid === pid && t.teamId !== teamId).map(t => ({ ...t, teamId }));
     if (affected.length > 0) {
       setTodos(p => p.map(t => t.pid === pid ? { ...t, teamId } : t));
@@ -1185,16 +1186,16 @@ export function useTodoApp() {
     }
   };
   const removeTeamProject = (teamId: string, pid: number) => {
-    const newTeams = teams.map(t => t.id === teamId ? { ...t, projectIds: t.projectIds.filter(id => id !== pid) } : t);
+    const newTeams = latestTeamsRef.current.map(t =>
+      t.id === teamId ? { ...t, projectIds: t.projectIds.filter(id => id !== pid) } : t
+    );
     setTeams(newTeams);
-    // 즉시 저장 — 다른 클라이언트 롤백 방지, useEffect 중복 저장 방지
-    teamsFromServer.current = true;
     fsWriteTeams(newTeams, teamNId)
       .catch(e => console.warn("[SYNC] removeTeamProject teams 저장 실패:", e));
   };
   // 프로젝트 삭제 시 모든 팀에서 해당 projectId 제거 — onDelProj 경로에서 사용
   const removeProjectFromAllTeams = (pid: number) => {
-    const newTeams = teams.map(t => ({ ...t, projectIds: t.projectIds.filter(id => id !== pid) }));
+    const newTeams = latestTeamsRef.current.map(t => ({ ...t, projectIds: t.projectIds.filter(id => id !== pid) }));
     setTeams(newTeams);
     fsWriteTeams(newTeams, teamNId)
       .catch(e => console.warn("[SYNC] removeProjectFromAllTeams teams 저장 실패:", e));
