@@ -666,10 +666,12 @@ export function useTodoApp() {
     if (!loaded) return;
     if (!skipFirstTeams.current) { skipFirstTeams.current = true; return; }
     // 서버에서 받은 데이터를 그대로 setTeams한 경우 — Firestore에 다시 쓰면 echo 루프 발생
-    // teamsFromServer=true이면 쓰기 건너뛰고 플래그 초기화
+    // teamsFromServer=true이면 쓰기 건너뛰고 플래그 초기화 (단, 플래그는 동기적으로 즉시 리셋)
     if (teamsFromServer.current) { teamsFromServer.current = false; return; }
+    // 사용자가 직접 변경한 경우에만 저장 — 400ms 디바운스로 연속 변경 묶음
+    const snapshot = { teams, teamNId }; // closure로 현재 값 캡처
     const t = setTimeout(() => {
-      fsWriteTeams(teams, teamNId)
+      fsWriteTeams(snapshot.teams, snapshot.teamNId)
         .catch((e) => console.warn("[SYNC] teams 저장 실패:", e));
     }, 400);
     return () => clearTimeout(t);
@@ -1164,10 +1166,16 @@ export function useTodoApp() {
   const addTeamProject = (teamId: string, pid: number) => {
     // 프로젝트는 단일 팀 소속 — 모든 팀에서 제거 후 대상 팀에만 추가
     // (Firebase에 중복 배정 데이터가 남아있어도 이 시점에 완전히 정리됨)
-    setTeams(p => p.map(t => {
+    const newTeams = teams.map(t => {
       if (t.id === teamId) return { ...t, projectIds: [...new Set([...t.projectIds.filter(id => id !== pid), pid])] };
       return { ...t, projectIds: t.projectIds.filter(id => id !== pid) };
-    }));
+    });
+    setTeams(newTeams);
+    // useEffect 디바운스를 거치지 않고 즉시 Firestore 저장 — 다른 클라이언트가 접속해도 최신 상태 유지
+    // (디바운스 400ms 동안 다른 기기가 구버전 snapshot을 받아 롤백하는 race 차단)
+    teamsFromServer.current = true; // useEffect의 중복 저장 방지 (직접 저장했으므로)
+    fsWriteTeams(newTeams, teamNId)
+      .catch(e => console.warn("[SYNC] addTeamProject teams 저장 실패:", e));
     // 해당 프로젝트의 기존 업무들에 teamId 즉시 배정 — viewTodos 필터가 팀 변경 즉시 업무를 포함하도록
     // (setTeams만 업데이트하면 기존 t.teamId=undefined 업무는 4팀 선택 시 필터에서 누락됨)
     const affected = todos.filter(t => t.pid === pid && t.teamId !== teamId).map(t => ({ ...t, teamId }));
@@ -1177,13 +1185,19 @@ export function useTodoApp() {
     }
   };
   const removeTeamProject = (teamId: string, pid: number) => {
-
-    setTeams(p => p.map(t => t.id === teamId ? { ...t, projectIds: t.projectIds.filter(id => id !== pid) } : t));
+    const newTeams = teams.map(t => t.id === teamId ? { ...t, projectIds: t.projectIds.filter(id => id !== pid) } : t);
+    setTeams(newTeams);
+    // 즉시 저장 — 다른 클라이언트 롤백 방지, useEffect 중복 저장 방지
+    teamsFromServer.current = true;
+    fsWriteTeams(newTeams, teamNId)
+      .catch(e => console.warn("[SYNC] removeTeamProject teams 저장 실패:", e));
   };
   // 프로젝트 삭제 시 모든 팀에서 해당 projectId 제거 — onDelProj 경로에서 사용
   const removeProjectFromAllTeams = (pid: number) => {
-
-    setTeams(p => p.map(t => ({ ...t, projectIds: t.projectIds.filter(id => id !== pid) })));
+    const newTeams = teams.map(t => ({ ...t, projectIds: t.projectIds.filter(id => id !== pid) }));
+    setTeams(newTeams);
+    fsWriteTeams(newTeams, teamNId)
+      .catch(e => console.warn("[SYNC] removeProjectFromAllTeams teams 저장 실패:", e));
   };
 
   // 기존 업무를 프로젝트 기준으로 팀에 일괄 배정
