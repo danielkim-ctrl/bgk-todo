@@ -441,13 +441,21 @@ export function useTodoApp() {
     if (d.tplNId) setTplNId(d.tplNId);
     if (d.userSettings) {
       if (merge && currentUser) {
-        // merge 모드 = 다른 클라이언트의 setDoc snapshot. 자기 사용자 entry는 로컬 우선 보존.
-        // 이유: 사용자가 selectedTeamId 등을 막 변경했고 아직 server에 반영 전인데,
-        // 다른 사용자의 snapshot(자기 변경 모름)이 들어오면 자기 변경이 사라지는 race 방지.
+        // merge 모드 = 다른 클라이언트의 setDoc snapshot. selectedTeamId처럼 race가 있는 필드만 로컬 우선 보존.
+        // hiddenProjects/hiddenMembers는 기기 간 공유가 필요하므로 Firestore 값을 수용한다.
+        // (localStorage 초기값은 같은 기기 깜빡임 방지용일 뿐 — Firestore가 source of truth)
         setUserSettings(prev => {
           const localUserEntry = prev[currentUser];
+          const serverUserEntry = d.userSettings[currentUser];
           if (!localUserEntry) return d.userSettings;
-          return { ...d.userSettings, [currentUser]: localUserEntry };
+          return {
+            ...d.userSettings,
+            [currentUser]: {
+              ...serverUserEntry,
+              // selectedTeamId만 로컬 우선 — 방금 변경했는데 다른 기기 snapshot이 덮어쓰는 race 방지
+              selectedTeamId: localUserEntry.selectedTeamId,
+            },
+          };
         });
       } else {
         setUserSettings(d.userSettings);
@@ -612,6 +620,19 @@ export function useTodoApp() {
     if (saved === selectedTeamId || (saved === undefined && selectedTeamId === null)) return;
     lastRestoredTeamIdRef.current = { user: currentUser, value: saved };
     setSelectedTeamIdRaw(saved ?? null);
+  }, [currentUser, userSettings]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Firestore에서 hiddenProjects/hiddenMembers가 복원되면 localStorage도 갱신 — 기기 간 동기화 완성
+  useEffect(() => {
+    if (!currentUser) return;
+    const entry = userSettings[currentUser];
+    if (!entry) return;
+    if (entry.hiddenProjects !== undefined) {
+      localStorage.setItem(`hidden-projects-${currentUser}`, JSON.stringify(entry.hiddenProjects));
+    }
+    if (entry.hiddenMembers !== undefined) {
+      localStorage.setItem(`hidden-members-${currentUser}`, JSON.stringify(entry.hiddenMembers));
+    }
   }, [currentUser, userSettings]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 변경 시 userSettings에 저장 — immediateFlush로 디바운스 없이 즉시 setDoc
