@@ -550,14 +550,16 @@ export function useTodoApp() {
       setPNId(prev => prev > maxPid ? prev : maxPid + 1);
     }));
 
-    // teams 독립 문서 구독 — hasPendingWrites로 내 쓰기의 즉각 echo 차단
-    unsubs.push(subscribeTeams((data, isLocalWrite) => {
+    // teams 독립 문서 구독 — 서버에서 확정된 데이터만 수신
+    unsubs.push(subscribeTeams((data) => {
       if (cancelled) return;
-      if (data === null) return; // 문서 없음 — subscribeMeta 폴백이 처리
+      if (data === null) return;
       teamsReceived = true;
-      // 내가 방금 fsWriteTeams한 데이터의 즉각 반영(hasPendingWrites=true) — 이미 로컬 state가 최신이므로 무시
-      if (isLocalWrite) return;
-      // 서버 확정 또는 타인이 쓴 데이터 — 로컬 state 업데이트
+      // 사용자가 방금 변경한 직후라면 서버 snapshot 무시 — 구버전 덮어쓰기 방지
+      if (Date.now() < ignoreSnapshotUntil.current) {
+        console.log("[TEAMS SNAPSHOT] 차단됨 — 사용자 변경 직후 보호 구간");
+        return;
+      }
       const cleaned = (data.teams as Team[]).map(t => {
         const seenMembers = new Set<string>();
         const dedupedMembers = (t.members || [])
@@ -565,7 +567,6 @@ export function useTodoApp() {
           .filter(m => { if (seenMembers.has(m.name)) return false; seenMembers.add(m.name); return true; });
         return { ...t, members: dedupedMembers, projectIds: t.projectIds || [] };
       });
-      // useEffect가 이 데이터를 다시 서버로 쓰지 않도록 플래그 설정
       teamsFromServer.current = true;
       setTeams(cleaned);
       if (data.teamNId) setTeamNId(data.teamNId);
@@ -635,6 +636,9 @@ export function useTodoApp() {
   const teamsFromServer = useRef(false);
   // stale closure 방지 — addTeamProject 등에서 항상 최신 teams를 참조
   const latestTeamsRef = useRef<Team[]>([]);
+  // 사용자가 팀 변경 직후 일정 시간 동안 서버 snapshot으로 덮어쓰기 차단
+  // fsWriteTeams 완료 후 Firestore가 보내는 snapshot이 구버전일 수 있음
+  const ignoreSnapshotUntil = useRef<number>(0);
 
   // meta 저장 — todos·templates·projects·teams는 개별 경로에서 별도 저장
   useEffect(() => {
@@ -1179,6 +1183,8 @@ export function useTodoApp() {
     setTeams(newTeams);
     // teamsFromServer 플래그 설정 안 함 — 사용자 액션이므로 useEffect가 정상 저장 경로를 타야 함
     // hasPendingWrites=true인 echo는 subscribeTeams에서 무시되므로 이중 저장 없음
+    // 저장 완료 후 3초간 snapshot 차단 — Firestore가 구버전 snapshot을 보내도 롤백 안 됨
+    ignoreSnapshotUntil.current = Date.now() + 3000;
     console.log("[addTeamProject] teamId=", teamId, "pid=", pid, "newTeams=", newTeams.map(t => ({ id: t.id, projectIds: t.projectIds })));
     fsWriteTeams(newTeams, teamNId)
       .then(() => console.log("[addTeamProject] fsWriteTeams 완료"))
@@ -1195,6 +1201,7 @@ export function useTodoApp() {
       t.id === teamId ? { ...t, projectIds: t.projectIds.filter(id => id !== pid) } : t
     );
     setTeams(newTeams);
+    ignoreSnapshotUntil.current = Date.now() + 3000;
     fsWriteTeams(newTeams, teamNId)
       .catch(e => console.warn("[SYNC] removeTeamProject teams 저장 실패:", e));
   };

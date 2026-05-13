@@ -105,20 +105,16 @@ export async function cleanMetaTeamsField(): Promise<void> {
   }
 }
 
-// teams 독립 문서 구독 — includeMetadataChanges로 hasPendingWrites 감지
-// isLocalWrite=true: 내가 방금 쓴 데이터의 즉각 반영(echo) → 무시
-// isLocalWrite=false: 서버 확정 또는 타인이 쓴 데이터 → 적용
+// teams 독립 문서 구독 — 서버 확정 데이터만 수신 (includeMetadataChanges 제거)
 export function subscribeTeams(
-  cb: (data: { teams: Team[]; teamNId: number } | null, isLocalWrite: boolean) => void
+  cb: (data: { teams: Team[]; teamNId: number } | null) => void
 ): Unsubscribe {
   return onSnapshot(
     teamsRef(),
-    { includeMetadataChanges: true },
     (s) => {
-      const isLocal = s.metadata.hasPendingWrites;
       const data = s.exists() ? s.data() as { teams: Team[]; teamNId: number } : null;
-      console.log(`[TEAMS SNAPSHOT] isLocalWrite=${isLocal} fromCache=${s.metadata.fromCache} teams=`, data?.teams?.map(t => ({ id: t.id, name: t.name, projectIds: t.projectIds })));
-      cb(data, isLocal);
+      console.log(`[TEAMS SNAPSHOT] fromCache=${s.metadata.fromCache} hasPendingWrites=${s.metadata.hasPendingWrites} teams=`, data?.teams?.map(t => ({ id: t.id, name: t.name, projectIds: t.projectIds })));
+      cb(data);
     },
     (err) => console.warn("[SYNC] subscribeTeams 실패:", err)
   );
