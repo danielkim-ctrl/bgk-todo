@@ -179,6 +179,7 @@ export function useTodoApp() {
   // subscribeProjects snapshot이 오면 그냥 setProjects — 어차피 내가 방금 쓴 데이터라 동일함.
   // 카운터 기반 가드 제거 — 타이밍 race가 더 위험했음.
   const setProjectsGuarded = (fn: any) => {
+    guard(); // pendingWrite=true로 Firestore echo가 로컬 변경을 덮어쓰는 것 차단
     pushHistory();
     const prev = projects;
     const next = typeof fn === "function" ? fn(prev) : fn;
