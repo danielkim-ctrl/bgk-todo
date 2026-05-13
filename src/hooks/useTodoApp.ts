@@ -672,10 +672,13 @@ export function useTodoApp() {
     // 초기 마운트 시 빈 배열을 Firestore에 덮어쓰는 사고 방지
     if (!skipFirstTeams.current) { skipFirstTeams.current = true; return; }
     // 서버에서 온 데이터(echo 포함)로 setTeams된 경우 — 다시 쓰면 무한 루프
-    if (teamsFromServer.current) { teamsFromServer.current = false; return; }
+    if (teamsFromServer.current) { teamsFromServer.current = false; console.log("[teams useEffect] fromServer → skip"); return; }
     // 사용자가 직접 변경한 경우에만 저장 — 400ms 디바운스
+    console.log("[teams useEffect] 사용자 변경 감지 → 400ms 후 저장");
     const t = setTimeout(() => {
+      console.log("[teams useEffect] fsWriteTeams 실행", teams.map(t => ({ id: t.id, projectIds: t.projectIds })));
       fsWriteTeams(teams, teamNId)
+        .then(() => console.log("[teams useEffect] 저장 완료"))
         .catch((e) => console.warn("[SYNC] teams 저장 실패:", e));
     }, 400);
     return () => clearTimeout(t);
@@ -1176,7 +1179,9 @@ export function useTodoApp() {
     setTeams(newTeams);
     // teamsFromServer 플래그 설정 안 함 — 사용자 액션이므로 useEffect가 정상 저장 경로를 타야 함
     // hasPendingWrites=true인 echo는 subscribeTeams에서 무시되므로 이중 저장 없음
+    console.log("[addTeamProject] teamId=", teamId, "pid=", pid, "newTeams=", newTeams.map(t => ({ id: t.id, projectIds: t.projectIds })));
     fsWriteTeams(newTeams, teamNId)
+      .then(() => console.log("[addTeamProject] fsWriteTeams 완료"))
       .catch(e => console.warn("[SYNC] addTeamProject teams 저장 실패:", e));
     // 해당 프로젝트의 기존 업무들에 teamId 즉시 배정 — viewTodos 필터가 팀 변경 즉시 업무를 포함하도록
     const affected = todos.filter(t => t.pid === pid && t.teamId !== teamId).map(t => ({ ...t, teamId }));

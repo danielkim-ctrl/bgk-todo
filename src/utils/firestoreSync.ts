@@ -114,7 +114,12 @@ export function subscribeTeams(
   return onSnapshot(
     teamsRef(),
     { includeMetadataChanges: true },
-    (s) => cb(s.exists() ? s.data() as { teams: Team[]; teamNId: number } : null, s.metadata.hasPendingWrites),
+    (s) => {
+      const isLocal = s.metadata.hasPendingWrites;
+      const data = s.exists() ? s.data() as { teams: Team[]; teamNId: number } : null;
+      console.log(`[TEAMS SNAPSHOT] isLocalWrite=${isLocal} fromCache=${s.metadata.fromCache} teams=`, data?.teams?.map(t => ({ id: t.id, name: t.name, projectIds: t.projectIds })));
+      cb(data, isLocal);
+    },
     (err) => console.warn("[SYNC] subscribeTeams 실패:", err)
   );
 }
