@@ -1,5 +1,5 @@
 import {
-  doc, collection, setDoc, updateDoc, deleteDoc,
+  doc, collection, setDoc, updateDoc, deleteDoc, deleteField,
   onSnapshot, writeBatch, Unsubscribe,
 } from "firebase/firestore";
 import { db } from "../firebase";
@@ -90,10 +90,19 @@ export async function removeTemplate(id: string): Promise<void> {
   await deleteDoc(tplRef(id));
 }
 
-// meta 문서 전체 덮어쓰기 — 설정류는 크기가 작아 전체 쓰기로 처리
+// meta 문서 부분 덮어쓰기 — merge:true로 기존 필드 유지 (teams 필드가 남아있어도 덮어쓰지 않음)
 // todos/templates/projects/teams는 이 함수에 포함하지 않음 (개별 CRUD로 관리)
 export async function writeMeta(meta: any): Promise<void> {
-  await setDoc(metaRef(), { ...meta, _updatedAt: Date.now() });
+  await setDoc(metaRef(), { ...meta, _updatedAt: Date.now() }, { merge: true });
+}
+
+// meta/main에서 teams 필드 제거 — meta/teams로 마이그레이션 후 호출하여 혼동 방지
+export async function cleanMetaTeamsField(): Promise<void> {
+  try {
+    await updateDoc(metaRef(), { teams: deleteField(), teamNId: deleteField() });
+  } catch {
+    // 문서가 없거나 필드가 없으면 무시
+  }
 }
 
 // teams 독립 문서 구독 — meta/main과 분리하여 다른 설정 변경이 teams를 롤백하는 race 차단

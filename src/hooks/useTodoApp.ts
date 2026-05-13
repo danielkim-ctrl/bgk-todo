@@ -3,7 +3,7 @@ import { doc, getDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import {
   subscribeMeta, subscribeTodos, subscribeTemplates, subscribeProjects,
-  subscribeTeams, writeTeams as fsWriteTeams,
+  subscribeTeams, writeTeams as fsWriteTeams, cleanMetaTeamsField,
   writeTodo as fsWriteTodo, removeTodo as fsRemoveTodo,
   writeTodosBatch as fsWriteTodosBatch,
   writeTemplate as fsWriteTemplate, patchTemplate as fsPatchTemplate, removeTemplate as fsRemoveTemplate,
@@ -481,7 +481,7 @@ export function useTodoApp() {
       }
     };
 
-    let teamsFromMetaMigrated = false; // meta/main의 teams → meta/teams 1회 마이그레이션 플래그
+    let teamsReceived = false; // subscribeTeams가 meta/teams 문서를 정상 수신했는지
 
     // meta 구독 — 설정류 applyData 경로 재사용
     unsubs.push(subscribeMeta((data) => {
@@ -494,22 +494,21 @@ export function useTodoApp() {
         metaProjectsApplied = true;
         checkProjectsMigration(data.projects, 0);
       }
-      // teams 마이그레이션 — meta/teams 문서가 아직 없을 때 meta/main의 teams 데이터를 이전
-      // subscribeTeams가 null을 반환하는 동안만 실행 (한 번 성공하면 이후 subscribeTeams가 담당)
-      if (!teamsFromMetaMigrated && Array.isArray(data.teams) && data.teams.length > 0) {
-        teamsFromMetaMigrated = true;
-        // 로컬 state 즉시 반영 (UI 깜빡임 방지)
+      // teams 폴백 — subscribeTeams가 아직 meta/teams를 못 받은 경우에만 meta/main의 teams 사용
+      // teamsReceived=true이면 meta/teams가 source of truth이므로 meta/main의 teams는 무시
+      if (!teamsReceived && Array.isArray(data.teams) && data.teams.length > 0) {
+        teamsFromServer.current = true; // echo 방지 — 이 setTeams는 쓰기로 이어지지 않아야 함
         setTeams(data.teams);
         if (data.teamNId) setTeamNId(data.teamNId);
-        // meta/teams 문서로 저장 — 이후 subscribeTeams가 정상 수신하면 마이그레이션 완료
+        // meta/teams 문서가 없으면 마이그레이션 — 완료 후 meta/main의 teams 필드 제거
         fsWriteTeams(data.teams, data.teamNId ?? 1)
+          .then(() => cleanMetaTeamsField()) // meta/main의 stale teams 필드 제거 → 이후 subscribeMeta가 teams 없는 문서를 받음
           .catch(e => console.warn("[MIGRATION] teams 마이그레이션 실패:", e));
       }
       if (pendingWrite.current) return;
       const isOwnEcho = metaReceived && data._clientId === clientId.current;
       if (!isOwnEcho) {
         // projects/teams는 독립 경로에서 별도 수신 — meta 경로에서 완전 제외
-        // merge=true: 다른 클라이언트 snapshot이 와도 현재 사용자의 userSettings 로컬값 보존
         applyData({ ...data, todos: undefined, templates: undefined, projects: undefined, teams: undefined }, true);
       }
       if (typeof data._updatedAt === "number") lastSeenServerAt.current = data._updatedAt;
@@ -555,19 +554,18 @@ export function useTodoApp() {
     // null이면 아직 마이그레이션 전 — subscribeMeta에서 받은 teams 데이터로 초기화 후 저장
     unsubs.push(subscribeTeams((data) => {
       if (cancelled) return;
-      if (data === null) return; // 문서 없음 — meta 구독에서 받은 teams가 skipFirstTeams 해제 후 저장됨
-      // teams 정규화 — 멤버 중복 제거 + 동일 projectId 중복 제거
-      const seenProjIds = new Set<number>();
+      if (data === null) return; // 문서 없음 — subscribeMeta 폴백이 처리
+      // meta/teams 정상 수신 — 이후 subscribeMeta의 teams 폴백은 무시
+      teamsReceived = true;
       const cleaned = (data.teams as Team[]).map(t => {
         const seenMembers = new Set<string>();
         const dedupedMembers = (t.members || [])
           .map(m => ({ ...m, name: normName(m.name) }))
           .filter(m => { if (seenMembers.has(m.name)) return false; seenMembers.add(m.name); return true; });
-        const dedupedProjIds = (t.projectIds || []).filter(pid => {
-          if (seenProjIds.has(pid)) return false; seenProjIds.add(pid); return true;
-        });
-        return { ...t, members: dedupedMembers, projectIds: dedupedProjIds };
+        return { ...t, members: dedupedMembers, projectIds: t.projectIds || [] };
       });
+      // 서버 수신 플래그 — useEffect가 echo 쓰기를 건너뛰도록
+      teamsFromServer.current = true;
       setTeams(cleaned);
       if (data.teamNId) setTeamNId(data.teamNId);
     }));
@@ -632,6 +630,9 @@ export function useTodoApp() {
 
   const skipFirst = useRef(false);
   const skipFirstTeams = useRef(false);
+  // 서버 → setTeams → useEffect → fsWriteTeams 에코 루프 차단
+  // subscribeTeams가 데이터를 받아 setTeams할 때 true로 설정 → useEffect에서 감지해 쓰기 건너뜀
+  const teamsFromServer = useRef(false);
 
   // meta 저장 — todos·templates·projects·teams는 개별 경로에서 별도 저장
   useEffect(() => {
@@ -664,6 +665,9 @@ export function useTodoApp() {
   useEffect(() => {
     if (!loaded) return;
     if (!skipFirstTeams.current) { skipFirstTeams.current = true; return; }
+    // 서버에서 받은 데이터를 그대로 setTeams한 경우 — Firestore에 다시 쓰면 echo 루프 발생
+    // teamsFromServer=true이면 쓰기 건너뛰고 플래그 초기화
+    if (teamsFromServer.current) { teamsFromServer.current = false; return; }
     const t = setTimeout(() => {
       fsWriteTeams(teams, teamNId)
         .catch((e) => console.warn("[SYNC] teams 저장 실패:", e));
@@ -1158,12 +1162,10 @@ export function useTodoApp() {
   };
   // 팀에 프로젝트 연결/해제
   const addTeamProject = (teamId: string, pid: number) => {
-
-    // 프로젝트는 단일 팀 소속 — 다른 팀에 이미 배정된 경우 먼저 제거 후 새 팀에 추가
-    // (동일 프로젝트가 여러 팀 필터에 중복 노출되는 버그 방지)
+    // 프로젝트는 단일 팀 소속 — 모든 팀에서 제거 후 대상 팀에만 추가
+    // (Firebase에 중복 배정 데이터가 남아있어도 이 시점에 완전히 정리됨)
     setTeams(p => p.map(t => {
-      if (t.id === teamId) return { ...t, projectIds: [...new Set([...t.projectIds, pid])] };
-      // 다른 팀에서 해당 프로젝트 제거
+      if (t.id === teamId) return { ...t, projectIds: [...new Set([...t.projectIds.filter(id => id !== pid), pid])] };
       return { ...t, projectIds: t.projectIds.filter(id => id !== pid) };
     }));
     // 해당 프로젝트의 기존 업무들에 teamId 즉시 배정 — viewTodos 필터가 팀 변경 즉시 업무를 포함하도록
