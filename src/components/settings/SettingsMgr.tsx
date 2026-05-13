@@ -323,8 +323,10 @@ export function SettingsMgr({
         const allIds = [p.id, ...children.map((ch: any) => ch.id)];
         const totalC = todos.filter((t: any) => allIds.includes(t.pid)).length;
         const isHidden = p.status !== "활성";
-        const projTeamsArr = teams.filter(t => t.projectIds.includes(p.id));
-        const availTeams = teams.filter(t => !t.projectIds.includes(p.id));
+        // 새 데이터 모델: 한 프로젝트 = 한 팀 (p.teamId), 자식은 부모 teamId 상속
+        const currentTeam = p.teamId ? teams.find(t => t.id === p.teamId) : null;
+        const projTeamsArr = currentTeam ? [currentTeam] : [];
+        const availTeams = teams.filter(t => t.id !== p.teamId);
         return <div key={p.id} style={{ opacity: isHidden ? 0.5 : 1 }}>
           {/* 상위 행 */}
           <div style={{...ROW, cursor: "default" }}
@@ -379,15 +381,14 @@ export function SettingsMgr({
         </div>;
       };
 
-      // 팀별 프로젝트 그룹 — topProjects가 아닌 activeProjs 전체 기준으로 배정 여부 판단
-      // (세부 프로젝트도 팀 배정 가능하므로 parentId 필터 제거)
-      const assignedIds = new Set<number>();
-      const teamGroups = teams.map(team => {
-        const tProjs = activeProjs.filter(p => team.projectIds.includes(p.id));
-        tProjs.forEach(p => assignedIds.add(p.id));
-        return { team, projs: tProjs };
-      }).filter(g => g.projs.length > 0);
-      const unassignedProjs = activeProjs.filter(p => !assignedIds.has(p.id));
+      // 팀별 그룹 — 최상위 프로젝트만 기준 (자식은 projCard 안에서 부모와 함께 표시됨)
+      // 자식은 부모의 teamId를 상속하므로 별도 그룹화 불필요
+      const topProjs = activeProjs.filter(p => !p.parentId);
+      const teamGroups = teams.map(team => ({
+        team,
+        projs: topProjs.filter(p => p.teamId === team.id),
+      })).filter(g => g.projs.length > 0);
+      const unassignedProjs = topProjs.filter(p => !p.teamId);
 
       return <div style={{ display: "flex", flexDirection: "column" as const, flex: 1, minHeight: 0 }}>
         <div style={{ display: "flex", flexDirection: "column" as const, flex: 1, overflowY: "auto" as const, marginBottom: 14 }}>
@@ -616,9 +617,8 @@ function TeamTab({
   const assignedMembers = new Set(teams.flatMap(t => t.members.map(m => m.name)));
   const unassignedMembers = members.filter(m => !assignedMembers.has(m));
 
-  // 팀에 연결되지 않은 프로젝트 목록
-  const assignedProjects = new Set(teams.flatMap(t => t.projectIds));
-  const unassignedProjects = projects.filter(p => !assignedProjects.has(p.id));
+  // 팀에 연결되지 않은 프로젝트 목록 — 최상위 기준 (자식은 부모 따라감)
+  const unassignedProjects = projects.filter(p => !p.parentId && !p.teamId);
 
   const handleAdd = () => {
     if (!newName.trim()) return;
@@ -704,7 +704,7 @@ function TeamTab({
                 </div>
               )}
               {/* 요약 뱃지 */}
-              <span style={{ fontSize: 12, color: "#94a3b8", flexShrink: 0, whiteSpace: "nowrap" as const }}>{team.members.length}명 · {team.projectIds.length}건</span>
+              <span style={{ fontSize: 12, color: "#94a3b8", flexShrink: 0, whiteSpace: "nowrap" as const }}>{team.members.length}명 · {projects.filter(p => !p.parentId && p.teamId === team.id).length}건</span>
               {/* 접기/펼치기 아이콘 — Heroicons 사용 */}
               <ChevronRightIcon style={{ width: 12, height: 12, color: "#94a3b8", transition: "transform .2s", transform: isOpen ? "rotate(90deg)" : "none", flexShrink: 0 }} />
             </div>
@@ -744,25 +744,24 @@ function TeamTab({
                   )}
                 </div>
 
-                {/* 담당 프로젝트 */}
+                {/* 담당 프로젝트 — 최상위만 (자식은 부모 따라감) */}
+                {(() => {
+                const teamProjs = projects.filter(pr => !pr.parentId && pr.teamId === team.id);
+                return (
                 <div style={{ padding: "10px 12px", borderTop: "1px solid #f1f5f9" }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#64748b", marginBottom: 8 }}>담당 프로젝트 ({team.projectIds.length})</div>
-                  {team.projectIds.length > 0 ? team.projectIds.map(pid => {
-                    const p = projects.find(pr => pr.id === pid);
-                    if (!p) return null;
-                    return (
-                      <div key={pid} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", marginBottom: 4, background: "#fff", borderRadius: 6, fontSize: 13, border: "1px solid #f1f5f9" }}>
-                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: p.color, flexShrink: 0 }} />
-                        <span style={{ flex: 1, fontWeight: 500, color: "#334155" }}>{p.name}</span>
-                        <button onClick={() => removeTeamProject(team.id, pid)}
-                          style={{ background: "none", border: "none", cursor: "pointer", color: "#cbd5e1", display: "inline-flex", padding: 2, transition: "color .12s" }}
-                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#dc2626"; }}
-                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#cbd5e1"; }}>
-                          <XMarkIcon style={{ width: 12, height: 12 }} />
-                        </button>
-                      </div>
-                    );
-                  }) : (
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#64748b", marginBottom: 8 }}>담당 프로젝트 ({teamProjs.length})</div>
+                  {teamProjs.length > 0 ? teamProjs.map(p => (
+                    <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", marginBottom: 4, background: "#fff", borderRadius: 6, fontSize: 13, border: "1px solid #f1f5f9" }}>
+                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: p.color, flexShrink: 0 }} />
+                      <span style={{ flex: 1, fontWeight: 500, color: "#334155" }}>{p.name}</span>
+                      <button onClick={() => removeTeamProject(team.id, p.id)}
+                        style={{ background: "none", border: "none", cursor: "pointer", color: "#cbd5e1", display: "inline-flex", padding: 2, transition: "color .12s" }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#dc2626"; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#cbd5e1"; }}>
+                        <XMarkIcon style={{ width: 12, height: 12 }} />
+                      </button>
+                    </div>
+                  )) : (
                     <div style={{ fontSize: 13, color: "#94a3b8", padding: "4px 0" }}>연결된 프로젝트 없음</div>
                   )}
                   {unassignedProjects.length > 0 && (
@@ -773,6 +772,7 @@ function TeamTab({
                     </select>
                   )}
                 </div>
+                );})()}
 
                 {/* 위험 영역 — 삭제 (편집과 분리) */}
                 <div style={{ padding: "10px 12px", borderTop: "1px solid #f1f5f9", display: "flex", justifyContent: "flex-end", borderRadius: "0 0 9px 9px" }}>

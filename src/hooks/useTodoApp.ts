@@ -15,7 +15,7 @@ import {
 import {
   INIT_MEMBERS, INIT_PRI, INIT_ST, INIT_PRI_C, INIT_PRI_BG, INIT_ST_C, INIT_ST_BG,
 } from "../constants";
-import { td, gP, stripHtml, isOD, getNextDue, fmtRepeatLabel } from "../utils";
+import { td, gP, stripHtml, isOD, getNextDue, fmtRepeatLabel, buildProjTeamMap } from "../utils";
 import { flash } from "../utils/toast";
 import { Filters, NewRow, AiParsed, DatePopState, NotePopupState, Project, Todo, DeletedTodo, SavedFilter, ActivityLog, Team, TeamMember, TeamRole, TodoTemplate, TemplateItem } from "../types";
 import { useAI } from "./useAI";
@@ -772,7 +772,7 @@ export function useTodoApp() {
     onAddTodos: (checked: AiParsed[]) => {
       // 프로젝트 → 팀 매핑 — AI 생성 업무에도 팀 자동 배정
       const projTeamMap: Record<number, string> = {};
-      teams.forEach(tm => tm.projectIds.forEach(pid => { projTeamMap[pid] = tm.id; }));
+      Object.assign(projTeamMap, buildProjTeamMap(projects));
 
       const startId = nIdRef.current;
       nIdRef.current += checked.length;
@@ -948,8 +948,7 @@ export function useTodoApp() {
     };
     // 팀 배정 우선순위: 명시적 teamId → 프로젝트 기반 팀 → selectedTeamId → 현재 사용자 소속 첫 번째 팀
     // selectedTeamId가 null(전체 보기)이어도 팀 멤버 업무가 viewTodos 필터에서 누락되지 않도록 보장
-    const projTeamMapForAdd: Record<number, string> = {};
-    teams.forEach(tm => tm.projectIds.forEach(pid => { projTeamMapForAdd[pid] = tm.id; }));
+    const projTeamMapForAdd: Record<number, string> = buildProjTeamMap(projects);
     const myTidsForAdd = teams.filter(tm => tm.members.some(m => m.name === currentUser)).map(tm => tm.id);
     const resolvedTeamId = t.teamId || projTeamMapForAdd[t.pid] || selectedTeamId || myTidsForAdd[0] || undefined;
     // order 가중치 — 마지막에 추가한 업무가 가장 뒤에 오도록 현재 max + 1000
@@ -1234,49 +1233,38 @@ export function useTodoApp() {
     const t = teams.find(tm => tm.members.some(m => m.name === name));
     if (t) setTeamMemberRole(t.id, name, role);
   };
-  // 팀에 프로젝트 연결/해제
+  // 팀에 프로젝트 연결 — todo 패턴: 프로젝트 문서에 teamId 즉시 patch (teams 통째 저장 race 제거)
+  // 최상위 프로젝트에만 teamId 부여, 자식은 부모를 따라간다 (getProjectTeamId 헬퍼)
   const addTeamProject = (teamId: string, pid: number) => {
-    // latestTeamsRef로 stale closure 방지 — 리렌더 타이밍과 무관하게 항상 최신 teams 기반으로 계산
-    const newTeams = latestTeamsRef.current.map(t => {
-      if (t.id === teamId) return { ...t, projectIds: [...new Set([...t.projectIds.filter(id => id !== pid), pid])] };
-      return { ...t, projectIds: t.projectIds.filter(id => id !== pid) };
-    });
-    setTeams(newTeams);
-    // teamsFromServer 플래그 설정 안 함 — 사용자 액션이므로 useEffect가 정상 저장 경로를 타야 함
-    // 저장 완료 후 3초간 snapshot 차단 — Firestore가 구버전 snapshot을 보내도 롤백 안 됨
-    ignoreSnapshotUntil.current = Date.now() + 3000;
-    fsWriteTeams(newTeams, teamNIdRef.current)
-      .catch(e => console.warn("[SYNC] addTeamProject teams 저장 실패:", e));
-    // 해당 프로젝트의 기존 업무들에 teamId 즉시 배정 — viewTodos 필터가 팀 변경 즉시 업무를 포함하도록
-    const affected = todos.filter(t => t.pid === pid && t.teamId !== teamId).map(t => ({ ...t, teamId }));
+    // parentId가 있으면 최상위 부모를 찾아 그쪽에 teamId 부여
+    const proj = projects.find(p => p.id === pid);
+    if (!proj) return;
+    const rootId = proj.parentId ? (() => { let cur = proj; while (cur.parentId) { const par = projects.find(x => x.id === cur.parentId); if (!par) break; cur = par; } return cur.id; })() : pid;
+    setProjectsGuarded((prev: Project[]) => prev.map(p => p.id === rootId ? { ...p, teamId } : p));
+    // 해당 프로젝트(+자식)의 기존 업무들에 teamId 즉시 배정
+    const childIds = new Set<number>([rootId, ...projects.filter(p => p.parentId === rootId).map(p => p.id)]);
+    const affected = todos.filter(t => childIds.has(t.pid) && t.teamId !== teamId).map(t => ({ ...t, teamId }));
     if (affected.length > 0) {
-      setTodos(p => p.map(t => t.pid === pid ? { ...t, teamId } : t));
+      setTodos(p => p.map(t => childIds.has(t.pid) ? { ...t, teamId } : t));
       fsWriteTodosBatch(affected).catch(e => console.warn("[SYNC] addTeamProject todos 업데이트 실패:", e));
     }
   };
-  const removeTeamProject = (teamId: string, pid: number) => {
-    const newTeams = latestTeamsRef.current.map(t =>
-      t.id === teamId ? { ...t, projectIds: t.projectIds.filter(id => id !== pid) } : t
-    );
-    setTeams(newTeams);
-    ignoreSnapshotUntil.current = Date.now() + 3000;
-    fsWriteTeams(newTeams, teamNIdRef.current)
-      .catch(e => console.warn("[SYNC] removeTeamProject teams 저장 실패:", e));
+  const removeTeamProject = (_teamId: string, pid: number) => {
+    const proj = projects.find(p => p.id === pid);
+    if (!proj) return;
+    const rootId = proj.parentId ? (() => { let cur = proj; while (cur.parentId) { const par = projects.find(x => x.id === cur.parentId); if (!par) break; cur = par; } return cur.id; })() : pid;
+    setProjectsGuarded((prev: Project[]) => prev.map(p => p.id === rootId ? { ...p, teamId: null } : p));
   };
-  // 프로젝트 삭제 시 모든 팀에서 해당 projectId 제거 — onDelProj 경로에서 사용
-  const removeProjectFromAllTeams = (pid: number) => {
-    const newTeams = latestTeamsRef.current.map(t => ({ ...t, projectIds: t.projectIds.filter(id => id !== pid) }));
-    setTeams(newTeams);
-    fsWriteTeams(newTeams, teamNIdRef.current)
-      .catch(e => console.warn("[SYNC] removeProjectFromAllTeams teams 저장 실패:", e));
+  // 프로젝트 삭제 시 호출 — teamId 필드 자체가 프로젝트와 함께 사라지므로 별도 처리 불필요 (호환용 유지)
+  const removeProjectFromAllTeams = (_pid: number) => {
+    // no-op — 프로젝트 문서 삭제로 teamId도 함께 제거됨
   };
 
   // 기존 업무를 프로젝트 기준으로 팀에 일괄 배정
   // 프로젝트가 팀에 연결되어 있으면 해당 팀의 teamId를 업무에 설정
   const assignTodosToTeams = () => {
-    // 프로젝트 → 팀 매핑 생성
-    const projTeamMap: Record<number, string> = {};
-    teams.forEach(t => t.projectIds.forEach(pid => { projTeamMap[pid] = t.id; }));
+    // 프로젝트 → 팀 매핑 생성 (자식은 부모 teamId 상속)
+    const projTeamMap = buildProjTeamMap(projects);
     let count = 0;
     pushHistory();
     setTodos((prev: Todo[]) => prev.map(t => {
@@ -1324,9 +1312,8 @@ export function useTodoApp() {
     const tpl = templates.find(t => t.id === id);
     if (!tpl || !tpl.items.length) return;
 
-    // 프로젝트 → 팀 매핑
-    const projTeamMap: Record<number, string> = {};
-    teams.forEach(tm => tm.projectIds.forEach(pid => { projTeamMap[pid] = tm.id; }));
+    // 프로젝트 → 팀 매핑 (자식은 부모 teamId 상속)
+    const projTeamMap = buildProjTeamMap(projects);
 
     const startId = nIdRef.current;
     nIdRef.current += tpl.items.length;
@@ -1381,8 +1368,7 @@ export function useTodoApp() {
   // 템플릿 편집 항목 일괄 등록 — 히스토리 1회만 push (Undo 1번으로 전체 되돌리기)
   const confirmTplItems = (items: Record<string, unknown>[]) => {
     if (!items.length) return;
-    const projTeamMap: Record<number, string> = {};
-    teams.forEach(tm => tm.projectIds.forEach(pid => { projTeamMap[pid] = tm.id; }));
+    const projTeamMap = buildProjTeamMap(projects);
     const startId = nIdRef.current;
     nIdRef.current += items.length;
     setNId(nIdRef.current);
@@ -1445,9 +1431,8 @@ export function useTodoApp() {
     // teamId 없는 업무가 없으면 조기 종료
     if (!todos.some(t => !t.teamId)) { autoAssignDone.current = true; return; }
     autoAssignDone.current = true;
-    // 프로젝트 → 팀 매핑
-    const projTeamMap: Record<number, string> = {};
-    teams.forEach(t => t.projectIds.forEach(pid => { projTeamMap[pid] = t.id; }));
+    // 프로젝트 → 팀 매핑 (자식은 부모 teamId 상속)
+    const projTeamMap = buildProjTeamMap(projects);
     // 담당자 이름(정규화) → 소속 팀 목록 매핑
     const memberTeamMap: Record<string, string[]> = {};
     teams.forEach(t => t.members.forEach(m => {
@@ -1473,26 +1458,44 @@ export function useTodoApp() {
     }));
   }, [loaded, teams, todos]);
 
-  // 기존 데이터 정리 — 동일 프로젝트가 여러 팀의 projectIds에 중복 등록된 경우 자동 제거
-  // 로드 완료 후 1회만 실행 (과거 데이터 마이그레이션)
-  const projDedupeD = useRef(false);
+  // 마이그레이션 — Team.projectIds → Project.teamId (새 데이터 모델)
+  // 로드 완료 후 1회: 각 팀의 projectIds를 읽어 해당 프로젝트에 teamId patch, 이후 Team.projectIds 비움
+  // 같은 프로젝트가 여러 팀에 있으면 첫 팀만 채택
+  const teamIdMigrationDone = useRef(false);
   useEffect(() => {
-    if (!loaded || projDedupeD.current) return;
-    if (!teams.length) return;
-    projDedupeD.current = true;
-    // 동일 PID가 여러 팀에 있으면 첫 번째 팀에만 남기고 나머지에서 제거
-    const seen = new Set<number>();
-    let changed = false;
-    const cleaned = teams.map(t => {
-      const deduped = t.projectIds.filter(pid => {
-        if (seen.has(pid)) { changed = true; return false; }
-        seen.add(pid);
-        return true;
-      });
-      return deduped.length !== t.projectIds.length ? { ...t, projectIds: deduped } : t;
+    if (!loaded || teamIdMigrationDone.current) return;
+    if (!teams.length || !projects.length) return;
+    // 마이그레이션이 필요한 케이스: teams에 projectIds가 남아 있으면서 그 프로젝트에 teamId가 없는 경우
+    const needsMigration = teams.some(t => (t.projectIds?.length ?? 0) > 0);
+    if (!needsMigration) { teamIdMigrationDone.current = true; return; }
+    teamIdMigrationDone.current = true;
+    console.log("[MIGRATION] Team.projectIds → Project.teamId 마이그레이션 시작");
+    const assigned = new Set<number>();
+    const projTeamMap: Record<number, string> = {};
+    teams.forEach(t => (t.projectIds ?? []).forEach(pid => {
+      if (assigned.has(pid)) return;
+      assigned.add(pid);
+      projTeamMap[pid] = t.id;
+    }));
+    // 프로젝트에 teamId patch (자식은 그대로 — 부모 따라감)
+    const newProjects = projects.map(p => {
+      const newTid = projTeamMap[p.id];
+      if (newTid && p.teamId !== newTid && !p.parentId) return { ...p, teamId: newTid };
+      return p;
     });
-    if (changed) setTeams(cleaned);
-  }, [loaded, teams]);
+    const changedProjs = newProjects.filter((p, i) => p !== projects[i]);
+    if (changedProjs.length > 0) {
+      setProjects(newProjects);
+      changedProjs.forEach(p => {
+        fsWriteProject(p).catch(e => console.warn("[MIGRATION] project teamId 저장 실패:", e));
+      });
+    }
+    // Team.projectIds 비우기 — 새 모델에선 source of truth가 Project.teamId
+    const cleanedTeams = teams.map(t => ({ ...t, projectIds: [] }));
+    setTeams(cleanedTeams);
+    fsWriteTeams(cleanedTeams, teamNIdRef.current).catch(e => console.warn("[MIGRATION] teams projectIds 비우기 실패:", e));
+    console.log(`[MIGRATION] 완료 — ${changedProjs.length}개 프로젝트에 teamId 부여`);
+  }, [loaded, teams, projects]);
 
   // ── useCalendar: 캘린더 상태·로직 분리 — 팀 필터 적용된 todos 전달 ──────
   const cal = useCalendar({ todos: viewTodos });

@@ -33,6 +33,23 @@ export const projLabel = (ps: Project[], p: Project, short = false): string => {
 export const topProjects = (ps: Project[]): Project[] => ps.filter(p => !p.parentId);
 // 특정 상위의 하위 프로젝트들
 export const childProjects = (ps: Project[], parentId: number): Project[] => ps.filter(p => p.parentId === parentId);
+// 프로젝트의 소속 팀 ID — 자식은 부모 teamId 상속 (단일 source of truth)
+// 미배정이면 null. 한 프로젝트는 한 팀에만 속한다.
+export const getProjectTeamId = (ps: Project[], p: Project): string | null => {
+  if (!p) return null;
+  if (p.parentId) {
+    const parent = ps.find(x => x.id === p.parentId);
+    return parent ? getProjectTeamId(ps, parent) : null;
+  }
+  return p.teamId ?? null;
+};
+
+// 모든 프로젝트의 ID → 팀 ID 매핑 (자식은 부모 teamId 상속). 미배정 프로젝트는 매핑 없음
+export const buildProjTeamMap = (ps: Project[]): Record<number, string> => {
+  const m: Record<number, string> = {};
+  ps.forEach(p => { const tid = getProjectTeamId(ps, p); if (tid) m[p.id] = tid; });
+  return m;
+};
 export const fD = (d: string) => d?d.slice(5).replace("-","/"):"—";
 export const DOW = ["일","월","화","수","목","금","토"];
 export const fDow = (d: string) => { if(!d) return ""; const dt=new Date(d.split(" ")[0]); return isNaN(dt.getTime())?"":DOW[dt.getDay()]; };

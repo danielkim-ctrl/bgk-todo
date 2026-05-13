@@ -6,7 +6,7 @@ import { S } from "./styles";
 import { REPEAT_OPTS, INIT_ST } from "./constants";
 import { ActivityLog, TEAM_ROLE_PERMISSIONS, TeamRole } from "./types";
 import { FolderIcon, Cog6ToothIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, TrashIcon, KeyboardIcon, ChartBarIcon, ListBulletIcon, CalendarIcon, ViewColumnsIcon, ArrowPathIcon, UserIcon, BoltIcon, CheckCircleIcon, DocumentTextIcon, StarIcon as StarSolidIcon, StarOutlineIcon, PlusIcon, ClipboardDocumentIcon, CheckIcon, PencilSquareIcon, XMarkIcon, Bars3Icon, ExclamationTriangleIcon, BookOpenIcon, ICON_SM } from "./components/ui/Icons";
-import { getParentProj } from "./utils";
+import { getParentProj, getProjectTeamId } from "./utils";
 import { BottomTabBar } from "./components/ui/BottomTabBar";
 import { SidebarDrawer } from "./components/sidebar/SidebarDrawer";
 import { FAB } from "./components/ui/FAB";
@@ -256,13 +256,11 @@ export default function App() {
     });
   };
   // 팀 필터 적용: 선택된 팀 프로젝트 / 전체 보기 시 소속 팀 전체 프로젝트
-  // 세부 프로젝트는 상위가 팀에 연결되어 있으면 같은 팀 소속으로 간주
-  const isInTeamProjects = (p: any, teamProjIds: number[]) =>
-    teamProjIds.includes(p.id) || (p.parentId && teamProjIds.includes(p.parentId));
+  // 자식 프로젝트는 부모의 teamId를 따라간다 (getProjectTeamId)
   const teamProj = selectedTeamId
-    ? aProj.filter(p => teams.some(t => t.id === selectedTeamId && isInTeamProjects(p, t.projectIds)))
+    ? aProj.filter(p => getProjectTeamId(aProj, p) === selectedTeamId)
     : canViewOtherTeams ? aProj
-    : aProj.filter(p => teams.some(t => myTeamIds.includes(t.id) && isInTeamProjects(p, t.projectIds)));
+    : aProj.filter(p => { const tid = getProjectTeamId(aProj, p); return tid != null && myTeamIds.includes(tid); });
   const visibleProj = teamProj.filter(p => !hiddenProjects.includes(p.id));
   // 숨겨진 담당자 — userSettings 기반 (localStorage + Firestore 이중 저장)
   const hiddenMembers: string[] = currentUser ? (userSettings[currentUser]?.hiddenMembers ?? []) : [];

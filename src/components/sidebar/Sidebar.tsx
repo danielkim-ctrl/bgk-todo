@@ -166,7 +166,7 @@ export function Sidebar({
     const assignedProjIds = new Set<number>();
     teams.forEach(team => {
       // 이 팀 소속 프로젝트 (상위만, 세부는 상위에 따라감)
-      const teamTopProjs = topProjects(visibleAProj).filter(p => team.projectIds.includes(p.id));
+      const teamTopProjs = topProjects(visibleAProj).filter(p => p.teamId === team.id);
       if (teamTopProjs.length === 0) return;
       // 팀 소속 전체 업무 수
       const teamProjIds = teamTopProjs.flatMap(p => getChildIds(visibleAProj, p.id));

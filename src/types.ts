@@ -4,6 +4,7 @@ export interface Project {
   color: string;
   status: string;
   parentId?: number;  // 상위 프로젝트 ID — 없으면 최상위
+  teamId?: string | null;  // 소속 팀 ID — 최상위 프로젝트에만 설정, 자식은 부모 teamId 상속 (null/undefined면 미배정)
 }
 
 // 활동 로그 엔트리 — todo의 생성/수정/완료/메모 이력을 기록
