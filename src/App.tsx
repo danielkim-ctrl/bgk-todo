@@ -240,13 +240,15 @@ export default function App() {
   const starredIds: Set<number> = new Set(currentUser ? (userFavs[currentUser] || []) : []);
   // toggleStar는 toggleFav와 동일 (캘린더 사이드바에서 호출)
   const toggleStar = toggleFav;
-  // 숨겨진 프로젝트 — userSettings 기반 (Firestore 동기화)
+  // 숨겨진 프로젝트 — userSettings 기반 (localStorage + Firestore 이중 저장)
   const hiddenProjects: number[] = currentUser ? (userSettings[currentUser]?.hiddenProjects ?? []) : [];
   const toggleHideProject = (id: number) => {
     if (!currentUser) return;
     setUserSettings((prev: any) => {
       const cur: number[] = prev[currentUser]?.hiddenProjects ?? [];
       const n = cur.includes(id) ? cur.filter((x: number) => x !== id) : [...cur, id];
+      // localStorage에 즉시 저장 — 새로고침 후 Firestore snapshot 오기 전에도 복원되도록
+      localStorage.setItem(`hidden-projects-${currentUser}`, JSON.stringify(n));
       return { ...prev, [currentUser]: { ...prev[currentUser], hiddenProjects: n } };
     });
   };
@@ -259,13 +261,15 @@ export default function App() {
     : canViewOtherTeams ? aProj
     : aProj.filter(p => teams.some(t => myTeamIds.includes(t.id) && isInTeamProjects(p, t.projectIds)));
   const visibleProj = teamProj.filter(p => !hiddenProjects.includes(p.id));
-  // 숨겨진 담당자 — userSettings 기반 (Firestore 동기화)
+  // 숨겨진 담당자 — userSettings 기반 (localStorage + Firestore 이중 저장)
   const hiddenMembers: string[] = currentUser ? (userSettings[currentUser]?.hiddenMembers ?? []) : [];
   const toggleHideMember = (name: string) => {
     if (!currentUser) return;
     setUserSettings((prev: any) => {
       const cur: string[] = prev[currentUser]?.hiddenMembers ?? [];
       const n = cur.includes(name) ? cur.filter((x: string) => x !== name) : [...cur, name];
+      // localStorage에 즉시 저장 — 새로고침 후 Firestore snapshot 오기 전에도 복원되도록
+      localStorage.setItem(`hidden-members-${currentUser}`, JSON.stringify(n));
       return { ...prev, [currentUser]: { ...prev[currentUser], hiddenMembers: n } };
     });
   };

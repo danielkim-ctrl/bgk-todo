@@ -114,7 +114,19 @@ export function useUserSettings() {
     hiddenProjects: number[];
     hiddenMembers: string[];
     selectedTeamId?: string | null;
-  }>>({});
+  }>>(() => {
+    // 새로고침 시 Firestore snapshot 오기 전에도 숨김 상태가 복원되도록 localStorage에서 초기 로드
+    const u = localStorage.getItem("todo-current-user");
+    if (!u) return {};
+    try {
+      const hp = JSON.parse(localStorage.getItem(`hidden-projects-${u}`) || "null");
+      const hm = JSON.parse(localStorage.getItem(`hidden-members-${u}`) || "null");
+      if (hp !== null || hm !== null) {
+        return { [u]: { kanbanOrder: [], sidebarOrder: [], starredIds: [], hiddenProjects: hp ?? [], hiddenMembers: hm ?? [] } };
+      }
+    } catch {}
+    return {};
+  });
 
   // ── 유저 전환: 이전 유저 설정 저장 → 새 유저 설정 복원 ─────────────────────
   const prevUserRef = useRef<string | null>(localStorage.getItem("todo-current-user"));
