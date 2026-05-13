@@ -15,6 +15,9 @@ const tplRef = (id: string) => doc(db, "todos_db", "team", "templates", id);
 const tplCol = () => collection(db, "todos_db", "team", "templates");
 const projRef = (id: number | string) => doc(db, "todos_db", "team", "projects", String(id));
 const projCol = () => collection(db, "todos_db", "team", "projects");
+// 숨김 상태(hiddenProjects/hiddenMembers)를 meta와 분리한 독립 문서
+// — 사용자가 토글할 때마다 즉시 저장, 400ms debounce·다른 설정과의 race 제거
+const hiddenRef = () => doc(db, "todos_db", "team", "meta", "hidden");
 
 // 메타(설정류) 단일 문서 실시간 구독 — projects, members, teams 등 설정 데이터
 export function subscribeMeta(cb: (data: any) => void): Unsubscribe {
@@ -147,6 +150,33 @@ export async function writeProject(project: Project): Promise<void> {
 // 프로젝트 삭제
 export async function removeProject(id: number): Promise<void> {
   await deleteDoc(projRef(id));
+}
+
+// 숨김 상태 독립 문서 구독 — 사용자별 hiddenProjects/hiddenMembers 즉시 동기화
+// 구조: { [userId]: { hiddenProjects: number[], hiddenMembers: string[], _clientId: string } }
+export function subscribeHidden(
+  cb: (data: Record<string, { hiddenProjects?: number[]; hiddenMembers?: string[]; _clientId?: string }>) => void
+): Unsubscribe {
+  return onSnapshot(
+    hiddenRef(),
+    (s) => cb(s.exists() ? (s.data() as any) : {}),
+    (err) => console.warn("[SYNC] subscribeHidden 실패:", err)
+  );
+}
+
+// 사용자별 숨김 상태 즉시 저장 — 토글 시점에 debounce 없이 바로 Firestore에 반영
+// merge:true로 다른 사용자의 필드는 건드리지 않음
+export async function writeUserHidden(
+  userId: string,
+  hiddenProjects: number[],
+  hiddenMembers: string[],
+  clientId: string
+): Promise<void> {
+  await setDoc(
+    hiddenRef(),
+    { [userId]: { hiddenProjects, hiddenMembers, _clientId: clientId, _updatedAt: Date.now() } },
+    { merge: true }
+  );
 }
 
 // 여러 프로젝트 동시 쓰기 (마이그레이션용)

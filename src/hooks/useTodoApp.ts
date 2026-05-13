@@ -10,6 +10,7 @@ import {
   writeMeta as fsWriteMeta,
   writeProject as fsWriteProject, removeProject as fsRemoveProject,
   writeProjectsBatch as fsWriteProjectsBatch,
+  subscribeHidden, writeUserHidden as fsWriteUserHidden,
 } from "../utils/firestoreSync";
 import {
   INIT_MEMBERS, INIT_PRI, INIT_ST, INIT_PRI_C, INIT_PRI_BG, INIT_ST_C, INIT_ST_BG,
@@ -209,6 +210,13 @@ export function useTodoApp() {
   const setMemberColorsGuarded = (fn: any) => { guard(); pushHistory(); setMemberColors(fn); };
   // hiddenProjects/hiddenMembers 변경 시 guard() 호출 — Firestore echo가 즉시 덮어쓰는 것 차단
   const setUserSettingsGuarded = (fn: any) => { guard(); setUserSettings(fn); };
+
+  // 숨김 상태 즉시 Firestore 저장 — todo와 동일하게 debounce 없이 바로 반영
+  // 토글한 사용자의 hiddenProjects/hiddenMembers 최신 값을 받아 별도 hidden 문서에 기록
+  const flushHidden = (userId: string, hiddenProjects: number[], hiddenMembers: string[]) => {
+    fsWriteUserHidden(userId, hiddenProjects, hiddenMembers, clientId.current)
+      .catch(e => console.warn("[SYNC] hidden 저장 실패:", e));
+  };
 
   // 배열에서 조건에 맞는 마지막 인덱스를 찾는 헬퍼 — ES2023 findLastIndex 대체
   const findLastIdx = (arr: AppSnapshot[], pred: (s: AppSnapshot) => boolean) => {
@@ -443,31 +451,23 @@ export function useTodoApp() {
     if (d.templates) setTemplates(d.templates);
     if (d.tplNId) setTplNId(d.tplNId);
     if (d.userSettings) {
-      if (merge && currentUser) {
-        // merge 모드 = 다른 기기의 snapshot — hiddenProjects/hiddenMembers 포함 Firestore 값 수용 (기기 간 동기화)
-        // selectedTeamId만 로컬 우선 (이 기기에서 방금 전환했을 수 있음)
-        setUserSettings(prev => {
-          const local = prev[currentUser];
-          const server = d.userSettings[currentUser];
-          if (!local) return d.userSettings;
-          return {
-            ...d.userSettings,
-            [currentUser]: { ...server, selectedTeamId: local.selectedTeamId },
+      // hiddenProjects/hiddenMembers는 별도 hidden 문서가 source of truth
+      // meta에서 오는 userSettings는 hidden 필드를 덮어쓰지 않도록 보존
+      setUserSettings(prev => {
+        const next: any = { ...d.userSettings };
+        for (const uid of Object.keys(next)) {
+          const local = prev[uid];
+          if (!local) continue;
+          next[uid] = {
+            ...next[uid],
+            hiddenProjects: local.hiddenProjects ?? next[uid].hiddenProjects ?? [],
+            hiddenMembers: local.hiddenMembers ?? next[uid].hiddenMembers ?? [],
+            // selectedTeamId는 현재 사용자만 로컬 우선
+            ...(uid === currentUser ? { selectedTeamId: local.selectedTeamId } : {}),
           };
-        });
-      } else {
-        // 첫 로드 — Firestore가 source of truth. selectedTeamId는 로컬 우선
-        setUserSettings(prev => {
-          if (!currentUser) return d.userSettings;
-          const local = prev[currentUser];
-          const server = d.userSettings[currentUser];
-          if (!local || !server) return d.userSettings;
-          return {
-            ...d.userSettings,
-            [currentUser]: { ...server, selectedTeamId: local.selectedTeamId },
-          };
-        });
-      }
+        }
+        return next;
+      });
     }
   };
 
@@ -555,6 +555,26 @@ export function useTodoApp() {
     unsubs.push(subscribeTemplates((tpls) => {
       if (cancelled) return;
       setTemplates(tpls);
+    }));
+
+    // hidden 구독 — 사용자별 hiddenProjects/hiddenMembers 즉시 동기화 (todo와 동일 패턴)
+    // 자기 echo는 _clientId로 차단, 다른 기기의 변경은 즉시 수용
+    unsubs.push(subscribeHidden((data) => {
+      if (cancelled) return;
+      setUserSettings(prev => {
+        const next: any = { ...prev };
+        for (const [uid, entry] of Object.entries(data || {})) {
+          const e = entry as any;
+          // 자기 자신의 echo는 무시 — 로컬 state가 이미 최신
+          if (e._clientId === clientId.current) continue;
+          next[uid] = {
+            ...(next[uid] || { kanbanOrder: [], sidebarOrder: [], starredIds: [], hiddenProjects: [], hiddenMembers: [] }),
+            hiddenProjects: e.hiddenProjects ?? [],
+            hiddenMembers: e.hiddenMembers ?? [],
+          };
+        }
+        return next;
+      });
     }));
 
     // projects 구독 — todo와 동일한 패턴: snapshot 오면 그냥 setProjects
@@ -682,12 +702,19 @@ export function useTodoApp() {
     const delay = immediateFlush.current ? 0 : 400;
     immediateFlush.current = false;
     const t = setTimeout(() => {
+      // userSettings에서 hiddenProjects/hiddenMembers 제외 — 별도 hidden 문서가 source of truth
+      // (meta debounce + 다른 필드 변경과의 race로 숨김 상태가 flicker하던 문제 해결)
+      const cleanedUserSettings: any = {};
+      for (const [uid, s] of Object.entries(userSettings)) {
+        const { hiddenProjects: _hp, hiddenMembers: _hm, ...rest } = (s as any) || {};
+        cleanedUserSettings[uid] = rest;
+      }
       const meta = {
         nId, pNId, pris, stats, priC, priBg, stC, stBg,
         members, memberColors, memberRoles, memberPins, globalPermissions,
         tplNId,
         sharedApiKey: sharedApiKeyRef.current,
-        userSettings,
+        userSettings: cleanedUserSettings,
         _clientId: clientId.current,
       };
       fsWriteMeta(meta)
@@ -1556,6 +1583,7 @@ export function useTodoApp() {
     hoverRow, setHoverRow,
     ...userSets,
     setUserSettings: setUserSettingsGuarded,
+    flushHidden,
     // setFilters를 히스토리 포함 버전으로 덮어쓰기 — 필터 변경도 undo 가능
     setFilters: ((fn: any) => { pushHistory(); setFilters(fn); }) as typeof setFilters,
     // 저장 필터 저장/삭제도 undo 가능하도록 pushHistory 포함 버전으로 덮어쓰기

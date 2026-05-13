@@ -58,7 +58,7 @@ export default function App() {
     detPopup, setDetPopup, notePopup, setNotePopup,
     datePop, setDatePop, nrDatePop, setNrDatePop,
     hoverRow, setHoverRow, currentUser, setCurrentUser,
-    userFavs, isFav, toggleFav: toggleFavBase, userSettings, setUserSettings,
+    userFavs, isFav, toggleFav: toggleFavBase, userSettings, setUserSettings, flushHidden,
     expandMode, setExpandMode, todoView, setTodoView, showDone, setShowDone, memoCols, setMemoCols,
     selectedIds, lastSelRef, addSecRef, tblDivRef,
     clrSel, selAll, movePop, setMovePop, bulkPop, setBulkPop,
@@ -247,8 +247,11 @@ export default function App() {
     setUserSettings((prev: any) => {
       const cur: number[] = prev[currentUser]?.hiddenProjects ?? [];
       const n = cur.includes(id) ? cur.filter((x: number) => x !== id) : [...cur, id];
+      const hm: string[] = prev[currentUser]?.hiddenMembers ?? [];
       // localStorage에 즉시 저장 — 새로고침 후 Firestore snapshot 오기 전에도 복원되도록
       localStorage.setItem(`hidden-projects-${currentUser}`, JSON.stringify(n));
+      // Firestore에 즉시 저장 — todo와 동일하게 debounce 없이 바로 반영 (기기 간 동기화)
+      flushHidden(currentUser, n, hm);
       return { ...prev, [currentUser]: { ...prev[currentUser], hiddenProjects: n } };
     });
   };
@@ -268,8 +271,11 @@ export default function App() {
     setUserSettings((prev: any) => {
       const cur: string[] = prev[currentUser]?.hiddenMembers ?? [];
       const n = cur.includes(name) ? cur.filter((x: string) => x !== name) : [...cur, name];
+      const hp: number[] = prev[currentUser]?.hiddenProjects ?? [];
       // localStorage에 즉시 저장 — 새로고침 후 Firestore snapshot 오기 전에도 복원되도록
       localStorage.setItem(`hidden-members-${currentUser}`, JSON.stringify(n));
+      // Firestore에 즉시 저장 — todo와 동일하게 debounce 없이 바로 반영 (기기 간 동기화)
+      flushHidden(currentUser, hp, n);
       return { ...prev, [currentUser]: { ...prev[currentUser], hiddenMembers: n } };
     });
   };
