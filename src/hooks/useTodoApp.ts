@@ -207,6 +207,8 @@ export function useTodoApp() {
   const setStCGuarded = (fn: any) => { guard(); pushHistory(); setStC(fn); };
   const setStBgGuarded = (fn: any) => { guard(); pushHistory(); setStBg(fn); };
   const setMemberColorsGuarded = (fn: any) => { guard(); pushHistory(); setMemberColors(fn); };
+  // hiddenProjects/hiddenMembers 변경 시 guard() 호출 — Firestore echo가 즉시 덮어쓰는 것 차단
+  const setUserSettingsGuarded = (fn: any) => { guard(); setUserSettings(fn); };
 
   // 배열에서 조건에 맞는 마지막 인덱스를 찾는 헬퍼 — ES2023 findLastIndex 대체
   const findLastIdx = (arr: AppSnapshot[], pred: (s: AppSnapshot) => boolean) => {
@@ -442,24 +444,29 @@ export function useTodoApp() {
     if (d.tplNId) setTplNId(d.tplNId);
     if (d.userSettings) {
       if (merge && currentUser) {
-        // merge 모드 = 다른 클라이언트의 setDoc snapshot. selectedTeamId처럼 race가 있는 필드만 로컬 우선 보존.
-        // hiddenProjects/hiddenMembers는 기기 간 공유가 필요하므로 Firestore 값을 수용한다.
-        // (localStorage 초기값은 같은 기기 깜빡임 방지용일 뿐 — Firestore가 source of truth)
+        // merge 모드 = 다른 기기의 snapshot — hiddenProjects/hiddenMembers 포함 Firestore 값 수용 (기기 간 동기화)
+        // selectedTeamId만 로컬 우선 (이 기기에서 방금 전환했을 수 있음)
         setUserSettings(prev => {
-          const localUserEntry = prev[currentUser];
-          const serverUserEntry = d.userSettings[currentUser];
-          if (!localUserEntry) return d.userSettings;
+          const local = prev[currentUser];
+          const server = d.userSettings[currentUser];
+          if (!local) return d.userSettings;
           return {
             ...d.userSettings,
-            [currentUser]: {
-              ...serverUserEntry,
-              // selectedTeamId만 로컬 우선 — 방금 변경했는데 다른 기기 snapshot이 덮어쓰는 race 방지
-              selectedTeamId: localUserEntry.selectedTeamId,
-            },
+            [currentUser]: { ...server, selectedTeamId: local.selectedTeamId },
           };
         });
       } else {
-        setUserSettings(d.userSettings);
+        // 첫 로드 — Firestore가 source of truth. selectedTeamId는 로컬 우선
+        setUserSettings(prev => {
+          if (!currentUser) return d.userSettings;
+          const local = prev[currentUser];
+          const server = d.userSettings[currentUser];
+          if (!local || !server) return d.userSettings;
+          return {
+            ...d.userSettings,
+            [currentUser]: { ...server, selectedTeamId: local.selectedTeamId },
+          };
+        });
       }
     }
   };
@@ -1548,6 +1555,7 @@ export function useTodoApp() {
     datePop, setDatePop, nrDatePop, setNrDatePop,
     hoverRow, setHoverRow,
     ...userSets,
+    setUserSettings: setUserSettingsGuarded,
     // setFilters를 히스토리 포함 버전으로 덮어쓰기 — 필터 변경도 undo 가능
     setFilters: ((fn: any) => { pushHistory(); setFilters(fn); }) as typeof setFilters,
     // 저장 필터 저장/삭제도 undo 가능하도록 pushHistory 포함 버전으로 덮어쓰기

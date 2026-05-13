@@ -379,14 +379,15 @@ export function SettingsMgr({
         </div>;
       };
 
-      // 팀별 프로젝트 그룹
+      // 팀별 프로젝트 그룹 — topProjects가 아닌 activeProjs 전체 기준으로 배정 여부 판단
+      // (세부 프로젝트도 팀 배정 가능하므로 parentId 필터 제거)
       const assignedIds = new Set<number>();
       const teamGroups = teams.map(team => {
-        const tProjs = topProjects(activeProjs).filter(p => team.projectIds.includes(p.id));
+        const tProjs = activeProjs.filter(p => team.projectIds.includes(p.id));
         tProjs.forEach(p => assignedIds.add(p.id));
         return { team, projs: tProjs };
       }).filter(g => g.projs.length > 0);
-      const unassignedProjs = topProjects(activeProjs).filter(p => !assignedIds.has(p.id));
+      const unassignedProjs = activeProjs.filter(p => !assignedIds.has(p.id));
 
       return <div style={{ display: "flex", flexDirection: "column" as const, flex: 1, minHeight: 0 }}>
         <div style={{ display: "flex", flexDirection: "column" as const, flex: 1, overflowY: "auto" as const, marginBottom: 14 }}>
