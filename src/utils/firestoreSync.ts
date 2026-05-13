@@ -113,7 +113,6 @@ export function subscribeTeams(
     teamsRef(),
     (s) => {
       const data = s.exists() ? s.data() as { teams: Team[]; teamNId: number } : null;
-      console.log(`[TEAMS SNAPSHOT] fromCache=${s.metadata.fromCache} hasPendingWrites=${s.metadata.hasPendingWrites} teams=`, data?.teams?.map(t => ({ id: t.id, name: t.name, projectIds: t.projectIds })));
       cb(data);
     },
     (err) => console.warn("[SYNC] subscribeTeams 실패:", err)

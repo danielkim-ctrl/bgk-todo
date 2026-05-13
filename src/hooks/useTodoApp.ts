@@ -264,6 +264,8 @@ export function useTodoApp() {
   // 팀 목록 — 조직도 단위, Firebase에 저장
   const [teams, setTeams] = useState<Team[]>([]);
   const [teamNId, setTeamNId] = useState(1); // 팀 ID 자동 증가용
+  // teamNId를 ref로도 관리 — teams useEffect deps에서 teamNId를 제거해 불필요한 루프 차단
+  const teamNIdRef = useRef(1);
   // 현재 선택된 팀 (null = 전체 보기)
   const [selectedTeamId, setSelectedTeamIdRaw] = useState<string | null>(null);
   // 마지막으로 복원한 값 추적 — 사용자 변경 또는 Firestore userSettings 로드 시 복원
@@ -482,6 +484,7 @@ export function useTodoApp() {
     };
 
     let teamsReceived = false; // subscribeTeams가 meta/teams 문서를 정상 수신했는지
+    let teamsMigrationDone = false; // meta/main → meta/teams 마이그레이션 one-shot 플래그
 
     // meta 구독 — 설정류 applyData 경로 재사용
     unsubs.push(subscribeMeta((data) => {
@@ -496,10 +499,12 @@ export function useTodoApp() {
       }
       // teams 폴백 — subscribeTeams가 아직 meta/teams를 못 받은 경우에만 meta/main의 teams 사용
       // teamsReceived=true이면 meta/teams가 source of truth이므로 meta/main의 teams는 무시
-      if (!teamsReceived && Array.isArray(data.teams) && data.teams.length > 0) {
+      // teamsMigrationDone 플래그로 마이그레이션 쓰기를 1회로 제한 — subscribeMeta 반복 발동 시 loop 차단
+      if (!teamsReceived && !teamsMigrationDone && Array.isArray(data.teams) && data.teams.length > 0) {
+        teamsMigrationDone = true;
         teamsFromServer.current = true; // echo 방지 — 이 setTeams는 쓰기로 이어지지 않아야 함
         setTeams(data.teams);
-        if (data.teamNId) setTeamNId(data.teamNId);
+        if (data.teamNId) { teamNIdRef.current = data.teamNId; setTeamNId(data.teamNId); }
         // meta/teams 문서가 없으면 마이그레이션 — 완료 후 meta/main의 teams 필드 제거
         fsWriteTeams(data.teams, data.teamNId ?? 1)
           .then(() => cleanMetaTeamsField()) // meta/main의 stale teams 필드 제거 → 이후 subscribeMeta가 teams 없는 문서를 받음
@@ -569,7 +574,7 @@ export function useTodoApp() {
       });
       teamsFromServer.current = true;
       setTeams(cleaned);
-      if (data.teamNId) setTeamNId(data.teamNId);
+      if (data.teamNId) { teamNIdRef.current = data.teamNId; setTeamNId(data.teamNId); }
     }));
 
     // 10초 타임아웃 가드 — meta 또는 todos 수신 실패 시 강제로 loaded=true
@@ -671,22 +676,21 @@ export function useTodoApp() {
 
   // teams 독립 저장 — meta/main과 완전히 분리된 문서(meta/teams)에 저장
   // teams 변경이 다른 설정(members, pris 등) 저장과 충돌하는 race를 근본 차단
+  // teamNId를 deps에서 제외 — setTeamNId 호출이 subscribeTeams echo와 맞물려 무한 루프 유발
+  // 대신 teamNIdRef.current로 항상 최신값 참조
   useEffect(() => {
     if (!loaded) return;
     // 초기 마운트 시 빈 배열을 Firestore에 덮어쓰는 사고 방지
     if (!skipFirstTeams.current) { skipFirstTeams.current = true; return; }
     // 서버에서 온 데이터(echo 포함)로 setTeams된 경우 — 다시 쓰면 무한 루프
-    if (teamsFromServer.current) { teamsFromServer.current = false; console.log("[teams useEffect] fromServer → skip"); return; }
+    if (teamsFromServer.current) { teamsFromServer.current = false; return; }
     // 사용자가 직접 변경한 경우에만 저장 — 400ms 디바운스
-    console.log("[teams useEffect] 사용자 변경 감지 → 400ms 후 저장");
     const t = setTimeout(() => {
-      console.log("[teams useEffect] fsWriteTeams 실행", teams.map(t => ({ id: t.id, projectIds: t.projectIds })));
-      fsWriteTeams(teams, teamNId)
-        .then(() => console.log("[teams useEffect] 저장 완료"))
+      fsWriteTeams(teams, teamNIdRef.current)
         .catch((e) => console.warn("[SYNC] teams 저장 실패:", e));
     }, 400);
     return () => clearTimeout(t);
-  }, [teams, teamNId, loaded]);
+  }, [teams, loaded]); // teamNId 제거 — ref로 참조해 루프 차단
 
   const forceFirestoreSync = async () => {
     try {
@@ -1123,10 +1127,11 @@ export function useTodoApp() {
   const addTeam = (name: string, color: string) => {
 
     pushHistory();
-    const id = `team-${String(teamNId).padStart(3, "0")}`;
+    const id = `team-${String(teamNIdRef.current).padStart(3, "0")}`;
     const team: Team = { id, name, color, members: [], projectIds: [], createdAt: td() };
     setTeams(p => [...p, team]);
-    setTeamNId(n => n + 1);
+    teamNIdRef.current += 1;
+    setTeamNId(teamNIdRef.current);
     flash(`팀 "${name}"이(가) 추가되었습니다`);
     return id;
   };
@@ -1182,12 +1187,9 @@ export function useTodoApp() {
     });
     setTeams(newTeams);
     // teamsFromServer 플래그 설정 안 함 — 사용자 액션이므로 useEffect가 정상 저장 경로를 타야 함
-    // hasPendingWrites=true인 echo는 subscribeTeams에서 무시되므로 이중 저장 없음
     // 저장 완료 후 3초간 snapshot 차단 — Firestore가 구버전 snapshot을 보내도 롤백 안 됨
     ignoreSnapshotUntil.current = Date.now() + 3000;
-    console.log("[addTeamProject] teamId=", teamId, "pid=", pid, "newTeams=", newTeams.map(t => ({ id: t.id, projectIds: t.projectIds })));
-    fsWriteTeams(newTeams, teamNId)
-      .then(() => console.log("[addTeamProject] fsWriteTeams 완료"))
+    fsWriteTeams(newTeams, teamNIdRef.current)
       .catch(e => console.warn("[SYNC] addTeamProject teams 저장 실패:", e));
     // 해당 프로젝트의 기존 업무들에 teamId 즉시 배정 — viewTodos 필터가 팀 변경 즉시 업무를 포함하도록
     const affected = todos.filter(t => t.pid === pid && t.teamId !== teamId).map(t => ({ ...t, teamId }));
@@ -1202,14 +1204,14 @@ export function useTodoApp() {
     );
     setTeams(newTeams);
     ignoreSnapshotUntil.current = Date.now() + 3000;
-    fsWriteTeams(newTeams, teamNId)
+    fsWriteTeams(newTeams, teamNIdRef.current)
       .catch(e => console.warn("[SYNC] removeTeamProject teams 저장 실패:", e));
   };
   // 프로젝트 삭제 시 모든 팀에서 해당 projectId 제거 — onDelProj 경로에서 사용
   const removeProjectFromAllTeams = (pid: number) => {
     const newTeams = latestTeamsRef.current.map(t => ({ ...t, projectIds: t.projectIds.filter(id => id !== pid) }));
     setTeams(newTeams);
-    fsWriteTeams(newTeams, teamNId)
+    fsWriteTeams(newTeams, teamNIdRef.current)
       .catch(e => console.warn("[SYNC] removeProjectFromAllTeams teams 저장 실패:", e));
   };
 
