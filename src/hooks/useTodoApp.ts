@@ -541,6 +541,8 @@ export function useTodoApp() {
     unsubs.push(subscribeTodos((todos) => {
       if (cancelled) return;
       const fixed = normalizeTodos(todos);
+      // [DEBUG-KANBAN]
+      console.log("[DEBUG] subscribeTodos snapshot", { count: fixed.length, sample_first_3: fixed.slice(0, 3).map(t => ({ id: t.id, st: t.st, teamId: t.teamId })) });
       setTodos(fixed);
       const maxId = fixed.reduce((m: number, t: any) => (t.id > m ? t.id : m), 0);
       if (maxId >= nIdRef.current) {
@@ -905,11 +907,17 @@ export function useTodoApp() {
       updated = n as Todo;
     }
 
+    // [DEBUG-KANBAN] 드래그 디버그용
+    console.log("[DEBUG] updTodo 호출", { id, u, before_st: t.st, after_st: updated.st, teamId: updated.teamId });
+
     // 로컬 state 업데이트 (히스토리 포함)
     setTodosWithHistory((p: Todo[]) => p.map(x => x.id === id ? updated : x));
 
     // Firestore 서브컬렉션 개별 문서 업데이트 — 즉시 호출되므로 race 없음
-    fsWriteTodo(updated).catch(e => {
+    fsWriteTodo(updated).then(() => {
+      console.log("[DEBUG] fsWriteTodo 성공", { id, st: updated.st });
+    }).catch(e => {
+      console.warn("[DEBUG] fsWriteTodo 실패:", e?.code, e?.message, e);
       console.warn("[SYNC] updTodo 실패:", e);
       flash("저장 실패", "err");
     });
