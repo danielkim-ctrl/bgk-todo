@@ -108,7 +108,6 @@ export function useUserSettings() {
 
   // ── 사용자별 UI 순서/설정 (Firestore 동기화로 기기 무관하게 사람 기준 유지) ─
   const [userSettings, setUserSettings] = useState<Record<string, {
-    kanbanOrder: number[];
     sidebarOrder: number[];
     starredIds: number[];
     hiddenProjects: number[];
@@ -122,7 +121,7 @@ export function useUserSettings() {
       const hp = JSON.parse(localStorage.getItem(`hidden-projects-${u}`) || "null");
       const hm = JSON.parse(localStorage.getItem(`hidden-members-${u}`) || "null");
       if (hp !== null || hm !== null) {
-        return { [u]: { kanbanOrder: [], sidebarOrder: [], starredIds: [], hiddenProjects: hp ?? [], hiddenMembers: hm ?? [] } };
+        return { [u]: { sidebarOrder: [], starredIds: [], hiddenProjects: hp ?? [], hiddenMembers: hm ?? [] } };
       }
     } catch {}
     return {};

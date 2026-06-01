@@ -9,7 +9,8 @@ export const S = {
   wrap:{fontFamily:"'Pretendard', system-ui, sans-serif",background:"#f0f4f8",minHeight:"100vh",fontSize:13,color:"#1a2332",lineHeight:1.5},
   hdr:{background:"#172f5a",color:"#fff",padding:"0 24px",height:52,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky" as const,top:0,zIndex:100,boxShadow:"0 1px 4px rgba(23,47,90,.12)"},
   nav:{background:"#fff",borderBottom:"1px solid #e2e8f0",padding:"0 24px",display:"flex",gap:4,position:"sticky" as const,top:52,zIndex:99,height:40},
-  main:{padding:"16px 24px",maxWidth:1400,margin:"0 auto"},
+  // padding을 개별 속성으로 분리 — 모바일에서 paddingBottom만 덮어쓸 때 축약형/개별 혼용 경고 방지
+  main:{paddingTop:16,paddingRight:24,paddingBottom:16,paddingLeft:24,maxWidth:1400,margin:"0 auto"},
 
   // ── 내비 탭 ──────────────────────────────────────────────────────
   navB:(a: boolean)=>({padding:"8px 16px",fontSize:12,fontWeight:a?600:400,color:a?"#2563eb":"#64748b",background:a?"#eff6ff":"none",border:"none",borderBottom:a?"2px solid #2563eb":"2px solid transparent",cursor:"pointer",display:"inline-flex" as const,alignItems:"center" as const,gap:4,transition:T}),

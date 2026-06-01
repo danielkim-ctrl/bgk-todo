@@ -19,8 +19,6 @@ interface KanbanViewProps {
   setKbFWho: (v: string[]) => void;
   members: string[];
   visibleProj: any[];
-  kanbanOrder: number[];
-  setKanbanOrder: (order: number[]) => void;
   kbInsert: {beforeId: number|null; st: string}|null;
   setKbInsert: (v: {beforeId: number|null; st: string}|null) => void;
   dragId: number|null;
@@ -29,6 +27,7 @@ interface KanbanViewProps {
   setDragOver: (v: string|null) => void;
   gPr: (pid: number) => any;
   updTodo: (id: number, updates: any) => void;
+  reorderTodo: (dragId: number, beforeId: number|null, extra?: any) => void;
   setEditMod: (v: any) => void;
   setDetMod: (v: any) => void;
   flash: (msg: string, type?: string) => void;
@@ -39,9 +38,9 @@ interface KanbanViewProps {
 export function KanbanView({
   todos, stats, pris, priC, priBg, stC, stBg,
   kbF, setKbF, kbFWho, setKbFWho, members, visibleProj,
-  kanbanOrder, setKanbanOrder, kbInsert, setKbInsert,
+  kbInsert, setKbInsert,
   dragId, setDragId, dragOver, setDragOver,
-  gPr, updTodo, setEditMod, setDetMod, flash,
+  gPr, updTodo, reorderTodo, setEditMod, setDetMod, flash,
   isMobile,
 }: KanbanViewProps) {
   // ── 모바일: 탭 전환 방식의 1컬럼 칸반 렌더링 ─────────────────────────────────
@@ -118,21 +117,18 @@ export function KanbanView({
     {/* 칸반 보드 */}
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(260px, 1fr))",gap:12,alignItems:"start"}}>
       {stats.map(st=>{
-        // kanbanOrder 기준으로 카드 정렬
+        // todo.order 기준으로 카드 정렬 — 리스트뷰와 동일 (order 없으면 id 폴백). 팀 공유 순서.
         const raw=todos.filter(t=>t.st===st&&(!kbF.length||kbF.includes(String(t.pid)))&&(!kbFWho.length||(t.who||[]).some((w: string)=>kbFWho.includes(w))));
-        const items=(()=>{
-          if(!kanbanOrder.length) return raw;
-          const idx=new Map(kanbanOrder.map((id,i)=>[id,i]));
-          return [...raw].sort((a,b)=>(idx.has(a.id)?idx.get(a.id)!:9999)-(idx.has(b.id)?idx.get(b.id)!:9999));
-        })();
+        const items=[...raw].sort((a,b)=>(a.order ?? a.id*1000)-(b.order ?? b.id*1000));
         const isOver=dragOver===st;
         return <div key={st} style={{borderRadius:10,overflow:"hidden",boxShadow:"0 1px 3px rgba(0,0,0,.08)",border:"1px solid #e2e8f0"}}
           onDragOver={e=>{
             e.preventDefault();
             // 카드 위가 아닌 컬럼 빈 영역 → 맨 끝 삽입
             if(!(e.target as HTMLElement).closest('[data-kbcard]')){
-              setDragOver(st);
-              setKbInsert({beforeId:null,st});
+              // 같은 값이면 setState 호출 건너뛰어 800+ 카드 리렌더링 폭증 차단
+              if (dragOver !== st) setDragOver(st);
+              if (!(kbInsert?.beforeId === null && kbInsert?.st === st)) setKbInsert({beforeId:null,st});
             }
           }}
           onDragLeave={e=>{if(!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)){setDragOver(null);setKbInsert(null);}}}
@@ -140,25 +136,13 @@ export function KanbanView({
             e.preventDefault();
             if(dragId){
               const dt=todos.find(t=>t.id===dragId);
-              // ① 항상 드롭된 컬럼의 st 사용 (kbInsert.st는 다른 컬럼에서 온 stale 값일 수 있음)
-              updTodo(dragId,{st});
-              // kanbanOrder 업데이트
-              const allIds=todos.map(t=>t.id);
-              const base=[...new Set([...kanbanOrder.filter(id=>allIds.includes(id)),...allIds])];
-              const fromIdx=base.indexOf(dragId);
-              if(fromIdx>=0) base.splice(fromIdx,1);
-              // ② beforeId가 dragId 자신이면 무시 (self-reference 방지)
-              const safeBeforeId=kbInsert?.st===st&&kbInsert?.beforeId!=null&&kbInsert.beforeId!==dragId
-                ?kbInsert.beforeId:null;
-              if(safeBeforeId!=null){
-                // 지정 카드 앞에 삽입
-                const toIdx=base.indexOf(safeBeforeId);
-                if(toIdx>=0) base.splice(toIdx,0,dragId); else base.push(dragId);
-              } else {
-                base.push(dragId);
-              }
-              setKanbanOrder(base);
-              if(dt?.st!==st) flash(`'${dt?.task||"업무"}'를 '${st}'으로 이동했습니다`);
+              // 같은 컬럼의 삽입 위치만 유효 — 다른 컬럼의 stale kbInsert 무시, 자기 자신 앞 삽입 방지
+              // beforeId=null이면 컬럼 맨 끝(order 맨 뒤)에 배치
+              const beforeId=kbInsert?.st===st&&kbInsert?.beforeId!==dragId ? kbInsert.beforeId : null;
+              // todo.order 갱신으로 순서 저장 (리스트뷰와 동일 메커니즘 — 새로고침/기기간 유지).
+              // 컬럼(상태)이 바뀌면 {st}도 함께 넘겨 한 번의 쓰기로 처리.
+              reorderTodo(dragId, beforeId, dt && dt.st!==st ? {st} : {});
+              if(dt && dt.st!==st) flash(`'${dt.task||"업무"}'를 '${st}'으로 이동했습니다`);
             }
             setDragId(null);setDragOver(null);setKbInsert(null);document.body.style.cursor="";
           }}>
@@ -186,14 +170,15 @@ export function KanbanView({
                       onDragEnd={()=>{setDragId(null);setDragOver(null);setKbInsert(null);document.body.style.cursor="";}}
                       onDragOver={e=>{
                         e.preventDefault();e.stopPropagation();
-                        setDragOver(st);
+                        if (dragOver !== st) setDragOver(st);
                         const rect=(e.currentTarget as HTMLElement).getBoundingClientRect();
                         // 카드 상반부 → 이 카드 앞에, 하반부 → 다음 카드 앞에 삽입
-                        if(e.clientY<rect.top+rect.height/2){
-                          setKbInsert({beforeId:t.id,st});
-                        } else {
-                          const next=items[cardIdx+1];
-                          setKbInsert({beforeId:next?.id??null,st});
+                        const targetBefore = e.clientY < rect.top + rect.height/2
+                          ? t.id
+                          : (items[cardIdx+1]?.id ?? null);
+                        // 같은 값이면 setState 건너뛰기 — 800+ 카드 리렌더링 폭증 차단
+                        if (!(kbInsert?.beforeId === targetBefore && kbInsert?.st === st)) {
+                          setKbInsert({beforeId: targetBefore, st});
                         }
                       }}
                       onClick={()=>setDetMod(t)}

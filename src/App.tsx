@@ -194,12 +194,7 @@ export default function App() {
   const [calSidebarAddTitle, setCalSidebarAddTitle] = useState("");
   // 칸반 삽입 위치 (beforeId: 해당 카드 앞에 삽입, null = 컬럼 맨 끝)
   const [kbInsert, setKbInsert] = useState<{beforeId:number|null,st:string}|null>(null);
-  // 칸반 카드 순서 — userSettings 기반 (Firestore 동기화)
-  const kanbanOrder: number[] = currentUser ? (userSettings[currentUser]?.kanbanOrder ?? []) : [];
-  const setKanbanOrder = (order: number[]) => {
-    if (!currentUser) return;
-    setUserSettings((prev: any) => ({ ...prev, [currentUser]: { ...prev[currentUser], kanbanOrder: order } }));
-  };
+  // 칸반 카드 순서는 todo.order 필드로 관리 (리스트뷰와 동일, 팀 공유) — reorderTodo 사용
   // ── 사이드바 인터랙션 상태 ──────────────────────────────────────
   const [pendingComplete, setPendingComplete] = useState<Set<number>>(new Set()); // 완료 애니메이션 중인 ID
   // 완료 애니메이션 타이머 — 탭 전환/언마운트 시 메모리 누수 방지용 cleanup 대상
@@ -573,11 +568,10 @@ export default function App() {
         todos={todos} stats={stats} pris={pris} priC={priC} priBg={priBg} stC={stC} stBg={stBg}
         kbF={kbF} setKbF={setKbF} kbFWho={kbFWho} setKbFWho={setKbFWho}
         members={teamMembers} visibleProj={visibleProj}
-        kanbanOrder={kanbanOrder} setKanbanOrder={setKanbanOrder}
         kbInsert={kbInsert} setKbInsert={setKbInsert}
         dragId={dragId} setDragId={setDragId}
         dragOver={dragOver} setDragOver={setDragOver}
-        gPr={gPr} updTodo={updTodo} setEditMod={setEditMod} setDetMod={setDetMod} flash={flash}
+        gPr={gPr} updTodo={updTodo} reorderTodo={reorderTodo} setEditMod={setEditMod} setDetMod={setDetMod} flash={flash}
         isMobile={isMobile}
       />}
 

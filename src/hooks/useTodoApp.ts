@@ -57,6 +57,14 @@ export function useTodoApp() {
     savedFilters, setSavedFilters, saveCurrentFilter, deleteSavedFilter,
   } = userSets;
 
+  // currentUser를 항상 최신으로 추적하는 ref.
+  // subscribeMeta 등 mount 시 1회만 등록되는 구독 콜백은 빈 deps([])라
+  // currentUser를 클로저로 잡으면 로그인 전 stale 값(빈 값)에 고정된다.
+  // 그 결과 applyData의 "현재 사용자 설정(selectedTeamId/sidebarOrder) 로컬 우선" 보호가
+  // 절대 매칭되지 않아 서버 echo로 되돌아가는 버그가 발생 → ref로 항상 실제 로그인 사용자를 본다.
+  const currentUserRef = useRef(currentUser);
+  currentUserRef.current = currentUser;
+
   const guard = () => { pendingWrite.current = true; };
 
   // ── 전체 앱 상태 스냅샷 기반 Undo/Redo ────────────────────────────────────
@@ -452,7 +460,7 @@ export function useTodoApp() {
     if (d.tplNId) setTplNId(d.tplNId);
     if (d.userSettings) {
       // hiddenProjects/hiddenMembers는 별도 hidden 문서가 source of truth
-      // meta에서 오는 userSettings는 hidden 필드를 덮어쓰지 않도록 보존
+      // 현재 사용자의 selectedTeamId/sidebarOrder도 로컬 우선 — meta echo로 되돌아가는 race 차단
       setUserSettings(prev => {
         const next: any = { ...d.userSettings };
         for (const uid of Object.keys(next)) {
@@ -462,8 +470,13 @@ export function useTodoApp() {
             ...next[uid],
             hiddenProjects: local.hiddenProjects ?? next[uid].hiddenProjects ?? [],
             hiddenMembers: local.hiddenMembers ?? next[uid].hiddenMembers ?? [],
-            // selectedTeamId는 현재 사용자만 로컬 우선
-            ...(uid === currentUser ? { selectedTeamId: local.selectedTeamId } : {}),
+            // 현재 사용자: selectedTeamId/sidebarOrder는 로컬이 항상 최신 (drag-drop reorder 보호)
+            // currentUserRef 사용 — 이 콜백은 mount 시 stale currentUser를 잡으므로 ref로 실제 로그인 사용자 비교
+            // (칸반 순서는 todo.order 필드로 이전됨 — 더 이상 userSettings에 저장하지 않음)
+            ...(uid === currentUserRef.current ? {
+              selectedTeamId: local.selectedTeamId,
+              sidebarOrder: local.sidebarOrder?.length ? local.sidebarOrder : (next[uid].sidebarOrder ?? []),
+            } : {}),
           };
         }
         return next;
@@ -541,8 +554,6 @@ export function useTodoApp() {
     unsubs.push(subscribeTodos((todos) => {
       if (cancelled) return;
       const fixed = normalizeTodos(todos);
-      // [DEBUG-KANBAN]
-      console.log("[DEBUG] subscribeTodos snapshot", { count: fixed.length, sample_first_3: fixed.slice(0, 3).map(t => ({ id: t.id, st: t.st, teamId: t.teamId })) });
       setTodos(fixed);
       const maxId = fixed.reduce((m: number, t: any) => (t.id > m ? t.id : m), 0);
       if (maxId >= nIdRef.current) {
@@ -570,7 +581,7 @@ export function useTodoApp() {
           // 자기 자신의 echo는 무시 — 로컬 state가 이미 최신
           if (e._clientId === clientId.current) continue;
           next[uid] = {
-            ...(next[uid] || { kanbanOrder: [], sidebarOrder: [], starredIds: [], hiddenProjects: [], hiddenMembers: [] }),
+            ...(next[uid] || { sidebarOrder: [], starredIds: [], hiddenProjects: [], hiddenMembers: [] }),
             hiddenProjects: e.hiddenProjects ?? [],
             hiddenMembers: e.hiddenMembers ?? [],
           };
@@ -674,7 +685,7 @@ export function useTodoApp() {
       setUserSettings(prev => ({
         ...prev,
         [currentUser]: {
-          ...(prev[currentUser] || { kanbanOrder: [], sidebarOrder: [], starredIds: [], hiddenProjects: [], hiddenMembers: [] }),
+          ...(prev[currentUser] || { sidebarOrder: [], starredIds: [], hiddenProjects: [], hiddenMembers: [] }),
           selectedTeamId: id,
         },
       }));
@@ -907,17 +918,11 @@ export function useTodoApp() {
       updated = n as Todo;
     }
 
-    // [DEBUG-KANBAN] 드래그 디버그용
-    console.log("[DEBUG] updTodo 호출", { id, u, before_st: t.st, after_st: updated.st, teamId: updated.teamId });
-
     // 로컬 state 업데이트 (히스토리 포함)
     setTodosWithHistory((p: Todo[]) => p.map(x => x.id === id ? updated : x));
 
     // Firestore 서브컬렉션 개별 문서 업데이트 — 즉시 호출되므로 race 없음
-    fsWriteTodo(updated).then(() => {
-      console.log("[DEBUG] fsWriteTodo 성공", { id, st: updated.st });
-    }).catch(e => {
-      console.warn("[DEBUG] fsWriteTodo 실패:", e?.code, e?.message, e);
+    fsWriteTodo(updated).catch(e => {
       console.warn("[SYNC] updTodo 실패:", e);
       flash("저장 실패", "err");
     });
@@ -1023,9 +1028,10 @@ export function useTodoApp() {
     flash(`'${entry.task}' 업무가 복원되었습니다`);
   };
 
-  // 리스트뷰 드래그 정렬 — 드래그된 업무의 order 가중치만 갱신해 Firestore 동기화
+  // 드래그 정렬 — 드래그된 업무의 order 가중치만 갱신해 Firestore 동기화
   // (todos 배열 자체 reorder가 아니라 order 필드 갱신 — 새로고침/타 기기에서도 같은 순서 유지)
-  const reorderTodo = (dragId: number, beforeId: number | null) => {
+  // extra: 칸반에서 컬럼(상태)이 바뀌면 {st} 를 함께 넘겨 한 번의 쓰기로 처리
+  const reorderTodo = (dragId: number, beforeId: number | null, extra: Partial<Todo> = {}) => {
     const dragged = todos.find(t => t.id === dragId);
     if (!dragged) return;
     // 현재 sort된 순서 (order 가중치 기반, 없으면 id 폴백)
@@ -1042,7 +1048,7 @@ export function useTodoApp() {
     else if (prevOrder !== null) newOrder = prevOrder + 1000;
     else if (nextOrder !== null) newOrder = nextOrder - 1000;
     else newOrder = Date.now();
-    const updated: Todo = { ...dragged, order: newOrder };
+    const updated: Todo = { ...dragged, ...extra, order: newOrder };
     setTodosWithHistory((p: Todo[]) => p.map(t => t.id === dragId ? updated : t));
     fsWriteTodo(updated).catch(e => { console.warn("[SYNC] reorderTodo 실패:", e); flash("순서 저장 실패", "err"); });
   };
